@@ -1,0 +1,607 @@
+import {
+  ApiEnvelope,
+  Employee,
+  AuthSession,
+  AuthUser,
+  CalendarOrder,
+  Category,
+  Customer,
+  Menu,
+  Order,
+  OrderReports,
+  OrderStats,
+  PaymentMode,
+  OrderStatus,
+  PaginatedEmployees,
+  PaginatedCategories,
+  PaginatedMenus,
+  PaginatedOrders,
+  PaginatedRestaurants,
+  Restaurant,
+  RestaurantStats,
+} from './types';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  const payload = (await response.json()) as ApiEnvelope<T>;
+
+  if (!response.ok || !payload.success) {
+    const message =
+      typeof payload.message === 'string'
+        ? payload.message
+        : 'Request failed';
+    throw new Error(message);
+  }
+
+  return payload.data;
+}
+
+export async function loginRequest(email: string, password: string) {
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  return parseResponse<AuthSession>(response);
+}
+
+export async function changePasswordRequest(
+  accessToken: string,
+  currentPassword: string,
+  newPassword: string,
+) {
+  const response = await fetch(`${API_URL}/auth/change-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  return parseResponse<AuthSession>(response);
+}
+
+export async function fetchProfile(accessToken: string) {
+  const response = await fetch(`${API_URL}/auth/me`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  return parseResponse<AuthUser>(response);
+}
+
+async function authorizedRequest<T>(
+  path: string,
+  accessToken: string,
+  init?: RequestInit,
+) {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  return parseResponse<T>(response);
+}
+
+export async function fetchRestaurants(
+  accessToken: string,
+  params: { page: number; limit: number; search: string },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  return authorizedRequest<PaginatedRestaurants>(
+    `/restaurants?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchRestaurantById(accessToken: string, restaurantId: string) {
+  return authorizedRequest<Restaurant>(`/restaurants/${restaurantId}`, accessToken);
+}
+
+export async function createRestaurant(
+  accessToken: string,
+  payload: Omit<Restaurant, 'id' | 'createdAt' | 'updatedAt'>,
+) {
+  return authorizedRequest<{ restaurant: Restaurant }>('/restaurants', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateRestaurant(
+  accessToken: string,
+  restaurantId: string,
+  payload: Omit<Restaurant, 'id' | 'createdAt' | 'updatedAt'>,
+) {
+  return authorizedRequest<Restaurant>(
+    `/restaurants/${restaurantId}`,
+    accessToken,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteRestaurant(accessToken: string, restaurantId: string) {
+  return authorizedRequest<null>(`/restaurants/${restaurantId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function activateRestaurant(
+  accessToken: string,
+  restaurantId: string,
+  endDate: string,
+  notes?: string,
+) {
+  return authorizedRequest<Restaurant>(
+    `/restaurants/${restaurantId}/activate`,
+    accessToken,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ endDate, notes }),
+    },
+  );
+}
+
+export async function deactivateRestaurant(accessToken: string, restaurantId: string) {
+  return authorizedRequest<Restaurant>(
+    `/restaurants/${restaurantId}/deactivate`,
+    accessToken,
+    { method: 'PATCH' },
+  );
+}
+
+export async function fetchEmployees(
+  accessToken: string,
+  params: { page: number; limit: number; search: string },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  return authorizedRequest<PaginatedEmployees>(
+    `/employees?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function createEmployee(
+  accessToken: string,
+  payload: Pick<Employee, 'firstName' | 'lastName' | 'email' | 'contactNo' | 'designation'> & {
+    password: string;
+  },
+) {
+  return authorizedRequest<Employee>('/employees', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateEmployee(
+  accessToken: string,
+  employeeId: string,
+  payload: Pick<
+    Employee,
+    'firstName' | 'lastName' | 'email' | 'contactNo' | 'designation' | 'isActive'
+  >,
+) {
+  return authorizedRequest<Employee>(`/employees/${employeeId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteEmployee(accessToken: string, employeeId: string) {
+  return authorizedRequest<null>(`/employees/${employeeId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchCategories(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search: string;
+    restaurantId?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.restaurantId?.trim()) {
+    query.set('restaurantId', params.restaurantId.trim());
+  }
+
+  return authorizedRequest<PaginatedCategories>(
+    `/categories?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function createCategory(
+  accessToken: string,
+  payload: {
+    name: string;
+    pricePerPlate: number;
+    description: string | null;
+    menuRules: Array<{
+      menuId: string;
+      sectionTitle: string;
+      allowedItems: string[];
+      selectionLimit: number;
+    }>;
+    restaurantId?: string;
+  },
+) {
+  return authorizedRequest<Category>('/categories', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCategory(
+  accessToken: string,
+  categoryId: string,
+  payload: {
+    name: string;
+    pricePerPlate: number;
+    description: string | null;
+    menuRules: Array<{
+      menuId: string;
+      sectionTitle: string;
+      allowedItems: string[];
+      selectionLimit: number;
+    }>;
+  },
+) {
+  return authorizedRequest<Category>(`/categories/${categoryId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCategory(accessToken: string, categoryId: string) {
+  return authorizedRequest<null>(`/categories/${categoryId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchMenus(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search: string;
+    categoryId?: string;
+    restaurantId?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.categoryId?.trim()) {
+    query.set('categoryId', params.categoryId.trim());
+  }
+
+  if (params.restaurantId?.trim()) {
+    query.set('restaurantId', params.restaurantId.trim());
+  }
+
+  return authorizedRequest<PaginatedMenus>(
+    `/menus?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function createMenu(
+  accessToken: string,
+  payload: Pick<Menu, 'title' | 'sections'> & {
+    categoryId?: string;
+    restaurantId?: string;
+  },
+) {
+  return authorizedRequest<Menu>('/menus', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMenu(
+  accessToken: string,
+  menuId: string,
+  payload: Pick<Menu, 'title' | 'sections'> & {
+    categoryId?: string;
+  },
+) {
+  return authorizedRequest<Menu>(`/menus/${menuId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteMenu(accessToken: string, menuId: string) {
+  return authorizedRequest<null>(`/menus/${menuId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function lookupCustomerByPhone(accessToken: string, phone: string) {
+  const query = new URLSearchParams({ phone });
+  return authorizedRequest<Customer | null>(
+    `/customers/lookup?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchOrders(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search: string;
+    status: string;
+    eventType?: string;
+    functionName?: string;
+    from?: string;
+    to?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.status.trim()) {
+    query.set('status', params.status.trim());
+  }
+
+  if (params.eventType?.trim()) {
+    query.set('eventType', params.eventType.trim());
+  }
+
+  if (params.functionName?.trim()) {
+    query.set('functionName', params.functionName.trim());
+  }
+
+  if (params.from?.trim()) {
+    query.set('from', params.from.trim());
+  }
+
+  if (params.to?.trim()) {
+    query.set('to', params.to.trim());
+  }
+
+  return authorizedRequest<PaginatedOrders>(`/orders?${query.toString()}`, accessToken);
+}
+
+export async function fetchCalendarOrders(
+  accessToken: string,
+  params: { from: string; to: string },
+) {
+  const query = new URLSearchParams({
+    from: params.from,
+    to: params.to,
+  });
+
+  return authorizedRequest<CalendarOrder[]>(
+    `/orders/calendar?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchOrderById(accessToken: string, orderId: string) {
+  return authorizedRequest<Order>(`/orders/${orderId}`, accessToken);
+}
+
+export async function fetchOrderPrint(accessToken: string, orderId: string) {
+  return authorizedRequest<Order>(`/orders/${orderId}/print`, accessToken);
+}
+
+export async function createOrder(
+  accessToken: string,
+  payload: {
+    customer: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email?: string;
+    };
+    status?: 'INQUIRY' | 'CONFIRMED';
+    pax?: number;
+    eventType?: string;
+    functionName?: string;
+    eventDate?: string;
+    inquiryDate?: string;
+    startTime?: string;
+    endTime?: string;
+    categoryId?: string;
+    customPricePerPlate?: number;
+    selectedMenus?: Array<{
+      menuId: string;
+      sections: Array<{
+        sectionTitle: string;
+        items: string[];
+      }>;
+    }>;
+    extrasTotal?: number;
+    discountAmount?: number;
+    advanceAmount?: number;
+    paymentMode?: PaymentMode;
+    notes?: string;
+    jainSwaminarayanPax?: number;
+    jainSwaminarayanDetails?: string;
+    seatingRequired?: number;
+    serviceSlot?: string;
+    hallDetails?: string;
+    referenceBy?: string;
+    additionalInformation?: string;
+  },
+) {
+  return authorizedRequest<Order>('/orders', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOrder(
+  accessToken: string,
+  orderId: string,
+  payload: {
+    customer?: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      email?: string;
+    };
+    status?: OrderStatus;
+    pax?: number;
+    eventType?: string;
+    functionName?: string;
+    eventDate?: string;
+    inquiryDate?: string;
+    startTime?: string;
+    endTime?: string;
+    categoryId?: string;
+    customPricePerPlate?: number;
+    selectedMenus?: Array<{
+      menuId: string;
+      sections: Array<{
+        sectionTitle: string;
+        items: string[];
+      }>;
+    }>;
+    extrasTotal?: number;
+    discountAmount?: number;
+    advanceAmount?: number;
+    paymentMode?: PaymentMode;
+    notes?: string;
+    jainSwaminarayanPax?: number;
+    jainSwaminarayanDetails?: string;
+    seatingRequired?: number;
+    serviceSlot?: string;
+    hallDetails?: string;
+    referenceBy?: string;
+    additionalInformation?: string;
+  },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteOrder(accessToken: string, orderId: string) {
+  return authorizedRequest<null>(`/orders/${orderId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function confirmInquiry(
+  accessToken: string,
+  orderId: string,
+  payload: {
+    advanceAmount?: number;
+    paymentMode?: PaymentMode;
+    extrasTotal?: number;
+    discountAmount?: number;
+  },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/confirm`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelOrder(
+  accessToken: string,
+  orderId: string,
+  payload?: { reason?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/cancel`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload ?? {}),
+  });
+}
+
+export async function addOrderFollowUp(
+  accessToken: string,
+  orderId: string,
+  payload: { note: string; date?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/follow-ups`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function forgotPasswordRequest(email: string) {
+  const response = await fetch(`${API_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return parseResponse<null>(response);
+}
+
+export async function resetPasswordWithTokenRequest(token: string, newPassword: string) {
+  const response = await fetch(`${API_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword }),
+  });
+  return parseResponse<null>(response);
+}
+
+export async function fetchRestaurantStats(accessToken: string) {
+  return authorizedRequest<RestaurantStats>('/restaurants/stats', accessToken);
+}
+
+export async function fetchOrderStats(accessToken: string) {
+  return authorizedRequest<OrderStats>('/orders/stats', accessToken);
+}
+
+export async function fetchOrderReports(accessToken: string) {
+  return authorizedRequest<OrderReports>('/orders/reports', accessToken);
+}

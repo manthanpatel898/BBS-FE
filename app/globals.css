@@ -1,0 +1,423 @@
+@import "tailwindcss";
+
+/* =============================================
+   DESIGN SYSTEM — ZenBooking
+   ============================================= */
+
+:root {
+  /* ── Primary Palette ── */
+  --zb-primary:          #f6ad1c;
+  --zb-primary-light:    #fde68a;
+  --zb-primary-dark:     #d97706;
+  --zb-primary-glow:     rgba(246, 173, 28, 0.32);
+
+  /* ── Accent Palette ── */
+  --zb-blue:             #3b82f6;
+  --zb-blue-soft:        #eff6ff;
+  --zb-purple:           #8b5cf6;
+  --zb-purple-soft:      #f5f3ff;
+  --zb-emerald:          #10b981;
+  --zb-emerald-soft:     #ecfdf5;
+  --zb-rose:             #f43f5e;
+  --zb-rose-soft:        #fff1f2;
+
+  /* ── Surface ── */
+  --zb-surface:          #ffffff;
+  --zb-surface-warm:     #fffef9;
+  --zb-surface-2:        #f8fafc;
+  --zb-surface-3:        #f1f5f9;
+
+  /* ── Text ── */
+  --zb-text:             #0f172a;
+  --zb-text-soft:        #475569;
+  --zb-text-muted:       #94a3b8;
+
+  /* ── Border ── */
+  --zb-border:           rgba(148, 163, 184, 0.2);
+  --zb-border-white:     rgba(255, 255, 255, 0.8);
+
+  /* ── Shadows ── */
+  --zb-shadow-xs:        0 2px 8px  rgba(148, 163, 184, 0.10);
+  --zb-shadow-sm:        0 4px 16px rgba(148, 163, 184, 0.13);
+  --zb-shadow-md:        0 8px 32px rgba(148, 163, 184, 0.16);
+  --zb-shadow-lg:        0 20px 56px rgba(148, 163, 184, 0.20);
+  --zb-shadow-xl:        0 32px 80px rgba(148, 163, 184, 0.24);
+  --zb-shadow-golden:    0 12px 40px rgba(246, 173, 28, 0.42);
+  --zb-shadow-golden-sm: 0 6px 20px  rgba(246, 173, 28, 0.28);
+
+  /* ── Radius ── */
+  --zb-radius-sm:  12px;
+  --zb-radius-md:  16px;
+  --zb-radius-lg:  24px;
+  --zb-radius-xl:  32px;
+  --zb-radius-2xl: 40px;
+  --zb-radius-full:9999px;
+
+  /* ── Typography ── */
+  --zb-font: "Avenir Next", "SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ── Legacy (kept for app pages) ── */
+  --bg:       #0f172a;
+  --ink:      #0e172a;
+  --ink-soft: #bfcae6;
+  --line:     rgba(255, 255, 255, 0.18);
+  --glass:    linear-gradient(150deg, rgba(9, 15, 29, 0.74), rgba(18, 27, 49, 0.58));
+  --panel:    rgba(7, 12, 24, 0.72);
+  --accent:   #f6ad1c;
+}
+
+/* =============================================
+   BASE
+   ============================================= */
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+@layer base {
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: #f4f6ff;
+    font-family: var(--zb-font);
+  }
+
+  a { color: inherit; text-decoration: none; }
+}
+
+/* =============================================
+   KEYFRAME ANIMATIONS
+   ============================================= */
+
+@keyframes zbFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-14px); }
+}
+
+@keyframes zbFloatAlt {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(10px) rotate(1.5deg); }
+}
+
+@keyframes zbFadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes zbFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes zbScaleIn {
+  from { opacity: 0; transform: scale(0.90); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes zbGradientShift {
+  0%, 100% { background-position: 0%   50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+@keyframes zbOrbPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.55; }
+  50%       { transform: scale(1.22); opacity: 0.85; }
+}
+
+@keyframes zbOrbPulseSlow {
+  0%, 100% { transform: scale(1);    opacity: 0.38; }
+  50%       { transform: scale(1.32); opacity: 0.68; }
+}
+
+@keyframes zbShimmer {
+  0%   { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%)  skewX(-15deg); }
+}
+
+@keyframes zbMarquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes zbPing {
+  0%        { transform: scale(1);   opacity: 1; }
+  75%, 100% { transform: scale(1.9); opacity: 0; }
+}
+
+@keyframes zbSpinSlow {
+  from { transform: rotate(0deg);   }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes zbSlideRight {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes zbBarGrow {
+  from { width: 0%; }
+  to   { width: var(--bar-w, 75%); }
+}
+
+/* =============================================
+   ANIMATION UTILITY CLASSES
+   ============================================= */
+
+.zb-float        { animation: zbFloat      5s   ease-in-out infinite; }
+.zb-float-alt    { animation: zbFloatAlt   4s   ease-in-out infinite; }
+.zb-float-slow   { animation: zbFloat      7s   ease-in-out infinite; }
+.zb-float-d1     { animation: zbFloat      5s   ease-in-out 1s   infinite; }
+.zb-float-d2     { animation: zbFloat      5.5s ease-in-out 2s   infinite; }
+.zb-float-d3     { animation: zbFloat      6s   ease-in-out 0.5s infinite; }
+
+.zb-fade-up      { animation: zbFadeUp     0.8s ease-out          forwards; opacity: 0; }
+.zb-fade-up-1    { animation: zbFadeUp     0.8s ease-out 0.10s    forwards; opacity: 0; }
+.zb-fade-up-2    { animation: zbFadeUp     0.8s ease-out 0.25s    forwards; opacity: 0; }
+.zb-fade-up-3    { animation: zbFadeUp     0.8s ease-out 0.42s    forwards; opacity: 0; }
+.zb-fade-up-4    { animation: zbFadeUp     0.8s ease-out 0.60s    forwards; opacity: 0; }
+
+.zb-scale-in     { animation: zbScaleIn    0.7s ease-out 0.20s    forwards; opacity: 0; }
+.zb-scale-in-d1  { animation: zbScaleIn    0.7s ease-out 0.35s    forwards; opacity: 0; }
+.zb-scale-in-d2  { animation: zbScaleIn    0.7s ease-out 0.50s    forwards; opacity: 0; }
+.zb-scale-in-d3  { animation: zbScaleIn    0.7s ease-out 0.65s    forwards; opacity: 0; }
+
+.zb-orb          { animation: zbOrbPulse      5s   ease-in-out infinite; }
+.zb-orb-slow     { animation: zbOrbPulseSlow  7s   ease-in-out infinite; }
+.zb-orb-d1       { animation: zbOrbPulse      5s   ease-in-out 1.5s  infinite; }
+.zb-orb-d2       { animation: zbOrbPulseSlow  7s   ease-in-out 3s    infinite; }
+
+.zb-ping         { animation: zbPing          2s   ease-out    infinite; }
+.zb-spin-slow    { animation: zbSpinSlow      14s  linear      infinite; }
+.zb-marquee      { animation: zbMarquee       30s  linear      infinite; }
+
+/* gradient text */
+.zb-gradient-text {
+  background: linear-gradient(135deg, #f59e0b 0%, #f6ad1c 30%, #8b5cf6 70%, #3b82f6 100%);
+  background-size: 200% 200%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: zbGradientShift 5s ease infinite;
+}
+
+.zb-gradient-text-warm {
+  background: linear-gradient(120deg, #d97706 0%, #f6ad1c 55%, #f59e0b 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* shimmer overlay */
+.zb-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.zb-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent   0%,
+    rgba(255,255,255,0.55) 45%,
+    rgba(255,255,255,0.55) 55%,
+    transparent 100%
+  );
+  animation: zbShimmer 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* card lift */
+.zb-card {
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.28s ease;
+}
+.zb-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 28px 64px rgba(148, 163, 184, 0.22);
+}
+
+.zb-feature-card {
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.28s ease,
+              border-color 0.22s ease;
+}
+.zb-feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 28px 64px rgba(148, 163, 184, 0.22);
+}
+
+/* primary button */
+.zb-btn-primary {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.zb-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 48px rgba(246, 173, 28, 0.52);
+  filter: brightness(1.05);
+}
+.zb-btn-primary:active { transform: translateY(0); }
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .zb-float, .zb-float-alt, .zb-float-slow,
+  .zb-float-d1, .zb-float-d2, .zb-float-d3,
+  .zb-fade-up, .zb-fade-up-1, .zb-fade-up-2,
+  .zb-fade-up-3, .zb-fade-up-4,
+  .zb-scale-in, .zb-scale-in-d1, .zb-scale-in-d2, .zb-scale-in-d3,
+  .zb-orb, .zb-orb-slow, .zb-orb-d1, .zb-orb-d2,
+  .zb-ping, .zb-spin-slow, .zb-marquee,
+  .zb-gradient-text, .zb-shimmer::after {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    -webkit-text-fill-color: currentColor;
+    background-clip: unset;
+    -webkit-background-clip: unset;
+  }
+}
+
+/* =============================================
+   APP FORM FIELDS (dark-themed internal pages)
+   ============================================= */
+
+@layer base {
+  .app-form-field,
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
+  select,
+  textarea {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background:
+      radial-gradient(circle at 8% -40%, rgba(246, 173, 28, 0.17), transparent 52%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 10px 26px rgba(0, 0, 0, 0.28);
+    color: #f8fafc;
+    transition:
+      border-color 180ms ease,
+      box-shadow   180ms ease,
+      transform    180ms ease;
+  }
+
+  .app-form-field:hover,
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']):hover,
+  select:hover,
+  textarea:hover {
+    border-color: rgba(246, 173, 28, 0.48);
+  }
+
+  .app-form-field:focus,
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']):focus,
+  select:focus,
+  textarea:focus {
+    border-color: rgba(246, 173, 28, 0.84);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 3px rgba(246, 173, 28, 0.2),
+      0 12px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgba(248, 250, 252, 0.5);
+  }
+
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'] {
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 2.95rem;
+    letter-spacing: 0.01em;
+    padding-right: 2.8rem;
+    border-radius: 1rem;
+    background-image:
+      radial-gradient(circle at 92% 50%, rgba(246, 173, 28, 0.2), transparent 52%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator,
+  input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    opacity: 0.94;
+    cursor: pointer;
+    filter: invert(87%) sepia(41%) saturate(937%) hue-rotate(340deg) brightness(103%) contrast(92%);
+  }
+
+  input[type='date']::-webkit-datetime-edit,
+  input[type='time']::-webkit-datetime-edit,
+  input[type='datetime-local']::-webkit-datetime-edit {
+    color: #f8fafc;
+    font-weight: 500;
+  }
+
+  input[type='date']::-webkit-datetime-edit-fields-wrapper,
+  input[type='time']::-webkit-datetime-edit-fields-wrapper,
+  input[type='datetime-local']::-webkit-datetime-edit-fields-wrapper {
+    padding: 0.05rem 0;
+  }
+
+  .zen-datetime-field {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background:
+      radial-gradient(circle at 10% 0%, rgba(246, 173, 28, 0.16), transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+    color: #f8fafc;
+    border-radius: 1rem;
+    padding: 0.78rem 0.95rem;
+    min-height: 2.95rem;
+    outline: none;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  }
+  .zen-datetime-field:hover { border-color: rgba(246, 173, 28, 0.46); }
+  .zen-datetime-field:focus {
+    border-color: rgba(246, 173, 28, 0.88);
+    box-shadow: 0 0 0 3px rgba(246, 173, 28, 0.18);
+  }
+  .zen-datetime-field::-webkit-calendar-picker-indicator {
+    opacity: 0.88;
+    cursor: pointer;
+    filter: invert(90%) sepia(31%) saturate(914%) hue-rotate(344deg) brightness(106%) contrast(95%);
+  }
+
+  /* light form fields (used on light-bg pages) */
+  input.light-form-field,
+  textarea.light-form-field,
+  select.light-form-field {
+    background: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92));
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.7),
+      0 10px 24px rgba(148,163,184,0.08);
+    color: #0f172a;
+    caret-color: #0f172a;
+    -webkit-text-fill-color: #0f172a;
+  }
+  input.light-form-field::placeholder,
+  textarea.light-form-field::placeholder {
+    color: rgba(100,116,139,0.72);
+    -webkit-text-fill-color: rgba(100,116,139,0.72);
+  }
+  input.light-form-field:hover,
+  textarea.light-form-field:hover,
+  select.light-form-field:hover { border-color: rgba(246,173,28,0.4); }
+  input.light-form-field:focus,
+  textarea.light-form-field:focus,
+  select.light-form-field:focus {
+    border-color: rgba(246,173,28,0.75);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.8),
+      0 0 0 3px rgba(246,173,28,0.14),
+      0 12px 26px rgba(148,163,184,0.12);
+  }
+  input.light-form-field:-webkit-autofill,
+  input.light-form-field:-webkit-autofill:hover,
+  input.light-form-field:-webkit-autofill:focus {
+    -webkit-text-fill-color: #0f172a;
+    -webkit-box-shadow:
+      0 0 0 1000px rgba(248,250,252,0.96) inset,
+      0 12px 26px rgba(148,163,184,0.12);
+    transition: background-color 9999s ease-in-out 0s;
+  }
+}
