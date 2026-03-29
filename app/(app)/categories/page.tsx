@@ -15,6 +15,7 @@ import {
   updateCategory,
 } from '@/lib/auth/api';
 import { Category, CategoryMenuRule, Menu, Restaurant } from '@/lib/auth/types';
+import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
 type CategoryFormState = {
   name: string;
@@ -207,7 +208,7 @@ export default function CategoriesPage() {
           menuTitle: menu.title,
           sectionTitle,
           allowedItems: [],
-          selectionLimit: 1,
+          selectionLimit: 0,
         },
       ],
     }));
@@ -232,7 +233,7 @@ export default function CategoriesPage() {
           menuTitle: menu.title,
           sectionTitle,
           allowedItems: [],
-          selectionLimit: 1,
+          selectionLimit: 0,
         },
       ],
     }));
@@ -245,7 +246,7 @@ export default function CategoriesPage() {
     nextValue: string,
     maxAvailableItems: number,
   ) {
-    const parsed = Math.max(1, Number(nextValue) || 1);
+    const parsed = nextValue === '' ? 0 : Math.min(Math.max(1, Number(nextValue) || 1), maxAvailableItems);
     setFormState((current) => ({
       ...current,
       menuRules: current.menuRules.map((rule) =>
@@ -297,12 +298,12 @@ export default function CategoriesPage() {
     }
 
     const invalidRule = formState.menuRules.find(
-      (rule) => !rule.allowedItems.length || rule.selectionLimit > rule.allowedItems.length,
+      (rule) => !rule.allowedItems.length || rule.selectionLimit < 1 || rule.selectionLimit > rule.allowedItems.length,
     );
 
     if (invalidRule) {
       setError(
-        `Check the configuration for ${invalidRule.sectionTitle}. Selection limit cannot exceed allowed subitems.`,
+        `Check the configuration for ${invalidRule.sectionTitle}. Enter a selection limit between 1 and the number of allowed subitems.`,
       );
       return;
     }
@@ -514,11 +515,7 @@ export default function CategoriesPage() {
                     </td>
                   </tr>
                 ) : isLoading ? (
-                  <tr>
-                    <td className="px-5 py-8 text-center text-sm text-slate-400" colSpan={5}>
-                      Loading categories…
-                    </td>
-                  </tr>
+                  <TableLoader colSpan={5} message="Loading categories…" />
                 ) : categories.length === 0 ? (
                   <tr>
                     <td className="px-5 py-8 text-center text-sm text-slate-400" colSpan={5}>
@@ -575,9 +572,7 @@ export default function CategoriesPage() {
               Select a restaurant to view categories.
             </div>
           ) : isLoading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center text-sm text-slate-400 shadow-sm">
-              Loading categories…
-            </div>
+            <PageLoader message="Loading categories…" />
           ) : categories.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center text-sm text-slate-400 shadow-sm">
               No categories found.
@@ -787,10 +782,10 @@ export default function CategoriesPage() {
                                   Selectable Count During Booking
                                 </label>
                                 <input
-                                  type="number"
-                                  min="1"
-                                  max={section.items.length}
-                                  value={rule.selectionLimit}
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  value={rule.selectionLimit === 0 ? '' : String(rule.selectionLimit)}
                                   onChange={(event) =>
                                     updateRuleSelectionLimit(
                                       rule.menuId,
@@ -799,11 +794,14 @@ export default function CategoriesPage() {
                                       section.items.length,
                                     )
                                   }
+                                  placeholder="e.g. 2"
                                   className={`${inputCls} mt-2 max-w-32`}
                                 />
-                                <p className="mt-2 text-xs text-slate-500">
-                                  Select up to {rule.selectionLimit} option{rule.selectionLimit === 1 ? '' : 's'} during booking.
-                                </p>
+                                {rule.selectionLimit > 0 && (
+                                  <p className="mt-2 text-xs text-slate-500">
+                                    Select up to {rule.selectionLimit} option{rule.selectionLimit === 1 ? '' : 's'} during booking.
+                                  </p>
+                                )}
                               </div>
 
                               <div>

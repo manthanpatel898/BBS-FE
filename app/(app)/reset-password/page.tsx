@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
       <h2 className="mt-4 text-4xl font-semibold">First login required</h2>
       <p className="mt-4 text-base leading-7 text-[var(--ink-soft)]">
         {user
-          ? `${user.firstName}, update your temporary password before entering ZenBooking.`
+          ? `${user.firstName}, update your temporary password before entering Banquate Booking System.`
           : 'Update your password before continuing.'}
       </p>
       <form className="mt-8 space-y-5" onSubmit={handleSubmit}>

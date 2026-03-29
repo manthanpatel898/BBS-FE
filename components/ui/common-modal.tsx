@@ -21,7 +21,7 @@ export function CommonModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              ZenBooking Platform
+              Banquate Booking System
             </p>
             <h2 className="mt-2 text-2xl font-bold text-slate-900">{title}</h2>
             {description ? (

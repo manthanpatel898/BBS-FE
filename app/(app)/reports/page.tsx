@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchOrderReports } from '@/lib/auth/api';
-import { OrderReports } from '@/lib/auth/types';
+import { fetchOrderReports, fetchOrders } from '@/lib/auth/api';
+import { Order, OrderReports } from '@/lib/auth/types';
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -13,6 +12,30 @@ function formatCurrency(value: number) {
     maximumFractionDigits: 0,
   }).format(value);
 }
+
+const inputCls =
+  'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
+
+const dateInputCls = `${inputCls} [color-scheme:light] [--tw-shadow:0_0_0_1000px_white_inset] [-webkit-text-fill-color:#0f172a] [&::-webkit-datetime-edit]:text-slate-900 [&::-webkit-datetime-edit-fields-wrapper]:text-slate-900 [&::-webkit-datetime-edit-text]:text-slate-500 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80`;
+const REPORT_FIELDS_STORAGE_KEY = 'banquate_report_fields_v1';
+const REPORT_FIELDS = [
+  { key: 'eventDate', label: 'Function Date' },
+  { key: 'inquiryDate', label: 'Inquiry Date' },
+  { key: 'confirmedAt', label: 'Confirmed Date' },
+  { key: 'serviceSlot', label: 'Slot Type' },
+  { key: 'customerName', label: 'Customer Name' },
+  { key: 'mobileNo', label: 'Mobile NO' },
+  { key: 'eventType', label: 'Event Type' },
+  { key: 'hallDetails', label: 'Hall Details' },
+  { key: 'packageCategory', label: 'Package Category' },
+  { key: 'guests', label: 'Guests' },
+  { key: 'grandTotal', label: 'Grand Total' },
+  { key: 'advanceAmount', label: 'Advance Amount' },
+  { key: 'pendingAmount', label: 'Pending Amount' },
+  { key: 'bookedBy', label: 'Booked By' },
+] as const;
+
+type ReportFieldKey = (typeof REPORT_FIELDS)[number]['key'];
 
 function MetricCard({
   label,
@@ -39,6 +62,51 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<OrderReports | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [downloadFrom, setDownloadFrom] = useState(() => toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)));
+  const [downloadTo, setDownloadTo] = useState(() => toDateInputValue(new Date()));
+  const [downloadStatus, setDownloadStatus] = useState('CONFIRMED');
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
+  const [showFilteredView, setShowFilteredView] = useState(false);
+  const [selectedFields, setSelectedFields] = useState<ReportFieldKey[]>(
+    REPORT_FIELDS.map((field) => field.key),
+  );
+  const [isViewing, setIsViewing] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const storedValue = window.localStorage.getItem(REPORT_FIELDS_STORAGE_KEY);
+    if (!storedValue) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(storedValue) as ReportFieldKey[];
+      const valid = REPORT_FIELDS.map((field) => field.key).filter((key) =>
+        parsed.includes(key),
+      );
+
+      if (valid.length > 0) {
+        setSelectedFields(valid);
+      }
+    } catch {
+      // Ignore malformed stored preferences.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(
+      REPORT_FIELDS_STORAGE_KEY,
+      JSON.stringify(selectedFields),
+    );
+  }, [selectedFields]);
 
   useEffect(() => {
     if (!accessToken || user?.role !== 'company_admin') {
@@ -93,12 +161,93 @@ export default function ReportsPage() {
               Track top-selling categories, busy periods, year-on-year performance, month-on-month selling, and best-selling menu items.
             </p>
           </div>
-          <Link
-            href="/print/reports"
-            className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            Print report
-          </Link>
+        </div>
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr_220px_auto_auto]">
+          <label className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+              Start Date
+            </span>
+            <input
+              type="date"
+              value={downloadFrom}
+              onChange={(event) => setDownloadFrom(event.target.value)}
+              className={dateInputCls}
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+              End Date
+            </span>
+            <input
+              type="date"
+              value={downloadTo}
+              onChange={(event) => setDownloadTo(event.target.value)}
+              className={dateInputCls}
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+              Status
+            </span>
+            <select
+              value={downloadStatus}
+              onChange={(event) => setDownloadStatus(event.target.value)}
+              className={inputCls}
+            >
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="INQUIRY">Inquiry</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </label>
+          <div className="flex items-end">
+            <button
+              type="button"
+              disabled={isViewing}
+              onClick={() => void handleViewReport()}
+              className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+            >
+              {isViewing ? 'Loading…' : 'View report'}
+            </button>
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              disabled={isDownloading}
+              onClick={() => void handleDownloadReport()}
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+            >
+              {isDownloading ? 'Downloading…' : 'Download report'}
+            </button>
+          </div>
+        </div>
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Report Fields</p>
+              <p className="mt-1 text-sm text-slate-500">
+                Select the fields to include in both the view report and downloaded report.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+              {selectedFields.length} selected
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {REPORT_FIELDS.map((field) => (
+              <label
+                key={field.key}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedFields.includes(field.key)}
+                  onChange={() => toggleField(field.key)}
+                  className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                />
+                <span>{field.label}</span>
+              </label>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -117,6 +266,66 @@ export default function ReportsPage() {
         </div>
       ) : reports ? (
         <>
+          {showFilteredView ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Filtered Report View</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Preview bookings for the selected start date, end date, and status.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {filteredOrders.length} record{filteredOrders.length === 1 ? '' : 's'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFilteredView(false)}
+                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      {selectedFields.map((fieldKey) => (
+                        <th key={fieldKey} className="px-4 py-3 font-medium">
+                          {getReportFieldLabel(fieldKey)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.length > 0 ? (
+                      filteredOrders.map((order, index) => (
+                        <tr key={order.id} className={index > 0 ? 'border-t border-slate-200' : ''}>
+                          {selectedFields.map((fieldKey) => (
+                            <td
+                              key={`${order.id}-${fieldKey}`}
+                              className={`px-4 py-3 ${fieldKey === 'customerName' ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
+                            >
+                              {getReportFieldValue(order, fieldKey)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={Math.max(selectedFields.length, 1)} className="px-4 py-6 text-center text-slate-500">
+                          No records found for the selected filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Highest Selling Category"
@@ -289,8 +498,218 @@ export default function ReportsPage() {
               </table>
             </div>
           </section>
+
         </>
       ) : null}
     </div>
   );
+
+  async function loadFilteredOrders() {
+    if (!accessToken) {
+      throw new Error('Missing session token.');
+    }
+
+    if (!downloadFrom || !downloadTo) {
+      throw new Error('Start date and end date are required.');
+    }
+
+    if (downloadFrom > downloadTo) {
+      throw new Error('Start date cannot be later than end date.');
+    }
+
+    const allOrders: Order[] = [];
+    let nextPage = 1;
+    let totalPages = 1;
+
+    do {
+      const response = await fetchOrders(accessToken, {
+        page: nextPage,
+        limit: 100,
+        search: '',
+        status: downloadStatus,
+        from: downloadFrom,
+        to: downloadTo,
+      });
+
+      allOrders.push(...response.items);
+      totalPages = response.pagination.totalPages;
+      nextPage += 1;
+    } while (nextPage <= totalPages);
+
+    return allOrders;
+  }
+
+  async function handleViewReport() {
+    if (selectedFields.length === 0) {
+      setError('Select at least one report field.');
+      return;
+    }
+
+    try {
+      setIsViewing(true);
+      setError('');
+      const orders = await loadFilteredOrders();
+      setFilteredOrders(orders);
+      setShowFilteredView(true);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to view report.',
+      );
+    } finally {
+      setIsViewing(false);
+    }
+  }
+
+  async function handleDownloadReport() {
+    if (selectedFields.length === 0) {
+      setError('Select at least one report field.');
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      setError('');
+      const allOrders = await loadFilteredOrders();
+      setFilteredOrders(allOrders);
+
+      const headers = selectedFields.map((fieldKey) => getReportFieldLabel(fieldKey));
+      const rows = allOrders.map((order) =>
+        selectedFields.map((fieldKey) => getReportFieldValue(order, fieldKey)),
+      );
+
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `booking-report-${downloadStatus.toLowerCase()}-${downloadFrom}-to-${downloadTo}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to download report.',
+      );
+    } finally {
+      setIsDownloading(false);
+    }
+  }
+
+  function toggleField(fieldKey: ReportFieldKey) {
+    setSelectedFields((current) =>
+      current.includes(fieldKey)
+        ? current.filter((item) => item !== fieldKey)
+        : REPORT_FIELDS.map((field) => field.key).filter(
+            (item) => item === fieldKey || current.includes(item),
+          ),
+    );
+  }
+}
+
+function escapeCsvValue(value: string | number | null) {
+  const stringValue = String(value ?? '');
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function formatCsvDate(value: string | null) {
+  return value ? new Date(value).toLocaleDateString('en-IN') : '';
+}
+
+function formatTime12Hour(value: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  const [rawHour, rawMinute] = value.split(':').map(Number);
+  const suffix = rawHour >= 12 ? 'PM' : 'AM';
+  const hour = rawHour % 12 || 12;
+
+  return `${String(hour).padStart(2, '0')}:${String(rawMinute).padStart(2, '0')} ${suffix}`;
+}
+
+function formatEventDateWithTime(order: Order) {
+  const date = formatCsvDate(order.eventDate);
+  const time =
+    order.startTime && order.endTime
+      ? `${formatTime12Hour(order.startTime)} - ${formatTime12Hour(order.endTime)}`
+      : order.startTime
+        ? formatTime12Hour(order.startTime)
+        : order.endTime
+          ? formatTime12Hour(order.endTime)
+          : '';
+
+  if (date && time) {
+    return `${date} ${time}`;
+  }
+
+  return date || time || '';
+}
+
+function formatCsvDateTime(value: string | null) {
+  return value
+    ? new Intl.DateTimeFormat('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(value))
+    : '';
+}
+
+function getReportFieldLabel(fieldKey: ReportFieldKey) {
+  return REPORT_FIELDS.find((field) => field.key === fieldKey)?.label ?? fieldKey;
+}
+
+function getReportFieldValue(order: Order, fieldKey: ReportFieldKey) {
+  switch (fieldKey) {
+    case 'eventDate':
+      return formatEventDateWithTime(order);
+    case 'inquiryDate':
+      return formatCsvDateTime(order.inquiryDate);
+    case 'confirmedAt':
+      return formatCsvDateTime(order.confirmedAt);
+    case 'serviceSlot':
+      return order.serviceSlot || '-';
+    case 'customerName':
+      return [order.customer.firstName, order.customer.lastName].filter(Boolean).join(' ');
+    case 'mobileNo':
+      return order.customer.phone;
+    case 'eventType':
+      return order.eventType || '-';
+    case 'hallDetails':
+      return order.hallDetails || '-';
+    case 'packageCategory':
+      return order.categorySnapshot
+        ? `${order.categorySnapshot.name} (${formatCurrency(order.pricePerPlate)})`
+        : '-';
+    case 'guests':
+      return order.pax ?? '-';
+    case 'grandTotal':
+      return formatCurrency(order.grandTotal);
+    case 'advanceAmount':
+      return formatCurrency(order.advanceAmount);
+    case 'pendingAmount':
+      return formatCurrency(order.pendingAmount);
+    case 'bookedBy':
+      return order.bookingTakenBy || '-';
+    default:
+      return '-';
+  }
+}
+
+function toDateInputValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }

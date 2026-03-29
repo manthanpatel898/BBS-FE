@@ -155,7 +155,7 @@ export default function HomePage() {
 
             {/* Sub */}
             <p className="mt-6 max-w-[520px] text-base leading-8 text-slate-500 sm:text-lg">
-              ZenBooking gives your banquet business a precision-built workspace
+              Banquate Booking System gives your banquet business a precision-built workspace
               for leads, bookings, menus, staff, and event-day execution — all in one powerful panel.
             </p>
 
@@ -457,7 +457,7 @@ export default function HomePage() {
             <span className="zb-gradient-text">starting today</span>
           </h2>
           <p className="mx-auto mt-5 max-w-lg text-base text-slate-400">
-            Join banquet teams already using ZenBooking to streamline operations, eliminate conflicts,
+            Join banquet teams already using Banquate Booking System to streamline operations, eliminate conflicts,
             and close bookings faster than ever before.
           </p>
 

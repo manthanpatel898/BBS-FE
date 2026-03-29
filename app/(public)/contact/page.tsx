@@ -79,7 +79,7 @@ export default function ContactPage() {
           Let’s discuss your software setup.
         </h1>
         <p className="mt-5 text-base leading-8 text-slate-600">
-          This form is for ZenBooking software inquiries, product demos, implementation
+          This form is for Banquate Booking System software inquiries, product demos, implementation
           discussions, and support planning.
         </p>
 
@@ -137,7 +137,7 @@ export default function ContactPage() {
           <textarea
             value={form.message}
             onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))}
-            placeholder="Tell us what you need from ZenBooking"
+            placeholder="Tell us what you need from Banquate Booking System"
             required
             className="min-h-36 rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-white outline-none"
           />

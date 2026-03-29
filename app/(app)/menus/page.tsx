@@ -15,6 +15,7 @@ import {
   updateMenu,
 } from '@/lib/auth/api';
 import { Category, Menu, MenuSection, Restaurant } from '@/lib/auth/types';
+import { PageLoader } from '@/components/ui/page-loader';
 
 type MenuFormState = {
   sectionTitle: string;
@@ -405,9 +406,7 @@ export default function MenusPage() {
               Select a restaurant to view menus.
             </div>
           ) : isLoading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-6 text-center text-sm text-slate-400 shadow-sm">
-              Loading menus…
-            </div>
+            <PageLoader message="Loading menus…" />
           ) : menus.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-5 py-6 text-center text-sm text-slate-400 shadow-sm">
               No menus found.

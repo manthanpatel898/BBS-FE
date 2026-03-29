@@ -105,8 +105,8 @@ function ResetPasswordForm() {
               </svg>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-400">ZenBooking</p>
-              <p className="text-xs font-medium text-white/60">Banquet Operations OS</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-400">Banquate</p>
+              <p className="text-xs font-medium text-white/60">Booking System</p>
             </div>
           </div>
 
@@ -117,7 +117,7 @@ function ResetPasswordForm() {
               <span className="zb-gradient-text">new password</span>
             </h1>
             <p className="mt-3 text-sm leading-7 text-white/55">
-              Choose a password that's unique to ZenBooking and not used elsewhere.
+              Choose a password that's unique to Banquate Booking System and not used elsewhere.
             </p>
           </div>
 

@@ -1,16 +1,21 @@
+'use client';
+
 import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { PrintOrderView } from './print-order-view';
 
-export default async function PrintOrderPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ id?: string; copy?: string }>;
-}) {
-  const { id, copy } = await searchParams;
+function PrintOrderContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id') ?? undefined;
+  const copy = searchParams.get('copy') ?? undefined;
 
+  return <PrintOrderView orderId={id} copyType={copy} />;
+}
+
+export default function PrintOrderPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-stone-100" />}>
-      <PrintOrderView orderId={id} copyType={copy} />
+      <PrintOrderContent />
     </Suspense>
   );
 }

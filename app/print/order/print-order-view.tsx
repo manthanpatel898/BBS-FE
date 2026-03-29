@@ -3,15 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchOrderPrint, fetchRestaurantById } from '@/lib/auth/api';
-import { Order, Restaurant } from '@/lib/auth/types';
+import { fetchOrderPrint, fetchRestaurantById, fetchSettings } from '@/lib/auth/api';
+import { AppSettings, Order, Restaurant } from '@/lib/auth/types';
 
 type CopyType = 'company' | 'manager' | 'customer';
 
 type MenuRow = {
   key: string;
-  category: string;
-  selectedMenu: string;
+  section: string;
+  item: string;
+  showSection: boolean;
 };
 
 export function PrintOrderView({
@@ -24,6 +25,7 @@ export function PrintOrderView({
   const { accessToken } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -51,6 +53,12 @@ export function PrintOrderView({
         setError('');
         const response = await fetchOrderPrint(token, requestedOrderId);
         setOrder(response);
+        try {
+          const settingsResponse = await fetchSettings(token);
+          setSettings(settingsResponse);
+        } catch {
+          setSettings(null);
+        }
 
         if (response.restaurantId) {
           try {
@@ -89,7 +97,7 @@ export function PrintOrderView({
                 Print View
               </p>
               <h1 className="mt-2 text-3xl font-semibold">
-                {copyTitle(resolvedCopyType)}
+                Booking Summary
               </h1>
             </div>
             <button
@@ -118,6 +126,7 @@ export function PrintOrderView({
               <PrintDocument
                 order={order}
                 restaurant={restaurant}
+                settings={settings}
                 copyType={resolvedCopyType}
               />
             )
@@ -131,91 +140,77 @@ export function PrintOrderView({
 function PrintDocument({
   order,
   restaurant,
+  settings,
   copyType,
 }: {
   order: Order;
   restaurant: Restaurant | null;
+  settings: AppSettings | null;
   copyType: CopyType;
 }) {
   const menuRows = buildMenuRows(order);
+  const advanceRows = [...order.advancePayments].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+  const banquetRules = settings?.banquetRules ?? [];
 
   return (
-    <article className="mx-auto min-h-[297mm] max-w-[210mm] bg-white px-[12mm] py-[10mm] text-stone-900 shadow-sm print:min-h-0 print:max-w-none print:px-[8mm] print:py-[8mm] print:shadow-none">
-      <header className="border-b border-stone-300 pb-5">
-        <div className="flex items-start justify-between gap-6">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.4em] text-amber-700">
-              {copyTitle(copyType)}
-            </p>
-            <h1 className="mt-2 text-[28px] font-bold leading-tight text-stone-950">
-              {restaurant?.name || 'Banquate Booking System'}
-            </h1>
-            <p className="mt-1 text-sm text-stone-600">
-              {restaurant?.address || 'Professional booking and banquet summary'}
-            </p>
-          </div>
-          <div className="min-w-[190px] rounded-[20px] border border-stone-300 bg-stone-50 px-4 py-3 text-right">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-500">
-              Booking ID
-            </p>
-            <p className="mt-1 text-xl font-bold text-stone-950">{order.orderId}</p>
-            <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-500">
-              Status
-            </p>
-            <p className="mt-1 text-sm font-semibold text-stone-900">{order.status}</p>
-          </div>
-        </div>
+    <article className="mx-auto max-w-[210mm] bg-white px-[7mm] py-[6mm] text-stone-900 shadow-sm print:max-w-none print:px-[4mm] print:py-[3mm] print:text-[11px] print:shadow-none">
+      <header className="border-b border-stone-300 pb-2">
+        <h1 className="text-lg font-bold uppercase tracking-[0.28em] text-stone-950 print:text-base">
+          Booking Summary
+        </h1>
       </header>
 
-      <section className="mt-5 grid gap-3 md:grid-cols-4">
-        <HeroStat label="Event Date" value={order.eventDate ? formatLongDate(order.eventDate) : 'Pending'} />
-        <HeroStat label="Event Name" value={order.functionName || 'Pending'} />
-        <HeroStat label="Hall Details" value={order.hallDetails || 'Pending'} />
-        <HeroStat label="Guest No" value={order.pax ? String(order.pax) : 'Pending'} />
-      </section>
-
-      <section className="mt-5 grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
-        <DataTable
-          title="Inquiry Details"
+      <section className="mt-3 grid gap-3 md:grid-cols-2 print:grid-cols-2 print:gap-2">
+        <CompactTable
+          title="Event Details"
           rows={[
-            ['Customer Name', fullName(order)],
-            ['Mobile Number', order.customer.phone],
-            ['Service Slot', order.serviceSlot || 'Pending'],
+            ['Function Date and Time', formatEventDateTime(order)],
+            ['Slot Type', order.serviceSlot || 'Pending'],
             ['Event Type', order.eventType || order.functionName || 'Pending'],
-            ['Start Time', order.startTime || 'Pending'],
-            ['End Time', order.endTime || 'Pending'],
-            ['Booking Taken By', order.bookingTakenBy || 'N/A'],
-            ['Reference By', order.referenceBy || 'N/A'],
+            ['Hall NO', order.hallDetails || 'Pending'],
+            ['Customer Name', fullName(order)],
+            ['Customer Number', order.customer.phone],
+            ['Pax', order.pax ? `${order.pax} Person` : 'Pending'],
+            [
+              'Menu Category with Price',
+              order.categorySnapshot
+                ? `${order.categorySnapshot.name} (${formatCurrency(order.pricePerPlate)})`
+                : 'Pending',
+            ],
           ]}
         />
-        <DataTable
-          title="Booking Summary"
+        <CompactTable
+          title="Inquiry Notes"
           rows={[
-            ['Category', order.categorySnapshot?.name || 'Pending'],
-            ['Price Per Plate', formatCurrency(order.pricePerPlate)],
-            ['Advance Amount', formatCurrency(order.advanceAmount)],
-            ['Pending Amount', formatCurrency(order.pendingAmount)],
-            ['Payment Mode', order.paymentMode || 'Pending'],
-            ['Created On', formatLongDate(order.createdAt)],
-            ['Additional Info', order.additionalInformation || 'N/A'],
+            [
+              'Jain/Swaminarayan Person Info',
+              order.jainSwaminarayanPax ? `${order.jainSwaminarayanPax} Person` : 'N/A',
+            ],
+            ['Jain/Swaminarayan Details', order.jainSwaminarayanDetails || 'N/A'],
+            ['Seating Required', order.seatingRequired ? String(order.seatingRequired) : 'N/A'],
+            ['Additional Information', order.additionalInformation || order.notes || 'N/A'],
+            ['Reference By', order.referenceBy || 'N/A'],
+            ['Booked By', order.bookingTakenBy || 'N/A'],
           ]}
         />
       </section>
 
-      <section className="mt-5 rounded-[18px] border border-stone-300">
-        <div className="border-b border-stone-300 bg-stone-50 px-4 py-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-700">
-            Selected Menu With Category
+      <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2">
+        <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+            Selected Menu Snapshot
           </p>
         </div>
-        <table className="min-w-full border-collapse text-sm">
+        <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
           <thead className="bg-stone-100 text-stone-700">
             <tr>
-              <th className="border-b border-stone-300 px-4 py-3 text-left font-semibold">
-                Category
+              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">
+                Section
               </th>
-              <th className="border-b border-stone-300 px-4 py-3 text-left font-semibold">
-                Selected Menu
+              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">
+                Selected Items
               </th>
             </tr>
           </thead>
@@ -223,11 +218,11 @@ function PrintDocument({
             {menuRows.length > 0 ? (
               menuRows.map((row, index) => (
                 <tr key={row.key} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
-                  <td className="border-b border-stone-200 px-4 py-3 align-top font-semibold text-stone-900">
-                    {row.category}
+                  <td className="border-b border-stone-200 px-3 py-1.5 align-top font-semibold text-stone-900">
+                    {row.showSection ? row.section : ''}
                   </td>
-                  <td className="border-b border-stone-200 px-4 py-3 text-stone-700">
-                    {row.selectedMenu}
+                  <td className="border-b border-stone-200 px-3 py-1.5 text-stone-700">
+                    {row.item}
                   </td>
                 </tr>
               ))
@@ -235,7 +230,7 @@ function PrintDocument({
               <tr>
                 <td
                   colSpan={2}
-                  className="px-4 py-5 text-center text-sm text-stone-500"
+                  className="px-4 py-4 text-center text-xs text-stone-500"
                 >
                   Menu selection pending
                 </td>
@@ -245,102 +240,113 @@ function PrintDocument({
         </table>
       </section>
 
-      <section className={`mt-5 grid gap-4 ${copyType === 'company' ? 'md:grid-cols-[1.1fr_0.9fr]' : 'md:grid-cols-2'}`}>
-        <DataTable
-          title="Guest Notes"
-          rows={[
-            ['Jain/Swaminarayan Pax', order.jainSwaminarayanPax ? String(order.jainSwaminarayanPax) : 'N/A'],
-            ['Jain/Swaminarayan Details', order.jainSwaminarayanDetails || 'N/A'],
-            ['Seating Required', order.seatingRequired ? String(order.seatingRequired) : 'N/A'],
-            ['Notes', order.notes || 'N/A'],
-          ]}
-        />
-        {copyType === 'company' ? (
-          <DataTable
-            title="Financial Summary"
-            rows={[
-              ['Base Total', formatCurrency(order.baseTotal)],
-              ['Extras Total', formatCurrency(order.extrasTotal)],
-              ['Discount', formatCurrency(order.discountAmount)],
-              ['Grand Total', formatCurrency(order.grandTotal)],
-              ['Advance Amount', formatCurrency(order.advanceAmount)],
-              ['Pending Amount', formatCurrency(order.pendingAmount)],
-            ]}
-            emphasizedRows={['Grand Total', 'Pending Amount']}
-          />
-        ) : copyType === 'customer' ? (
-          <DataTable
-            title="Payment Summary"
-            rows={[
-              ['Category', order.categorySnapshot?.name || 'Pending'],
-              ['Grand Total', formatCurrency(order.grandTotal)],
-              ['Advance Amount', formatCurrency(order.advanceAmount)],
-              ['Pending Amount', formatCurrency(order.pendingAmount)],
-              ['Payment Mode', order.paymentMode || 'Pending'],
-            ]}
-            emphasizedRows={['Grand Total', 'Pending Amount']}
-          />
-        ) : (
-          <DataTable
-            title="Operational Summary"
-            rows={[
-              ['Category', order.categorySnapshot?.name || 'Pending'],
-              ['Price Per Plate', formatCurrency(order.pricePerPlate)],
-              ['Grand Total', formatCurrency(order.grandTotal)],
-              ['Booking Taken By', order.bookingTakenBy || 'N/A'],
-              ['Reference By', order.referenceBy || 'N/A'],
-            ]}
-            emphasizedRows={['Grand Total']}
-          />
-        )}
+      <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2">
+        <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+            Financial Summary
+          </p>
+        </div>
+        <div className="px-3 py-2.5 print:px-2 print:py-2">
+          <div className="rounded-[12px] border border-stone-200">
+            <div className="border-b border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+              Advance Entries
+            </div>
+            <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
+              <thead className="bg-stone-100 text-stone-700">
+                <tr>
+                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Date</th>
+                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Mode</th>
+                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Amount</th>
+                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {advanceRows.length > 0 ? (
+                  advanceRows.map((payment, index) => (
+                    <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
+                      <td className="border-b border-stone-200 px-3 py-1.5">{formatDateTime(payment.date)}</td>
+                      <td className="border-b border-stone-200 px-3 py-1.5">{payment.paymentMode}</td>
+                      <td className="border-b border-stone-200 px-3 py-1.5">{formatCurrency(payment.amount)}</td>
+                      <td className="border-b border-stone-200 px-3 py-1.5">{payment.remark || '-'}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-3 text-center text-stone-500">
+                      No advance entries recorded.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
-      <footer className="mt-6 border-t border-stone-300 pt-3 text-center text-[11px] font-medium tracking-[0.18em] text-stone-500">
-        Copyright by Zenovel Technolab
-      </footer>
+      <section className="mt-4 pt-4 print:mt-3 print:pt-3">
+        <p className="text-[11px] font-medium text-stone-700 print:text-[10px]">
+          I agree to all banquet rules and confirm that I have read and understood them.
+        </p>
+      </section>
+
+      <section className="mt-4 grid gap-6 pt-4 md:grid-cols-2 print:mt-3 print:grid-cols-2 print:gap-4 print:pt-3">
+        <SignatureBox label="Customer Sign" />
+        <SignatureBox label="Manager Sign" />
+      </section>
+
+      <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2 print:break-before-page">
+        <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+            Banquet Rules
+          </p>
+        </div>
+        <div className="px-3 py-2.5 print:px-2 print:py-2">
+          {banquetRules.length > 0 ? (
+            <ol className="space-y-1 pl-5 text-[11px] text-stone-700 print:text-[10px]">
+              {banquetRules.map((rule) => (
+                <li key={rule.id}>{rule.label}</li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-[11px] text-stone-500 print:text-[10px]">
+              No banquet rules configured.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <div className="hidden print:fixed print:bottom-[3mm] print:right-[5mm] print:block print:text-[10px] print:font-medium print:text-stone-500">
+        Page 1
+      </div>
     </article>
   );
 }
 
-function HeroStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[18px] border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700">
-        {label}
-      </p>
-      <p className="mt-2 text-lg font-bold leading-snug text-stone-950">{value}</p>
-    </div>
-  );
-}
-
-function DataTable({
+function CompactTable({
   title,
   rows,
-  emphasizedRows = [],
+  compact = false,
 }: {
   title: string;
   rows: Array<[string, string]>;
-  emphasizedRows?: string[];
+  compact?: boolean;
 }) {
   return (
-    <section className="rounded-[18px] border border-stone-300">
-      <div className="border-b border-stone-300 bg-stone-50 px-4 py-3">
-        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-700">
+    <section className="rounded-[14px] border border-stone-300">
+      <div className="border-b border-stone-300 bg-stone-50 px-3 py-2 print:px-2 print:py-1.5">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
           {title}
         </p>
       </div>
       <div className="divide-y divide-stone-200">
         {rows.map(([label, value]) => {
-          const emphasized = emphasizedRows.includes(label);
           return (
             <div
               key={`${title}-${label}`}
-              className="grid grid-cols-[170px_minmax(0,1fr)] gap-4 px-4 py-3 text-sm"
+              className={`grid gap-3 px-3 print:gap-2 print:px-2 ${compact ? 'grid-cols-[130px_minmax(0,1fr)] py-1.5 text-[11px] print:grid-cols-[110px_minmax(0,1fr)] print:py-1 print:text-[10px]' : 'grid-cols-[145px_minmax(0,1fr)] py-2 text-[11px] print:grid-cols-[118px_minmax(0,1fr)] print:py-1 print:text-[10px]'}`}
             >
               <span className="font-medium text-stone-500">{label}</span>
-              <span className={emphasized ? 'font-bold text-stone-950' : 'font-semibold text-stone-900'}>
-                {value}
-              </span>
+              <span className="font-semibold text-stone-900">{value}</span>
             </div>
           );
         })}
@@ -349,29 +355,32 @@ function DataTable({
   );
 }
 
+function SignatureBox({ label }: { label: string }) {
+  return (
+    <div className="rounded-[12px] border border-stone-300 px-4 pb-3 pt-6 print:px-3 print:pb-2 print:pt-5">
+      <div className="h-8 border-b border-stone-500 print:h-7" />
+      <p className="mt-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-stone-600">
+        {label}
+      </p>
+    </div>
+  );
+}
+
 function buildMenuRows(order: Order): MenuRow[] {
   return order.menuSelectionSnapshot.flatMap((menu) =>
-    menu.sections.map((section) => ({
-      key: `${menu.menuId}-${section.sectionTitle}`,
-      category: section.sectionTitle,
-      selectedMenu: section.items.join(', '),
-    })),
+    menu.sections.flatMap((section) =>
+      section.items.map((item, index) => ({
+        key: `${menu.menuId}-${section.sectionTitle}-${index}-${item}`,
+        section: `${section.sectionTitle} - ${section.items.length}`,
+        item,
+        showSection: index === 0,
+      })),
+    ),
   );
 }
 
 function fullName(order: Order) {
   return [order.customer.firstName, order.customer.lastName].filter(Boolean).join(' ').trim();
-}
-
-function copyTitle(copyType: CopyType) {
-  switch (copyType) {
-    case 'manager':
-      return 'Manager Copy';
-    case 'customer':
-      return 'Customer Copy';
-    default:
-      return 'Company Copy';
-  }
 }
 
 function formatCurrency(value: number) {
@@ -388,4 +397,36 @@ function formatLongDate(value: string) {
     month: 'short',
     year: 'numeric',
   }).format(new Date(value));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatEventDateTime(order: Order) {
+  const date = order.eventDate ? formatLongDate(order.eventDate) : 'Pending';
+  const time =
+    order.startTime && order.endTime
+      ? `${formatTime12Hour(order.startTime)} - ${formatTime12Hour(order.endTime)}`
+      : order.startTime
+        ? formatTime12Hour(order.startTime)
+        : order.endTime
+          ? formatTime12Hour(order.endTime)
+          : 'Time pending';
+
+  return `${date} | ${time}`;
+}
+
+function formatTime12Hour(value: string) {
+  const [hourPart, minutePart] = value.split(':').map(Number);
+  const suffix = hourPart >= 12 ? 'PM' : 'AM';
+  const hour = hourPart % 12 || 12;
+
+  return `${String(hour).padStart(2, '0')}:${String(minutePart).padStart(2, '0')} ${suffix}`;
 }

@@ -1,28 +1,35 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import {
+  addAdvancePayment,
   addOrderFollowUp,
   cancelOrder,
   confirmInquiry,
   createOrder,
+  deleteAdvancePayment,
   deleteOrder,
   fetchCalendarOrders,
   fetchCategories,
   fetchOrderById,
   fetchOrders,
+  fetchSettings,
+  updateAdvancePayment,
   updateOrder,
 } from '@/lib/auth/api';
 import {
+  AppSettings,
   CalendarOrder,
   Category,
   Order,
+  OrderAdvancePayment,
   OrderStatus,
   PaymentMode,
 } from '@/lib/auth/types';
+import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
 type ViewMode = 'list' | 'calendar';
 type CalendarScope = 'month' | 'week' | 'day';
@@ -55,6 +62,7 @@ type BookingFormState = {
   referenceBy: string;
   additionalInformation: string;
   categoryId: string;
+  inquiryCustomPrice: string;
   customPricePerPlate: string;
   selectedMenus: SelectedMenu[];
 };
@@ -88,6 +96,7 @@ const initialFormState: BookingFormState = {
   referenceBy: '',
   additionalInformation: '',
   categoryId: '',
+  inquiryCustomPrice: '',
   customPricePerPlate: '',
   selectedMenus: [],
 };
@@ -103,7 +112,18 @@ const ghostButtonCls =
 const primaryButtonCls =
   'rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60';
 
-const timeOptions = buildTimeOptions();
+const hourOptions = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const minuteOptions = ['00', '15', '30', '45'];
+const fallbackPaymentOptions = ['Cash', 'UPI', 'Card', 'Bank', 'Cheque'];
+const fallbackEventOptions = [
+  'Marriage',
+  'Baby shower',
+  'Reception',
+  'Ring Ceremony',
+  'Birthday',
+  'Get together',
+  'Anniversary',
+];
 
 export default function BookingsPage() {
   const { accessToken, user } = useAuth();
@@ -111,6 +131,7 @@ export default function BookingsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [calendarOrders, setCalendarOrders] = useState<CalendarOrder[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
@@ -138,10 +159,16 @@ export default function BookingsPage() {
     mode: 'new' | 'convert';
     order: Order | null;
   } | null>(null);
+  const pendingCreatePayload = useRef<Parameters<typeof createOrder>[1] | null>(null);
+  const [confirmBookingPopup, setConfirmBookingPopup] = useState(false);
+  const [confirmBookingAdvance, setConfirmBookingAdvance] = useState('0');
+  const [confirmBookingPaymentMode, setConfirmBookingPaymentMode] = useState<PaymentMode>('Cash');
+  const [isConfirmBookingSubmitting, setIsConfirmBookingSubmitting] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState('0');
   const [confirmDiscount, setConfirmDiscount] = useState('0');
   const [confirmExtrasTotal, setConfirmExtrasTotal] = useState('0');
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('CASH');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('Cash');
+  const [advanceRemark, setAdvanceRemark] = useState('');
   const [isAdvanceSubmitting, setIsAdvanceSubmitting] = useState(false);
   const [cancelPopup, setCancelPopup] = useState<{ order: Order; reason: string } | null>(
     null,
@@ -157,6 +184,21 @@ export default function BookingsPage() {
   } | null>(null);
   const [followUpPopup, setFollowUpPopup] = useState<FollowUpPopupState | null>(null);
   const [isFollowUpSubmitting, setIsFollowUpSubmitting] = useState(false);
+  const [paymentPopup, setPaymentPopup] = useState<{ orderId: string } | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentPopupMode, setPaymentPopupMode] = useState<PaymentMode>('Cash');
+  const [paymentRemark, setPaymentRemark] = useState('');
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const [paymentEditor, setPaymentEditor] = useState<{
+    orderId: string;
+    paymentId?: string;
+  } | null>(null);
+  const [addonPopup, setAddonPopup] = useState<{
+    menuId: string;
+    menuTitle: string;
+    sectionTitle: string;
+    value: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!toast) {
@@ -181,7 +223,7 @@ export default function BookingsPage() {
       try {
         setIsLoading(true);
         setPageError('');
-        const [ordersResponse, categoriesResponse] = await Promise.all([
+        const [ordersResponse, categoriesResponse, settingsResponse] = await Promise.all([
           fetchOrders(token, {
             page,
             limit,
@@ -191,12 +233,14 @@ export default function BookingsPage() {
             to: filterDate,
           }),
           fetchCategories(token, { page: 1, limit: 100, search: '' }),
+          fetchSettings(token),
         ]);
 
         setOrders(ordersResponse.items);
         setTotalPages(ordersResponse.pagination.totalPages);
         setTotalItems(ordersResponse.pagination.total);
         setCategories(categoriesResponse.items);
+        setSettings(settingsResponse);
       } catch (requestError) {
         setPageError(
           requestError instanceof Error
@@ -250,6 +294,14 @@ export default function BookingsPage() {
     () => categories.find((category) => category.id === formState.categoryId) ?? null,
     [categories, formState.categoryId],
   );
+  const paymentOptions =
+    settings?.paymentOptions.map((option) => option.label) ?? fallbackPaymentOptions;
+  const eventOptions =
+    settings?.eventOptions.map((option) => option.label) ?? fallbackEventOptions;
+  const defaultPaymentMode = paymentOptions[0] ?? 'Cash';
+  const paymentModeChoices = withCurrentOption(paymentOptions, paymentMode);
+  const popupPaymentModeChoices = withCurrentOption(paymentOptions, paymentPopupMode);
+  const eventChoices = withCurrentOption(eventOptions, formState.eventName);
 
   const categoryRules = useMemo(
     () => selectedCategory?.menuRules ?? [],
@@ -283,6 +335,19 @@ export default function BookingsPage() {
   const bookingCreatedBy =
     [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || 'Current user';
   const isCompanyAdmin = user?.role === 'company_admin';
+  const isServiceSlotLocked = !isCompanyAdmin && Boolean(editingOrder);
+
+  useEffect(() => {
+    if (!paymentOptions.includes(paymentMode)) {
+      setPaymentMode(defaultPaymentMode);
+    }
+  }, [defaultPaymentMode, paymentMode, paymentOptions]);
+
+  useEffect(() => {
+    if (!paymentOptions.includes(paymentPopupMode)) {
+      setPaymentPopupMode(defaultPaymentMode);
+    }
+  }, [defaultPaymentMode, paymentOptions, paymentPopupMode]);
 
   useEffect(() => {
     setSelectedCalendarDay(formatDateKey(calendarMonth));
@@ -307,6 +372,12 @@ export default function BookingsPage() {
     setCalendarOrders(response);
   }
 
+  async function loadCategories(token: string) {
+    const response = await fetchCategories(token, { page: 1, limit: 100, search: '' });
+    setCategories(response.items);
+    return response.items;
+  }
+
   async function refreshBookingViews(token: string, nextPage = page) {
     await Promise.all([reloadOrders(token, nextPage), reloadCalendar(token)]);
   }
@@ -327,6 +398,11 @@ export default function BookingsPage() {
       functionDate: prefill?.functionDate ?? '',
     });
     setIsInquiryOpen(true);
+    if (accessToken) {
+      void loadCategories(accessToken).catch(() => {
+        setToast({ type: 'error', message: 'Unable to load categories.' });
+      });
+    }
   }
 
   function openEditInquiry(order: Order) {
@@ -348,6 +424,10 @@ export default function BookingsPage() {
       referenceBy: order.referenceBy ?? '',
       additionalInformation: order.additionalInformation ?? order.notes ?? '',
       categoryId: order.categorySnapshot?.categoryId ?? '',
+      inquiryCustomPrice:
+        order.inquiryCustomPrice !== null && order.inquiryCustomPrice !== undefined
+          ? String(order.inquiryCustomPrice)
+          : '',
       customPricePerPlate:
         order.customPricePerPlate !== null && order.customPricePerPlate !== undefined
           ? String(order.customPricePerPlate)
@@ -362,6 +442,11 @@ export default function BookingsPage() {
       })),
     });
     setIsInquiryOpen(true);
+    if (accessToken) {
+      void loadCategories(accessToken).catch(() => {
+        setToast({ type: 'error', message: 'Unable to load categories.' });
+      });
+    }
   }
 
   function openCategoryChooser(order: Order) {
@@ -383,6 +468,10 @@ export default function BookingsPage() {
       referenceBy: order.referenceBy ?? '',
       additionalInformation: order.additionalInformation ?? order.notes ?? '',
       categoryId: order.categorySnapshot?.categoryId ?? '',
+      inquiryCustomPrice:
+        order.inquiryCustomPrice !== null && order.inquiryCustomPrice !== undefined
+          ? String(order.inquiryCustomPrice)
+          : '',
       customPricePerPlate:
         order.customPricePerPlate !== null && order.customPricePerPlate !== undefined
           ? String(order.customPricePerPlate)
@@ -397,6 +486,11 @@ export default function BookingsPage() {
       })),
     });
     setIsWizardOpen(true);
+    if (accessToken) {
+      void loadCategories(accessToken).catch(() => {
+        setToast({ type: 'error', message: 'Unable to load categories.' });
+      });
+    }
   }
 
   async function openOrderDetail(orderId: string, initialOrder?: Order) {
@@ -517,6 +611,63 @@ export default function BookingsPage() {
     );
   }
 
+  function addAddonItem(menuId: string, menuTitle: string, sectionTitle: string, item: string) {
+    const trimmed = item.trim();
+    if (!trimmed) return;
+
+    setFormState((current) => {
+      const existingMenu = current.selectedMenus.find((m) => m.menuId === menuId);
+      let nextMenus = current.selectedMenus;
+
+      if (!existingMenu) {
+        nextMenus = [
+          ...current.selectedMenus,
+          { menuId, title: menuTitle, sections: [{ sectionTitle, items: [trimmed] }] },
+        ];
+      } else {
+        nextMenus = nextMenus.map((m) => {
+          if (m.menuId !== menuId) return m;
+          const existingSection = m.sections.find((s) => s.sectionTitle === sectionTitle);
+          if (!existingSection) {
+            return { ...m, sections: [...m.sections, { sectionTitle, items: [trimmed] }] };
+          }
+          if (existingSection.items.includes(trimmed)) return m;
+          return {
+            ...m,
+            sections: m.sections.map((s) =>
+              s.sectionTitle === sectionTitle
+                ? { ...s, items: [...s.items, trimmed] }
+                : s,
+            ),
+          };
+        });
+      }
+
+      return { ...current, selectedMenus: nextMenus };
+    });
+  }
+
+  function removeAddonItem(menuId: string, sectionTitle: string, item: string) {
+    setFormState((current) => ({
+      ...current,
+      selectedMenus: current.selectedMenus
+        .map((m) => {
+          if (m.menuId !== menuId) return m;
+          return {
+            ...m,
+            sections: m.sections
+              .map((s) =>
+                s.sectionTitle === sectionTitle
+                  ? { ...s, items: s.items.filter((i) => i !== item) }
+                  : s,
+              )
+              .filter((s) => s.items.length > 0),
+          };
+        })
+        .filter((m) => m.sections.length > 0),
+    }));
+  }
+
   function selectedCountForRule(rule: Category['menuRules'][number]) {
     return (
       formState.selectedMenus
@@ -526,29 +677,22 @@ export default function BookingsPage() {
   }
 
   function openAdvancePopup(mode: 'new' | 'convert', order: Order | null = null) {
-    setAdvanceAmount(order ? String(order.advanceAmount || 0) : '0');
+    setAdvanceAmount(order?.advanceAmount ? String(order.advanceAmount) : '');
     setConfirmDiscount(order ? String(order.discountAmount || 0) : '0');
     setConfirmExtrasTotal(order ? String(order.extrasTotal || 0) : '0');
-    setPaymentMode(order?.paymentMode ?? 'CASH');
+    setPaymentMode(order?.paymentMode ?? defaultPaymentMode);
+    setAdvanceRemark('');
     setAdvancePopup({ mode, order });
   }
 
   function handleOpenConvertInquiry(order: Order) {
-    if (!order.categorySnapshot?.categoryId) {
-      setToast({
-        type: 'error',
-        message: 'Choose a category before converting the inquiry.',
-      });
-      return;
-    }
-
     setIsDetailOpen(false);
     setDetailOrder(null);
     setDetailError('');
     openAdvancePopup('convert', order);
   }
 
-  async function handleCreateInquiry() {
+  async function handleCreateInquiry(status: 'INQUIRY' | 'CONFIRMED' = 'INQUIRY') {
     if (!accessToken) {
       setToast({ type: 'error', message: 'Missing session token.' });
       return;
@@ -586,6 +730,14 @@ export default function BookingsPage() {
       return;
     }
 
+    if (formState.inquiryCustomPrice.trim()) {
+      const normalizedInquiryCustomPrice = Number(formState.inquiryCustomPrice);
+      if (!Number.isFinite(normalizedInquiryCustomPrice) || normalizedInquiryCustomPrice < 0) {
+        setToast({ type: 'error', message: 'Enter a valid custom price.' });
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
       const payload = {
@@ -610,13 +762,16 @@ export default function BookingsPage() {
         referenceBy: formState.referenceBy.trim() || undefined,
         additionalInformation:
           formState.additionalInformation.trim() || undefined,
+        categoryId: formState.categoryId || undefined,
+        inquiryCustomPrice: formState.inquiryCustomPrice.trim()
+          ? Number(formState.inquiryCustomPrice)
+          : undefined,
       };
 
       if (editingOrder) {
         await updateOrder(accessToken, editingOrder.id, {
           ...payload,
           status: editingOrder.status,
-          categoryId: editingOrder.categorySnapshot?.categoryId ?? undefined,
           selectedMenus:
             editingOrder.menuSelectionSnapshot.length > 0
               ? editingOrder.menuSelectionSnapshot.map((menu) => ({
@@ -634,6 +789,16 @@ export default function BookingsPage() {
           notes: formState.additionalInformation.trim() || undefined,
         });
         setToast({ type: 'success', message: 'Inquiry updated successfully.' });
+      } else if (status === 'CONFIRMED') {
+        // Store the payload and open the payment popup — advance popup will create the order on confirm
+        pendingCreatePayload.current = {
+          ...payload,
+          status: 'CONFIRMED',
+          notes: formState.additionalInformation.trim() || undefined,
+        };
+        openAdvancePopup('new');
+        setIsInquiryOpen(false);
+        return;
       } else {
         await createOrder(accessToken, {
           ...payload,
@@ -778,35 +943,51 @@ export default function BookingsPage() {
   }
 
   async function handleConvertInquiry() {
-    if (!accessToken || !advancePopup?.order) {
-      return;
-    }
+    if (!accessToken) return;
 
     if ((Number(advanceAmount) || 0) < 1) {
       setToast({
         type: 'error',
-        message: 'Advance amount must be at least 1 to confirm inquiry.',
+        message: 'Advance amount must be at least 1 to confirm booking.',
       });
       return;
     }
 
     try {
       setIsAdvanceSubmitting(true);
-      await confirmInquiry(accessToken, advancePopup.order.id, {
-        advanceAmount: Number(advanceAmount) || 0,
-        extrasTotal: Number(confirmExtrasTotal) || 0,
-        discountAmount: Number(confirmDiscount) || 0,
-        paymentMode,
-      });
-      setAdvancePopup(null);
-      setToast({
-        type: 'success',
-        message: 'Inquiry converted to booking successfully.',
-      });
-      await refreshBookingViews(accessToken, page);
 
-      if (isDetailOpen) {
-        await openOrderDetail(advancePopup.order.id);
+      if (advancePopup?.mode === 'new' && pendingCreatePayload.current) {
+        // Create a new confirmed booking with payment details
+        const createdOrder = await createOrder(accessToken, {
+          ...pendingCreatePayload.current,
+          advanceAmount: Number(advanceAmount) || 0,
+          paymentMode,
+          notes:
+            advanceRemark.trim() || pendingCreatePayload.current.notes || undefined,
+        });
+        pendingCreatePayload.current = null;
+        setAdvancePopup(null);
+        setEditingOrder(null);
+        setFormState(initialFormState);
+        setToast({ type: 'success', message: 'Booking confirmed successfully.' });
+        setPage(1);
+        await refreshBookingViews(accessToken, 1);
+        await openOrderDetail(createdOrder.id, createdOrder);
+      } else if (advancePopup?.order) {
+        // Convert an existing inquiry to confirmed
+        await confirmInquiry(accessToken, advancePopup.order.id, {
+          advanceAmount: Number(advanceAmount) || 0,
+          extrasTotal: Number(confirmExtrasTotal) || 0,
+          discountAmount: Number(confirmDiscount) || 0,
+          paymentMode,
+          remark: advanceRemark.trim() || undefined,
+        });
+        setAdvancePopup(null);
+        setToast({ type: 'success', message: 'Inquiry converted to booking successfully.' });
+        await refreshBookingViews(accessToken, page);
+        if (isDetailOpen) {
+          await openOrderDetail(advancePopup.order.id);
+        }
       }
     } catch (requestError) {
       setToast({
@@ -814,7 +995,7 @@ export default function BookingsPage() {
         message:
           requestError instanceof Error
             ? requestError.message
-            : 'Unable to convert inquiry.',
+            : 'Unable to confirm booking.',
       });
     } finally {
       setIsAdvanceSubmitting(false);
@@ -902,6 +1083,98 @@ export default function BookingsPage() {
       });
     } finally {
       setIsFollowUpSubmitting(false);
+    }
+  }
+
+  async function handleAddAdvancePayment() {
+    if (!accessToken || !paymentPopup) return;
+
+    const amount = Number(paymentAmount);
+    if (!amount || amount < 1) {
+      setToast({ type: 'error', message: 'Enter a valid payment amount.' });
+      return;
+    }
+
+    try {
+      setIsPaymentSubmitting(true);
+      const updatedOrder = await addAdvancePayment(accessToken, paymentPopup.orderId, {
+        amount,
+        paymentMode: paymentPopupMode,
+        remark: paymentRemark.trim() || undefined,
+      });
+      setPaymentPopup(null);
+      setPaymentAmount('');
+      setPaymentPopupMode(defaultPaymentMode);
+      setPaymentRemark('');
+      setPaymentEditor(null);
+      if (isDetailOpen) {
+        setDetailOrder(updatedOrder);
+      }
+      setToast({ type: 'success', message: 'Payment recorded successfully.' });
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message: requestError instanceof Error ? requestError.message : 'Unable to record payment.',
+      });
+    } finally {
+      setIsPaymentSubmitting(false);
+    }
+  }
+
+  async function handleSaveAdvancePayment() {
+    if (!accessToken || !paymentPopup || !paymentEditor?.paymentId) return;
+
+    const amount = Number(paymentAmount);
+    if (!amount || amount < 1) {
+      setToast({ type: 'error', message: 'Enter a valid payment amount.' });
+      return;
+    }
+
+    try {
+      setIsPaymentSubmitting(true);
+      const updatedOrder = await updateAdvancePayment(
+        accessToken,
+        paymentPopup.orderId,
+        paymentEditor.paymentId,
+        {
+          amount,
+          paymentMode: paymentPopupMode,
+          remark: paymentRemark.trim() || undefined,
+        },
+      );
+      setPaymentPopup(null);
+      setPaymentAmount('');
+      setPaymentPopupMode(defaultPaymentMode);
+      setPaymentRemark('');
+      setPaymentEditor(null);
+      if (isDetailOpen) {
+        setDetailOrder(updatedOrder);
+      }
+      setToast({ type: 'success', message: 'Payment updated successfully.' });
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message: requestError instanceof Error ? requestError.message : 'Unable to update payment.',
+      });
+    } finally {
+      setIsPaymentSubmitting(false);
+    }
+  }
+
+  async function handleDeleteAdvancePayment(orderId: string, paymentId: string) {
+    if (!accessToken) return;
+
+    try {
+      const updatedOrder = await deleteAdvancePayment(accessToken, orderId, paymentId);
+      if (isDetailOpen) {
+        setDetailOrder(updatedOrder);
+      }
+      setToast({ type: 'success', message: 'Payment deleted successfully.' });
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message: requestError instanceof Error ? requestError.message : 'Unable to delete payment.',
+      });
     }
   }
 
@@ -1197,11 +1470,7 @@ function selectionStatus(order: Order) {
                   </thead>
                   <tbody>
                     {isLoading ? (
-                  <tr>
-                        <td className="px-5 py-8 text-center text-sm text-slate-400" colSpan={6}>
-                          Loading bookings…
-                        </td>
-                      </tr>
+                      <TableLoader colSpan={6} message="Loading bookings…" />
                     ) : orders.length === 0 ? (
                       <tr>
                         <td className="px-5 py-6" colSpan={6}>
@@ -1245,7 +1514,7 @@ function selectionStatus(order: Order) {
                             </p>
                             <p className="mt-1 text-slate-500">
                               {order.startTime && order.endTime
-                                ? `${order.startTime} - ${order.endTime}`
+                                ? formatTimeRange(order.startTime, order.endTime)
                                 : 'Time pending'}
                             </p>
                             <p className="mt-1 text-slate-500">
@@ -1337,9 +1606,7 @@ function selectionStatus(order: Order) {
 
             <div className="space-y-3 md:hidden">
               {isLoading ? (
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center text-sm text-slate-400 shadow-sm">
-                  Loading bookings…
-                </div>
+                <PageLoader message="Loading bookings…" />
               ) : orders.length === 0 ? (
                 <EmptyState
                   title="No bookings found"
@@ -1381,7 +1648,7 @@ function selectionStatus(order: Order) {
                       <p>
                         {order.eventDate ? formatDisplayDate(order.eventDate) : 'Date pending'} •{' '}
                         {order.startTime && order.endTime
-                          ? `${order.startTime} - ${order.endTime}`
+                          ? formatTimeRange(order.startTime, order.endTime)
                           : 'Time pending'}
                       </p>
                       <p>
@@ -1666,7 +1933,7 @@ function selectionStatus(order: Order) {
                           )}`}
                         >
                           <p className="font-semibold">{order.orderId}</p>
-                          <p className="mt-1">{order.startTime} - {order.endTime}</p>
+                          <p className="mt-1">{formatTimeRange(order.startTime, order.endTime)}</p>
                           <p className="mt-1 truncate opacity-80">{order.customerName}</p>
                         </button>
                       ))}
@@ -1691,12 +1958,8 @@ function selectionStatus(order: Order) {
             widthClassName="max-w-5xl"
           >
             <div className="mt-6 space-y-5">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                Booking ID will be generated automatically using the restaurant prefix and auto-increment sequence. Category and menu selection can be added later from the booking list.
-              </div>
-
               <div>
-                <Field label="Customer Name">
+                <Field label="Customer Name" required>
                   <input
                     value={formState.customerName}
                     onChange={(event) =>
@@ -1712,41 +1975,53 @@ function selectionStatus(order: Order) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Mobile Number">
+                <Field label="Mobile Number" required>
                   <input
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={10}
                     value={formState.mobileNumber}
                     onChange={(event) =>
                       setFormState((current) => ({
                         ...current,
-                        mobileNumber: event.target.value,
+                        mobileNumber: event.target.value.replace(/\D/g, '').slice(0, 10),
                       }))
                     }
-                    placeholder="Enter mobile number"
+                    placeholder="Enter 10-digit mobile number"
                     className={`${inputCls} min-h-12`}
                   />
                 </Field>
                 <Field label="Service Slot">
-                  <select
-                    value={formState.serviceSlot}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        serviceSlot: event.target.value,
-                      }))
-                    }
-                    className={`${inputCls} min-h-12`}
-                  >
-                    <option value="">Select service slot</option>
-                    <option value="Breakfast">Breakfast</option>
-                    <option value="Lunch">Lunch</option>
-                    <option value="Dinner">Dinner</option>
-                  </select>
+                  <div className="space-y-2">
+                    <select
+                      value={formState.serviceSlot}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          serviceSlot: event.target.value,
+                        }))
+                      }
+                      disabled={isServiceSlotLocked}
+                      className={`${inputCls} min-h-12 ${isServiceSlotLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                    >
+                      <option value="">Select service slot</option>
+                      <option value="Breakfast">Breakfast</option>
+                      <option value="Lunch">Lunch</option>
+                      <option value="Dinner">Dinner</option>
+                    </select>
+                    {isServiceSlotLocked ? (
+                      <p className="text-xs text-slate-500">
+                        Employees can set the service slot while creating an inquiry, but only company admins can change it later.
+                      </p>
+                    ) : null}
+                  </div>
                 </Field>
               </div>
 
-              <div>
+              <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Event Name">
-                  <input
+                  <select
                     value={formState.eventName}
                     onChange={(event) =>
                       setFormState((current) => ({
@@ -1754,17 +2029,21 @@ function selectionStatus(order: Order) {
                         eventName: event.target.value,
                       }))
                     }
-                    placeholder="Enter event name"
                     className={`${inputCls} min-h-12`}
-                  />
+                  >
+                    <option value="">Select event option</option>
+                    {eventChoices.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Function Date">
                   <input
                     type="date"
                     value={formState.functionDate}
+                    min={new Date().toISOString().split('T')[0]}
                     onChange={(event) =>
                       setFormState((current) => ({
                         ...current,
@@ -1774,32 +2053,35 @@ function selectionStatus(order: Order) {
                     className={`${dateTimeInputCls} min-h-12`}
                   />
                 </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Function Start Time">
-                    <TimeSelect
-                      value={formState.startTime}
-                      onChange={(value) =>
-                        setFormState((current) => ({
-                          ...current,
-                          startTime: value,
-                        }))
-                      }
-                      placeholder="Select start time"
-                    />
-                  </Field>
-                  <Field label="Function End Time">
-                    <TimeSelect
-                      value={formState.endTime}
-                      onChange={(value) =>
-                        setFormState((current) => ({
-                          ...current,
-                          endTime: value,
-                        }))
-                      }
-                      placeholder="Select end time"
-                    />
-                  </Field>
-                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Function Start Time">
+                  <TimePicker
+                    value={formState.startTime}
+                    onChange={(value) =>
+                      setFormState((current) => ({
+                        ...current,
+                        startTime: value,
+                      }))
+                    }
+                    hourPlaceholder="Hour"
+                    minutePlaceholder="Min"
+                  />
+                </Field>
+                <Field label="Function End Time">
+                  <TimePicker
+                    value={formState.endTime}
+                    onChange={(value) =>
+                      setFormState((current) => ({
+                        ...current,
+                        endTime: value,
+                      }))
+                    }
+                    hourPlaceholder="Hour"
+                    minutePlaceholder="Min"
+                  />
+                </Field>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -1867,7 +2149,7 @@ function selectionStatus(order: Order) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Hall Details">
+                <Field label="Hall Details" required>
                   <input
                     value={formState.hallDetails}
                     onChange={(event) =>
@@ -1890,6 +2172,46 @@ function selectionStatus(order: Order) {
                       }))
                     }
                     placeholder="Optional reference"
+                    className={`${inputCls} min-h-12`}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Category">
+                  <select
+                    value={formState.categoryId}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        categoryId: event.target.value,
+                        selectedMenus: [],
+                      }))
+                    }
+                    className={`${inputCls} min-h-12`}
+                  >
+                    <option value="">Select category (optional)</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name} ({formatCurrency(category.pricePerPlate)})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Custom Price">
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={formState.inquiryCustomPrice}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        inquiryCustomPrice: event.target.value,
+                      }))
+                    }
+                    placeholder="Optional custom price"
                     className={`${inputCls} min-h-12`}
                   />
                 </Field>
@@ -1928,11 +2250,21 @@ function selectionStatus(order: Order) {
               <button
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => void handleCreateInquiry()}
+                onClick={() => void handleCreateInquiry('INQUIRY')}
                 className={`${primaryButtonCls} w-full sm:w-auto`}
               >
                 {isSubmitting ? 'Saving…' : editingOrder ? 'Save inquiry' : 'Create inquiry'}
               </button>
+              {!editingOrder && (
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => void handleCreateInquiry('CONFIRMED')}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-60 sm:w-auto"
+                >
+                  {isSubmitting ? 'Saving…' : 'Confirm Booking'}
+                </button>
+              )}
             </div>
           </ModalShell>
         ) : null}
@@ -2013,11 +2345,52 @@ function selectionStatus(order: Order) {
                               {rule.sectionTitle}
                             </h3>
                           </div>
-                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                            Choose {rule.selectionLimit}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                              Choose {rule.selectionLimit}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAddonPopup({
+                                  menuId: rule.menuId,
+                                  menuTitle: rule.menuTitle,
+                                  sectionTitle: rule.sectionTitle,
+                                  value: '',
+                                })
+                              }
+                              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                            >
+                              + Add-on
+                            </button>
+                          </div>
                         </div>
                         <div className="mt-4 grid gap-3">
+                          {(formState.selectedMenus
+                            .find((m) => m.menuId === rule.menuId)
+                            ?.sections.find((s) => s.sectionTitle === rule.sectionTitle)
+                            ?.items.filter((i) => !rule.allowedItems.includes(i)) ?? []
+                          ).map((addonItem) => (
+                            <div
+                              key={`addon-${rule.menuId}-${rule.sectionTitle}-${addonItem}`}
+                              className="flex w-full items-center gap-3 rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-50 to-white px-4 py-4 text-sm shadow-sm"
+                            >
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-500 bg-amber-500 text-white">
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                  <path fillRule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.2 7.2a1 1 0 01-1.415 0l-3.6-3.6a1 1 0 111.415-1.42l2.893 2.894 6.493-6.494a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </span>
+                              <span className="flex-1 font-medium text-slate-900">{addonItem}</span>
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Add-on</span>
+                              <button
+                                type="button"
+                                onClick={() => removeAddonItem(rule.menuId, rule.sectionTitle, addonItem)}
+                                className="ml-1 text-slate-400 hover:text-red-500"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
                           {rule.allowedItems.map((item) => {
                             const checked = isItemSelected(
                               rule.menuId,
@@ -2093,12 +2466,13 @@ function selectionStatus(order: Order) {
                 : `Convert ${advancePopup.order?.orderId} to booking`
             }
             eyebrow="Confirmation"
-            onClose={() => setAdvancePopup(null)}
+            onClose={() => { setAdvancePopup(null); pendingCreatePayload.current = null; }}
             widthClassName="max-w-md"
           >
             <p className="mt-4 text-sm leading-7 text-slate-500">
-              Enter the advance amount, discount, and extra add-ons. The final
-              payable balance is recalculated before confirmation.
+              {advancePopup.mode === 'new'
+                ? 'Enter the advance amount and payment mode to confirm this booking.'
+                : 'Enter the advance amount, discount, and extra add-ons. The final payable balance is recalculated before confirmation.'}
             </p>
             <form
               className="mt-6 space-y-4"
@@ -2118,41 +2492,35 @@ function selectionStatus(order: Order) {
                   className={inputCls}
                 />
               </Field>
-              <Field label="Discount Amount">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={confirmDiscount}
-                  onChange={(event) => setConfirmDiscount(event.target.value)}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Extra Add-ons">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={confirmExtrasTotal}
-                  onChange={(event) => setConfirmExtrasTotal(event.target.value)}
-                  className={inputCls}
-                />
-              </Field>
               <Field label="Payment Mode">
                 <select
                   value={paymentMode}
                   onChange={(event) => setPaymentMode(event.target.value as PaymentMode)}
                   className={inputCls}
                 >
-                  <option value="CASH">Cash</option>
-                  <option value="UPI">UPI</option>
-                  <option value="CARD">Card</option>
+                  {paymentModeChoices.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
                 </select>
+              </Field>
+              <Field label="Remarks">
+                <textarea
+                  value={advanceRemark}
+                  onChange={(event) => setAdvanceRemark(event.target.value)}
+                  placeholder="Add remarks if needed"
+                  className={`${inputCls} min-h-24 resize-none`}
+                />
               </Field>
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setAdvancePopup(null)}
+                  onClick={() => {
+                    setAdvancePopup(null);
+                    setAdvanceRemark('');
+                    pendingCreatePayload.current = null;
+                  }}
                   className={ghostButtonCls}
                 >
                   Cancel
@@ -2302,6 +2670,141 @@ function selectionStatus(order: Order) {
           </ModalShell>
         ) : null}
 
+        {paymentPopup ? (
+          <ModalShell
+            title={paymentEditor?.paymentId ? 'Edit Payment' : 'Record Payment'}
+            eyebrow="Advance Payment"
+            onClose={() => {
+              setPaymentPopup(null);
+              setPaymentAmount('');
+              setPaymentPopupMode(defaultPaymentMode);
+              setPaymentRemark('');
+              setPaymentEditor(null);
+            }}
+            widthClassName="max-w-md"
+            zIndexClassName="z-[60]"
+          >
+            <div className="mt-6 space-y-4">
+              <Field label="Amount">
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className={inputCls}
+                  autoFocus
+                />
+              </Field>
+              <Field label="Payment Mode">
+                <select
+                  value={paymentPopupMode}
+                  onChange={(e) => setPaymentPopupMode(e.target.value as PaymentMode)}
+                  className={inputCls}
+                >
+                  {popupPaymentModeChoices.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Remarks">
+                <textarea
+                  value={paymentRemark}
+                  onChange={(e) => setPaymentRemark(e.target.value)}
+                  placeholder="Add remarks if needed"
+                  className={`${inputCls} min-h-24 resize-none`}
+                />
+              </Field>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentPopup(null);
+                  setPaymentAmount('');
+                  setPaymentPopupMode(defaultPaymentMode);
+                  setPaymentRemark('');
+                  setPaymentEditor(null);
+                }}
+                className={ghostButtonCls}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPaymentSubmitting}
+                onClick={() =>
+                  void (paymentEditor?.paymentId
+                    ? handleSaveAdvancePayment()
+                    : handleAddAdvancePayment())
+                }
+                className={primaryButtonCls}
+              >
+                {isPaymentSubmitting
+                  ? 'Saving…'
+                  : paymentEditor?.paymentId
+                    ? 'Save payment'
+                    : 'Record payment'}
+              </button>
+            </div>
+          </ModalShell>
+        ) : null}
+
+        {addonPopup ? (
+          <ModalShell
+            title={`Add-on — ${addonPopup.sectionTitle}`}
+            eyebrow="Custom Add-on"
+            onClose={() => setAddonPopup(null)}
+            widthClassName="max-w-md"
+            zIndexClassName="z-[70]"
+          >
+            <p className="mt-4 text-sm text-slate-500">
+              Type a custom item to add to this section alongside the existing selections.
+            </p>
+            <div className="mt-5">
+              <Field label="Item name">
+                <input
+                  type="text"
+                  value={addonPopup.value}
+                  onChange={(e) => setAddonPopup((cur) => cur ? { ...cur, value: e.target.value } : cur)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addAddonItem(addonPopup.menuId, addonPopup.menuTitle, addonPopup.sectionTitle, addonPopup.value);
+                      setAddonPopup(null);
+                    }
+                  }}
+                  placeholder="e.g. Jain Biryani"
+                  className={inputCls}
+                  autoFocus
+                />
+              </Field>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAddonPopup(null)}
+                className={ghostButtonCls}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  addAddonItem(addonPopup.menuId, addonPopup.menuTitle, addonPopup.sectionTitle, addonPopup.value);
+                  setAddonPopup(null);
+                }}
+                className={primaryButtonCls}
+              >
+                Add item
+              </button>
+            </div>
+          </ModalShell>
+        ) : null}
+
         {dayRecordsPopup ? (
           <>
             <div
@@ -2336,11 +2839,13 @@ function selectionStatus(order: Order) {
               <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
                 <button
                   type="button"
+                  disabled={dayRecordsPopup.dateKey < todayKey}
                   onClick={() => {
                     setDayRecordsPopup(null);
                     openCreateInquiry({ functionDate: dayRecordsPopup.dateKey });
                   }}
-                  className={`${primaryButtonCls} w-full sm:w-auto`}
+                  className={`${primaryButtonCls} w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-40`}
+                  title={dayRecordsPopup.dateKey < todayKey ? 'Cannot add booking for a past date' : undefined}
                 >
                   Add booking
                 </button>
@@ -2353,106 +2858,96 @@ function selectionStatus(order: Order) {
                       No bookings for this day.
                     </div>
                   ) : (
-                    dayRecordsPopup.orders.map((calendarOrder) => (
-                      <div
-                        key={`popup-${calendarOrder.id}`}
-                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{calendarOrder.customerName}</p>
-                            <p className="mt-1 text-sm text-slate-600">{calendarOrder.functionName}</p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {calendarOrder.startTime} - {calendarOrder.endTime} • {calendarOrder.pax} pax
-                            </p>
-                            {calendarOrder.serviceSlot ? (
-                              <p className="mt-1 text-xs font-semibold text-slate-900">
-                                Service Slot: {calendarOrder.serviceSlot}
-                              </p>
-                            ) : null}
-                            {calendarOrder.hallDetails ? (
-                              <p className="mt-1 text-xs font-semibold text-slate-900">
-                                Hall Details: {calendarOrder.hallDetails}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="flex flex-col items-start gap-2 sm:items-end">
-                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(calendarOrder.status)}`}>
-                              {calendarOrder.status}
-                            </span>
-                            <span
-                              className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-medium ${
-                                calendarOrder.hasMenuSelection
-                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                  : 'border-slate-200 bg-slate-50 text-slate-600'
-                              }`}
-                            >
-                              {calendarOrder.hasMenuSelection ? 'Menu Selected' : 'Menu Pending'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <IconActionButton
-                            label="View booking"
-                            onClick={() => {
-                              setDayRecordsPopup(null);
-                              void openOrderDetail(calendarOrder.id);
-                            }}
-                            icon="view"
-                          />
-                          {(calendarOrder.status === 'INQUIRY' || calendarOrder.status === 'CONFIRMED') ? (
-                            <button
-                              type="button"
-                              onClick={() => void handleOpenCategoryFromCalendar(calendarOrder.id)}
-                              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                            >
-                              Change Category
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDayRecordsPopup(null);
-                              setFollowUpPopup({
-                                orderId: calendarOrder.id,
-                                orderName: calendarOrder.customerName,
-                                note: '',
-                                date: toDateInputValue(new Date()),
-                              });
-                            }}
-                            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    [...dayRecordsPopup.orders]
+                      .sort((a, b) => {
+                        const statusOrder: Record<string, number> = { CONFIRMED: 0, INQUIRY: 1, CANCELLED: 2 };
+                        const slotOrder: Record<string, number> = { Breakfast: 0, Lunch: 1, Dinner: 2 };
+                        const statusDiff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+                        if (statusDiff !== 0) return statusDiff;
+                        return (slotOrder[a.serviceSlot ?? ''] ?? 9) - (slotOrder[b.serviceSlot ?? ''] ?? 9);
+                      })
+                      .map((calendarOrder) => {
+                        const cardCls =
+                          calendarOrder.status === 'CONFIRMED'
+                            ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
+                            : calendarOrder.status === 'INQUIRY'
+                              ? 'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]'
+                              : 'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]';
+                        return (
+                          <div
+                            key={`popup-${calendarOrder.id}`}
+                            className={`rounded-2xl border p-4 ${cardCls}`}
                           >
-                            Follow ups
-                          </button>
-                          <IconActionButton
-                            label="Edit inquiry"
-                            onClick={() => {
-                              setDayRecordsPopup(null);
-                              void openOrderDetail(calendarOrder.id);
-                            }}
-                            icon="edit"
-                          />
-                          {calendarOrder.status === 'INQUIRY' ? (
-                            <button
-                              type="button"
-                              onClick={() => void handleOpenConvertFromCalendar(calendarOrder.id)}
-                              className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
-                            >
-                              Convert
-                            </button>
-                          ) : null}
-                          {isCompanyAdmin &&
-                          (calendarOrder.status === 'INQUIRY' || calendarOrder.status === 'CONFIRMED') ? (
-                            <IconActionButton
-                              label="Cancel booking"
-                              onClick={() => void handleOpenCancelFromCalendar(calendarOrder.id)}
-                              icon="cancel"
-                              tone="danger"
-                            />
-                          ) : null}
-                        </div>
-                      </div>
-                    ))
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{calendarOrder.customerName}</p>
+                                <p className="mt-1 text-sm text-slate-600">{calendarOrder.functionName}</p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {formatTimeRange(calendarOrder.startTime, calendarOrder.endTime)} • {calendarOrder.pax} pax
+                                </p>
+                                {calendarOrder.serviceSlot ? (
+                                  <p className="mt-1 text-xs font-semibold text-slate-900">
+                                    Service Slot: {calendarOrder.serviceSlot}
+                                  </p>
+                                ) : null}
+                                {calendarOrder.hallDetails ? (
+                                  <p className="mt-1 text-xs font-semibold text-slate-900">
+                                    Hall Details: {calendarOrder.hallDetails}
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div className="flex flex-col items-start gap-2 sm:items-end">
+                                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(calendarOrder.status)}`}>
+                                  {calendarOrder.status}
+                                </span>
+                                <span
+                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-medium ${
+                                    calendarOrder.hasMenuSelection
+                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                      : 'border-slate-200 bg-slate-50 text-slate-600'
+                                  }`}
+                                >
+                                  {calendarOrder.hasMenuSelection ? 'Menu Selected' : 'Menu Pending'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <IconActionButton
+                                label="View booking"
+                                onClick={() => {
+                                  setDayRecordsPopup(null);
+                                  void openOrderDetail(calendarOrder.id);
+                                }}
+                                icon="view"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDayRecordsPopup(null);
+                                  setFollowUpPopup({
+                                    orderId: calendarOrder.id,
+                                    orderName: calendarOrder.customerName,
+                                    note: '',
+                                    date: toDateInputValue(new Date()),
+                                  });
+                                }}
+                                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                              >
+                                Follow ups
+                              </button>
+                              {isCompanyAdmin &&
+                              (calendarOrder.status === 'INQUIRY' || calendarOrder.status === 'CONFIRMED') ? (
+                                <IconActionButton
+                                  label="Cancel booking"
+                                  onClick={() => void handleOpenCancelFromCalendar(calendarOrder.id)}
+                                  icon="cancel"
+                                  tone="danger"
+                                />
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })
                   )}
                 </div>
               </div>
@@ -2462,8 +2957,8 @@ function selectionStatus(order: Order) {
 
         {isDetailOpen ? (
           <ModalShell
-            title={detailOrder?.orderId || 'Booking details'}
-            eyebrow="Order Detail"
+            title="Event Detail"
+            eyebrow=""
             onClose={() => {
               setIsDetailOpen(false);
               setDetailOrder(null);
@@ -2505,7 +3000,7 @@ function selectionStatus(order: Order) {
                     </p>
                     <p className="mt-1 text-slate-500">
                       {detailOrder.startTime && detailOrder.endTime
-                        ? `${detailOrder.startTime} - ${detailOrder.endTime}`
+                        ? formatTimeRange(detailOrder.startTime, detailOrder.endTime)
                         : 'Time pending'}
                     </p>
                     <p className="mt-1 text-slate-500">
@@ -2520,12 +3015,22 @@ function selectionStatus(order: Order) {
                   </InfoCard>
                   <InfoCard label="Package">
                     <p className="mt-2 text-lg font-semibold text-slate-900">
-                      {detailOrder.categorySnapshot?.name || 'Package pending'}
+                      {detailOrder.categorySnapshot?.name ||
+                        (detailOrder.status === 'INQUIRY' && detailOrder.inquiryCustomPrice !== null
+                          ? 'Custom Price'
+                          : 'Package pending')}
                     </p>
-                    <p className="mt-2 text-slate-700">
-                      {detailOrder.pax ?? 0} guests at{' '}
-                      {formatCurrency(detailOrder.pricePerPlate)} per plate
-                    </p>
+                    {detailOrder.status === 'INQUIRY' &&
+                    detailOrder.inquiryCustomPrice !== null ? (
+                      <p className="mt-2 text-slate-700">
+                        Custom Price: {formatCurrency(detailOrder.inquiryCustomPrice)}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-slate-700">
+                        {detailOrder.pax ?? 0} guests at{' '}
+                        {formatCurrency(detailOrder.pricePerPlate)} per plate
+                      </p>
+                    )}
                   </InfoCard>
                   <InfoCard label="Status">
                     <span
@@ -2543,6 +3048,11 @@ function selectionStatus(order: Order) {
                     <p className="mt-3 text-slate-500">
                       Order number #{detailOrder.orderNumber}
                     </p>
+                    {detailOrder.confirmedAt ? (
+                      <p className="mt-1 text-slate-500">
+                        Confirmed on {formatFollowUpDate(detailOrder.confirmedAt)}
+                      </p>
+                    ) : null}
                   </InfoCard>
                 </div>
 
@@ -2603,74 +3113,24 @@ function selectionStatus(order: Order) {
                       </div>
                     ) : null}
 
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
-                        Financial Summary
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Actions
                       </p>
-                      <div className="mt-5 space-y-3 text-sm text-slate-700">
-                        <div className="flex items-center justify-between">
-                          <span>Base total</span>
-                          <span>{formatCurrency(detailOrder.baseTotal)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Extras total</span>
-                          <span>{formatCurrency(detailOrder.extrasTotal)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Discount</span>
-                          <span>{formatCurrency(detailOrder.discountAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Advance amount</span>
-                          <span>{formatCurrency(detailOrder.advanceAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Pending amount</span>
-                          <span>{formatCurrency(detailOrder.pendingAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Payment status</span>
-                          <span>{detailOrder.paymentStatus}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Payment mode</span>
-                          <span>{detailOrder.paymentMode ?? 'N/A'}</span>
-                        </div>
-                        <div className="flex items-center justify-between border-t border-amber-200 pt-3 text-base font-semibold text-slate-900">
-                          <span>Grand total</span>
-                          <span>{formatCurrency(detailOrder.grandTotal)}</span>
-                        </div>
-                      </div>
                       {detailOrder.cancelReason ? (
                         <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                           Cancel reason: {detailOrder.cancelReason}
                         </p>
                       ) : null}
-                      <div className="mt-6 flex flex-wrap gap-3">
+                      <div className="mt-4 flex flex-wrap gap-3">
                         {detailOrder.status === 'CONFIRMED' ? (
-                          <>
-                            <Link
-                              href={`/print/order?id=${detailOrder.id}&copy=company`}
-                              target="_blank"
-                              className={ghostButtonCls}
-                            >
-                              Company print
-                            </Link>
-                            <Link
-                              href={`/print/order?id=${detailOrder.id}&copy=manager`}
-                              target="_blank"
-                              className={ghostButtonCls}
-                            >
-                              Manager print
-                            </Link>
-                            <Link
-                              href={`/print/order?id=${detailOrder.id}&copy=customer`}
-                              target="_blank"
-                              className={ghostButtonCls}
-                            >
-                              Customer copy
-                            </Link>
-                          </>
+                          <Link
+                            href={`/print/order?id=${detailOrder.id}`}
+                            target="_blank"
+                            className={ghostButtonCls}
+                          >
+                            Print
+                          </Link>
                         ) : null}
                         {detailOrder.status === 'INQUIRY' ? (
                           <button
@@ -2678,7 +3138,7 @@ function selectionStatus(order: Order) {
                             onClick={() => handleOpenConvertInquiry(detailOrder)}
                             className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
                           >
-                            Convert inquiry
+                            Confirm Inquiry
                           </button>
                         ) : null}
                         {(detailOrder.status === 'INQUIRY' ||
@@ -2707,15 +3167,6 @@ function selectionStatus(order: Order) {
                             {detailOrder.categorySnapshot ? 'Change Category' : 'Choose category'}
                           </button>
                         ) : null}
-                        {detailOrder.status === 'CONFIRMED' ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleMarkCompleted(detailOrder)}
-                            className="rounded-xl border border-sky-200 px-4 py-2.5 text-sm font-medium text-sky-700 transition hover:bg-sky-50"
-                          >
-                            Mark completed
-                          </button>
-                        ) : null}
                       {isCompanyAdmin &&
                       (detailOrder.status === 'INQUIRY' ||
                         detailOrder.status === 'CONFIRMED') ? (
@@ -2734,6 +3185,97 @@ function selectionStatus(order: Order) {
                     </div>
                   </div>
                 </div>
+                {detailOrder.status === 'CONFIRMED' && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+                        Advance Payments
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentAmount('');
+                          setPaymentPopupMode(defaultPaymentMode);
+                          setPaymentRemark('');
+                          setPaymentEditor({ orderId: detailOrder.id });
+                          setPaymentPopup({ orderId: detailOrder.id });
+                        }}
+                        className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
+                      >
+                        Add Advance
+                      </button>
+                    </div>
+                    {(!detailOrder.advancePayments || detailOrder.advancePayments.length === 0) ? (
+                      <p className="mt-4 text-sm text-slate-500">No advance payments recorded yet.</p>
+                    ) : (
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="min-w-full text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-amber-200 text-slate-500">
+                              <th className="px-3 py-2 font-medium">Date</th>
+                              <th className="px-3 py-2 font-medium">Amount</th>
+                              <th className="px-3 py-2 font-medium">Mode</th>
+                              <th className="px-3 py-2 font-medium">Remarks</th>
+                              <th className="px-3 py-2 font-medium">Recorded By</th>
+                              {isCompanyAdmin ? (
+                                <th className="px-3 py-2 font-medium text-right">Actions</th>
+                              ) : null}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...detailOrder.advancePayments]
+                              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                              .map((payment) => (
+                                <tr key={payment.id} className="border-b border-amber-100 last:border-b-0">
+                                  <td className="px-3 py-3 text-slate-700">{formatFollowUpDate(payment.date)}</td>
+                                  <td className="px-3 py-3 font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
+                                  <td className="px-3 py-3 text-slate-700">{payment.paymentMode}</td>
+                                  <td className="px-3 py-3 text-slate-700">{payment.remark || '-'}</td>
+                                  <td className="px-3 py-3 text-slate-700">{payment.recordedByName}</td>
+                                  {isCompanyAdmin ? (
+                                    <td className="px-3 py-3">
+                                      <div className="flex justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPaymentAmount(String(payment.amount));
+                                            setPaymentPopupMode(payment.paymentMode);
+                                            setPaymentRemark(payment.remark ?? '');
+                                            setPaymentEditor({
+                                              orderId: detailOrder.id,
+                                              paymentId: payment.id,
+                                            });
+                                            setPaymentPopup({ orderId: detailOrder.id });
+                                          }}
+                                          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-white"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            void handleDeleteAdvancePayment(detailOrder.id, payment.id)
+                                          }
+                                          className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </td>
+                                  ) : null}
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <div className="mt-4 flex items-center justify-between border-t border-amber-200 pt-4 text-sm font-semibold text-slate-900">
+                      <span>Total Advance Paid</span>
+                      <span>{formatCurrency(detailOrder.advanceAmount)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -2883,43 +3425,111 @@ function InfoCard({
 
 function Field({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label className="block space-y-2">
       <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
         {label}
+        {required && <span className="ml-0.5 text-red-500"> *</span>}
       </span>
       {children}
     </label>
   );
 }
 
-function TimeSelect({
+function TimePicker({
   value,
   onChange,
-  placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
-  placeholder: string;
+  hourPlaceholder?: string;
+  minutePlaceholder?: string;
 }) {
+  function parseValue(v: string) {
+    if (!v) return { hour: '', minute: '', period: '' };
+    const [hourPart, minutePart] = v.split(':');
+    const h24 = parseInt(hourPart, 10);
+    return {
+      hour: String(h24 % 12 || 12),
+      minute: minutePart || '00',
+      period: h24 >= 12 ? 'PM' : 'AM',
+    };
+  }
+
+  const parsed = parseValue(value);
+  const [localHour, setLocalHour] = useState(parsed.hour);
+  const [localMinute, setLocalMinute] = useState(parsed.minute);
+  const [localPeriod, setLocalPeriod] = useState(parsed.period);
+
+  useEffect(() => {
+    const p = parseValue(value);
+    setLocalHour(p.hour);
+    setLocalMinute(p.minute);
+    setLocalPeriod(p.period);
+  }, [value]);
+
+  function emitTime(nextHour: string, nextMinute: string, nextPeriod: string) {
+    if (!nextHour || !nextMinute || !nextPeriod) {
+      onChange('');
+      return;
+    }
+
+    let h24 = parseInt(nextHour, 10) % 12;
+    if (nextPeriod === 'PM') h24 += 12;
+    onChange(`${String(h24).padStart(2, '0')}:${nextMinute}`);
+  }
+
   return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className={`${inputCls} min-h-12`}
-    >
-      <option value="">{placeholder}</option>
-      {timeOptions.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <div className="grid grid-cols-3 gap-2">
+      <select
+        value={localHour}
+        onChange={(e) => {
+          const nextHour = e.target.value;
+          setLocalHour(nextHour);
+          emitTime(nextHour, localMinute, localPeriod);
+        }}
+        className={`${inputCls} light-form-field min-h-12 flex-1`}
+      >
+        <option value="">Hour</option>
+        {hourOptions.map((hour) => (
+          <option key={hour} value={hour}>{hour}</option>
+        ))}
+      </select>
+      <select
+        value={localMinute}
+        onChange={(e) => {
+          const nextMinute = e.target.value;
+          setLocalMinute(nextMinute);
+          emitTime(localHour, nextMinute, localPeriod);
+        }}
+        className={`${inputCls} light-form-field min-h-12 flex-1`}
+      >
+        <option value="">Min</option>
+        {minuteOptions.map((minute) => (
+          <option key={minute} value={minute}>{minute}</option>
+        ))}
+      </select>
+      <select
+        value={localPeriod}
+        onChange={(e) => {
+          const nextPeriod = e.target.value;
+          setLocalPeriod(nextPeriod);
+          emitTime(localHour, localMinute, nextPeriod);
+        }}
+        className={`${inputCls} light-form-field min-h-12 flex-1`}
+      >
+        <option value="">--</option>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
   );
 }
 
@@ -3229,20 +3839,14 @@ function buildMonthGrid(month: Date) {
   });
 }
 
-function buildTimeOptions() {
-  const options: Array<{ value: string; label: string }> = [];
+function withCurrentOption(options: string[], current?: string | null) {
+  const normalized = options.filter(Boolean);
 
-  for (let hour = 0; hour < 24; hour += 1) {
-    for (let minute = 0; minute < 60; minute += 15) {
-      const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-      options.push({
-        value,
-        label: formatTimeOptionLabel(value),
-      });
-    }
+  if (!current?.trim()) {
+    return normalized;
   }
 
-  return options;
+  return normalized.includes(current) ? normalized : [current, ...normalized];
 }
 
 function formatTimeOptionLabel(value: string) {
@@ -3251,4 +3855,20 @@ function formatTimeOptionLabel(value: string) {
   const hour = rawHour % 12 || 12;
 
   return `${String(hour).padStart(2, '0')}:${String(rawMinute).padStart(2, '0')} ${suffix}`;
+}
+
+function formatTimeRange(startTime?: string | null, endTime?: string | null) {
+  if (startTime && endTime) {
+    return `${formatTimeOptionLabel(startTime)} - ${formatTimeOptionLabel(endTime)}`;
+  }
+
+  if (startTime) {
+    return formatTimeOptionLabel(startTime);
+  }
+
+  if (endTime) {
+    return formatTimeOptionLabel(endTime);
+  }
+
+  return 'Time pending';
 }

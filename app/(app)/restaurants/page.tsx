@@ -14,6 +14,7 @@ import {
   updateRestaurant,
 } from '@/lib/auth/api';
 import { Restaurant, SubscriptionLog } from '@/lib/auth/types';
+import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
 type RestaurantFormState = {
   name: string;
@@ -437,11 +438,7 @@ export default function RestaurantsPage() {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
-                      Loading restaurants…
-                    </td>
-                  </tr>
+                  <TableLoader colSpan={6} message="Loading restaurants…" />
                 ) : restaurants.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
@@ -484,9 +481,7 @@ export default function RestaurantsPage() {
         {/* Mobile cards */}
         <div className="space-y-3 md:hidden">
           {isLoading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center text-sm text-slate-400 shadow-sm">
-              Loading restaurants…
-            </div>
+            <PageLoader message="Loading restaurants…" />
           ) : restaurants.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center text-sm text-slate-400 shadow-sm">
               No restaurants found.

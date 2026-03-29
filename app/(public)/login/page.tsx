@@ -52,7 +52,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { isReady, setSession, user } = useAuth();
 
-  const [email, setEmail]             = useState('');
+  const [identifier, setIdentifier]   = useState('');
   const [password, setPassword]       = useState('');
   const [showPwd, setShowPwd]         = useState(false);
   const [error, setError]             = useState('');
@@ -68,7 +68,7 @@ export default function LoginPage() {
     setError('');
     try {
       setIsSubmitting(true);
-      const session = await loginRequest(email, password);
+      const session = await loginRequest(identifier, password);
       setSession(session);
       router.replace(
         session.user.isFirstLogin ? '/reset-password' : getHomeRouteForUser(session.user),
@@ -105,8 +105,8 @@ export default function LoginPage() {
               </svg>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-400">ZenBooking</p>
-              <p className="text-xs font-medium text-white/60">Banquet Operations OS</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-400">Banquate</p>
+              <p className="text-xs font-medium text-white/60">Booking System</p>
             </div>
           </div>
 
@@ -188,7 +188,7 @@ export default function LoginPage() {
             Welcome back
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Sign in to your ZenBooking workspace and pick up right where you left off.
+            Sign in to your Banquate Booking System workspace and pick up right where you left off.
           </p>
         </div>
 
@@ -205,15 +205,15 @@ export default function LoginPage() {
                 <path d="M2.5 3A1.5 1.5 0 0 0 1 4.5v.793c.026.009.051.02.076.032L7.674 8.51c.206.1.446.1.652 0l6.598-3.185A.755.755 0 0 1 15 5.293V4.5A1.5 1.5 0 0 0 13.5 3h-11Z" />
                 <path d="M15 6.954 8.978 9.86a2.25 2.25 0 0 1-1.956 0L1 6.954V11.5A1.5 1.5 0 0 0 2.5 13h11a1.5 1.5 0 0 0 1.5-1.5V6.954Z" />
               </svg>
-              Email address
+              Email or Username
             </label>
             <input
-              type="email"
-              placeholder="manager@zenbooking.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              placeholder="Email or username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               className="light-form-field w-full rounded-2xl px-4 py-3.5 text-sm text-slate-900 outline-none"
             />
           </div>
@@ -293,7 +293,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  Sign In to ZenBooking
+                  Sign In to Banquate
                   <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 transition-transform group-hover:translate-x-0.5">
                     <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
                   </svg>

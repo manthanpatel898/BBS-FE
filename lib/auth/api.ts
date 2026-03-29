@@ -1,5 +1,6 @@
 import {
   ApiEnvelope,
+  AppSettings,
   Employee,
   AuthSession,
   AuthUser,
@@ -37,13 +38,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload.data;
 }
 
-export async function loginRequest(email: string, password: string) {
+export async function loginRequest(identifier: string, password: string) {
   const response = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   });
 
   return parseResponse<AuthSession>(response);
@@ -192,8 +193,9 @@ export async function fetchEmployees(
 
 export async function createEmployee(
   accessToken: string,
-  payload: Pick<Employee, 'firstName' | 'lastName' | 'email' | 'contactNo' | 'designation'> & {
+  payload: Pick<Employee, 'firstName' | 'lastName' | 'username' | 'contactNo' | 'designation'> & {
     password: string;
+    role: string;
   },
 ) {
   return authorizedRequest<Employee>('/employees', accessToken, {
@@ -207,8 +209,8 @@ export async function updateEmployee(
   employeeId: string,
   payload: Pick<
     Employee,
-    'firstName' | 'lastName' | 'email' | 'contactNo' | 'designation' | 'isActive'
-  >,
+    'firstName' | 'lastName' | 'username' | 'contactNo' | 'designation' | 'isActive'
+  > & { role: string; password?: string },
 ) {
   return authorizedRequest<Employee>(`/employees/${employeeId}`, accessToken, {
     method: 'PATCH',
@@ -382,6 +384,8 @@ export async function fetchOrders(
     functionName?: string;
     from?: string;
     to?: string;
+    inquiryFrom?: string;
+    inquiryTo?: string;
   },
 ) {
   const query = new URLSearchParams({
@@ -411,6 +415,14 @@ export async function fetchOrders(
 
   if (params.to?.trim()) {
     query.set('to', params.to.trim());
+  }
+
+  if (params.inquiryFrom?.trim()) {
+    query.set('inquiryFrom', params.inquiryFrom.trim());
+  }
+
+  if (params.inquiryTo?.trim()) {
+    query.set('inquiryTo', params.inquiryTo.trim());
   }
 
   return authorizedRequest<PaginatedOrders>(`/orders?${query.toString()}`, accessToken);
@@ -546,6 +558,7 @@ export async function confirmInquiry(
     paymentMode?: PaymentMode;
     extrasTotal?: number;
     discountAmount?: number;
+    remark?: string;
   },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/confirm`, accessToken, {
@@ -576,6 +589,47 @@ export async function addOrderFollowUp(
   });
 }
 
+export async function addAdvancePayment(
+  accessToken: string,
+  orderId: string,
+  payload: { amount: number; paymentMode: PaymentMode; date?: string; remark?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/advance-payments`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdvancePayment(
+  accessToken: string,
+  orderId: string,
+  paymentId: string,
+  payload: { amount: number; paymentMode: PaymentMode; date?: string; remark?: string },
+) {
+  return authorizedRequest<Order>(
+    `/orders/${orderId}/advance-payments/${paymentId}`,
+    accessToken,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteAdvancePayment(
+  accessToken: string,
+  orderId: string,
+  paymentId: string,
+) {
+  return authorizedRequest<Order>(
+    `/orders/${orderId}/advance-payments/${paymentId}`,
+    accessToken,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
 export async function forgotPasswordRequest(email: string) {
   const response = await fetch(`${API_URL}/auth/forgot-password`, {
     method: 'POST',
@@ -604,4 +658,80 @@ export async function fetchOrderStats(accessToken: string) {
 
 export async function fetchOrderReports(accessToken: string) {
   return authorizedRequest<OrderReports>('/orders/reports', accessToken);
+}
+
+export async function fetchSettings(accessToken: string) {
+  return authorizedRequest<AppSettings>('/settings', accessToken);
+}
+
+export async function createPaymentOption(accessToken: string, label: string) {
+  return authorizedRequest<AppSettings>('/settings/payment-options', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function updatePaymentOption(
+  accessToken: string,
+  optionId: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(`/settings/payment-options/${optionId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function deletePaymentOption(accessToken: string, optionId: string) {
+  return authorizedRequest<AppSettings>(`/settings/payment-options/${optionId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function createEventOption(accessToken: string, label: string) {
+  return authorizedRequest<AppSettings>('/settings/event-options', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function updateEventOption(
+  accessToken: string,
+  optionId: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(`/settings/event-options/${optionId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function deleteEventOption(accessToken: string, optionId: string) {
+  return authorizedRequest<AppSettings>(`/settings/event-options/${optionId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function createBanquetRule(accessToken: string, label: string) {
+  return authorizedRequest<AppSettings>('/settings/banquet-rules', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function updateBanquetRule(
+  accessToken: string,
+  optionId: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(`/settings/banquet-rules/${optionId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function deleteBanquetRule(accessToken: string, optionId: string) {
+  return authorizedRequest<AppSettings>(`/settings/banquet-rules/${optionId}`, accessToken, {
+    method: 'DELETE',
+  });
 }

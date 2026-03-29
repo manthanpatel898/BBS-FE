@@ -2,7 +2,7 @@ const pillars = [
   {
     title: 'AI-assisted operational design',
     description:
-      'ZenBooking is crafted to reduce manual follow-ups and repetitive decision fatigue by guiding teams through structured workflows.',
+      'Banquate Booking System is crafted to reduce manual follow-ups and repetitive decision fatigue by guiding teams through structured workflows.',
   },
   {
     title: 'Real-world banquet logic',
@@ -20,12 +20,12 @@ export default function AboutPage() {
   return (
     <section className="space-y-8">
       <article className="rounded-[28px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(255,248,235,0.84),rgba(239,246,255,0.84))] p-6 shadow-[0_20px_50px_rgba(148,163,184,0.14)] sm:p-8">
-        <p className="text-xs uppercase tracking-[0.35em] text-[var(--accent)]">About ZenBooking</p>
+        <p className="text-xs uppercase tracking-[0.35em] text-[var(--accent)]">About Banquate Booking System</p>
         <h1 className="mt-4 text-4xl font-semibold text-slate-900 sm:text-5xl">
           We are building the intelligent operating layer for banquet teams.
         </h1>
         <p className="mt-5 max-w-4xl text-base leading-8 text-slate-600 sm:text-lg">
-          ZenBooking is an AI-informed banquet management product focused on execution excellence.
+          Banquate Booking System is an AI-informed banquet management product focused on execution excellence.
           We help hospitality businesses replace scattered spreadsheets and fragmented chats with one
           unified system for inquiries, bookings, menus, team roles, and event coordination. Our mission
           is simple: make every booking faster to process, safer to confirm, and easier to deliver.
@@ -51,9 +51,12 @@ export default function AboutPage() {
 
       <article className="rounded-[28px] border border-white/80 bg-[linear-gradient(145deg,#fff8eb,#ffffff,#f0f9ff)] p-6 shadow-[0_18px_42px_rgba(148,163,184,0.12)] sm:p-8">
         <p className="text-sm leading-8 text-slate-600">
-          ZenBooking is developed by a product-minded engineering team that blends practical hospitality insights,
-          modern UX principles, and scalable backend architecture. We are focused on long-term reliability, not just
-          quick feature additions.
+          Banquate Booking System is developed by Zenovel Technolab — a product-minded engineering team that blends
+          practical hospitality insights, modern UX principles, and scalable backend architecture. We are focused
+          on long-term reliability, not just quick feature additions.
+        </p>
+        <p className="mt-4 text-xs text-slate-400">
+          © {new Date().getFullYear()} Zenovel Technolab. All rights reserved. &nbsp;·&nbsp; Developed by Zenovel Technolab
         </p>
       </article>
     </section>

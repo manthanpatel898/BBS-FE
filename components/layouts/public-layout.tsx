@@ -20,13 +20,13 @@ export function PublicLayout({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Link href="/" className="flex items-center gap-3">
               <div className="rounded-xl border border-white/30 bg-white/80 p-2 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
-                <Image src="/logo.png" alt="ZenBooking" width={34} height={34} />
+                <Image src="/logo.png" alt="Banquate Booking System" width={34} height={34} />
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.36em] text-[var(--accent)]">
-                  ZenBooking
+                  Banquate
                 </p>
-                <p className="text-sm font-semibold text-[var(--ink)]">Banquet Operations OS</p>
+                <p className="text-sm font-semibold text-[var(--ink)]">Booking System</p>
               </div>
             </Link>
 
@@ -57,7 +57,7 @@ export function PublicLayout({
         <footer className="mt-8 rounded-[30px] border border-white/80 bg-[linear-gradient(140deg,rgba(255,255,255,0.9),rgba(255,248,235,0.82),rgba(240,249,255,0.84))] p-6 shadow-[0_18px_40px_rgba(148,163,184,0.12)] backdrop-blur-md sm:p-8">
           <div className="grid gap-8 md:grid-cols-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-[var(--accent)]">ZenBooking</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-[var(--accent)]">Banquate Booking System</p>
               <p className="mt-3 text-sm text-slate-600">
                 Built for modern banquet teams to manage inquiries, bookings, menus, teams, and event timelines from one powerful panel.
               </p>
@@ -95,7 +95,8 @@ export function PublicLayout({
             </div>
           </div>
           <div className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
-            © {new Date().getFullYear()} ZenBooking by Zenovel Technolab. Built for banquet businesses.
+            © {new Date().getFullYear()} Zenovel Technolab. All rights reserved.
+            &nbsp;·&nbsp; Banquate Booking System &nbsp;·&nbsp; Developed by Zenovel Technolab
           </div>
         </footer>
       </div>

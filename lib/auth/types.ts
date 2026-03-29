@@ -63,7 +63,7 @@ export interface Employee {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
+  username: string;
   contactNo: string;
   designation: string | null;
   role: UserRole;
@@ -156,7 +156,22 @@ export interface Customer {
 
 export type OrderStatus = 'INQUIRY' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
 export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
-export type PaymentMode = 'CASH' | 'UPI' | 'CARD';
+export type PaymentMode = string;
+
+export interface SettingOption {
+  id: string;
+  label: string;
+}
+
+export interface AppSettings {
+  id: string;
+  restaurantId: string;
+  paymentOptions: SettingOption[];
+  eventOptions: SettingOption[];
+  banquetRules: SettingOption[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface OrderCategorySnapshot {
   categoryId: string;
@@ -178,6 +193,16 @@ export interface OrderFollowUp {
   createdAt: string;
 }
 
+export interface OrderAdvancePayment {
+  id: string;
+  amount: number;
+  paymentMode: PaymentMode;
+  date: string;
+  remark: string | null;
+  recordedByName: string;
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
   restaurantId: string;
@@ -190,12 +215,14 @@ export interface Order {
   functionName: string | null;
   eventDate: string | null;
   inquiryDate: string | null;
+  confirmedAt: string | null;
   startTime: string | null;
   endTime: string | null;
   categorySnapshot: OrderCategorySnapshot | null;
   menuSelectionSnapshot: OrderMenuSelectionSnapshot[];
   pricePerPlate: number;
   customPricePerPlate: number | null;
+  inquiryCustomPrice: number | null;
   baseTotal: number;
   extrasTotal: number;
   discountAmount: number;
@@ -214,6 +241,7 @@ export interface Order {
   additionalInformation: string | null;
   cancelReason: string | null;
   followUps: OrderFollowUp[];
+  advancePayments: OrderAdvancePayment[];
   bookingTakenBy: string;
   createdAt: string;
   updatedAt: string;

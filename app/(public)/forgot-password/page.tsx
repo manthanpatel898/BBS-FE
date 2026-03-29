@@ -42,8 +42,8 @@ export default function ForgotPasswordPage() {
               </svg>
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-400">ZenBooking</p>
-              <p className="text-xs font-medium text-white/60">Banquet Operations OS</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-400">Banquate</p>
+              <p className="text-xs font-medium text-white/60">Booking System</p>
             </div>
           </div>
 

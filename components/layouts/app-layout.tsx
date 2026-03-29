@@ -63,6 +63,15 @@ function IconUsers() {
   );
 }
 
+function IconSettings() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-.33-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1-.33 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 .33 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.24.3.43.65.6 1 .1.31.15.64.15 1s-.05.69-.15 1c-.17.35-.36.7-.6 1Z" />
+    </svg>
+  );
+}
+
 function IconList() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -124,6 +133,15 @@ function IconReport() {
   );
 }
 
+function IconBell() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
 const NAV_CONFIG: Record<string, NavItem[]> = {
   super_admin: [
     { href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
@@ -132,12 +150,17 @@ const NAV_CONFIG: Record<string, NavItem[]> = {
   company_admin: [
     { href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
     { href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
-    { href: '/reports', label: 'Reports', icon: <IconReport /> },
+    { href: '/followups', label: 'Followups', icon: <IconBell /> },
     { href: '/categories', label: 'Categories', icon: <IconTag /> },
     { href: '/menus', label: 'Menus', icon: <IconMenu /> },
     { href: '/employees', label: 'Employees', icon: <IconUsers /> },
+    { href: '/settings', label: 'Settings', icon: <IconSettings /> },
+    { href: '/reports', label: 'Reports', icon: <IconReport /> },
   ],
-  employee: [{ href: '/bookings', label: 'Bookings', icon: <IconCalendar /> }],
+  employee: [
+    { href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
+    { href: '/followups', label: 'Followups', icon: <IconBell /> },
+  ],
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -210,7 +233,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
-            <Image src="/logo.png" alt="ZenBooking" width={22} height={22} />
+            <Image src="/logo.png" alt="Banquate Booking System" width={22} height={22} />
           </div>
           <div className="hidden sm:block">
             <p className="text-sm font-bold leading-none text-slate-900">Banquate Booking System</p>
