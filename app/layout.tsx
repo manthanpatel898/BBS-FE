@@ -1,6 +1,7 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
+import { PwaRegister } from '@/components/pwa-register';
 
 export const metadata: Metadata = {
   title: {
@@ -8,13 +9,28 @@ export const metadata: Metadata = {
     template: '%s | Banquate Booking System',
   },
   description: 'Banquate Booking System — end-to-end banquet operations and booking platform.',
-  applicationName: 'Banquate Booking System',
+  applicationName: 'bbs',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'bbs',
+  },
+  icons: {
+    icon: '/icon.png',
+    apple: '/icon.png',
+    shortcut: '/icon.png',
+  },
   openGraph: {
     title: 'Banquate Booking System',
     description: 'End-to-end banquet operations and booking platform.',
     siteName: 'Banquate Booking System',
     images: [{ url: '/logo.png' }],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#f6ad1c',
 };
 
 export default function RootLayout({
@@ -25,6 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <PwaRegister />
         <Providers>{children}</Providers>
       </body>
     </html>

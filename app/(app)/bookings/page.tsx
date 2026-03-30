@@ -431,6 +431,8 @@ export default function BookingsPage() {
       customPricePerPlate:
         order.customPricePerPlate !== null && order.customPricePerPlate !== undefined
           ? String(order.customPricePerPlate)
+          : order.inquiryCustomPrice !== null && order.inquiryCustomPrice !== undefined
+            ? String(order.inquiryCustomPrice)
           : '',
       selectedMenus: order.menuSelectionSnapshot.map((menu) => ({
         menuId: menu.menuId,
@@ -475,6 +477,8 @@ export default function BookingsPage() {
       customPricePerPlate:
         order.customPricePerPlate !== null && order.customPricePerPlate !== undefined
           ? String(order.customPricePerPlate)
+          : order.inquiryCustomPrice !== null && order.inquiryCustomPrice !== undefined
+            ? String(order.inquiryCustomPrice)
           : '',
       selectedMenus: order.menuSelectionSnapshot.map((menu) => ({
         menuId: menu.menuId,
@@ -2769,7 +2773,9 @@ function selectionStatus(order: Order) {
                 <input
                   type="text"
                   value={addonPopup.value}
-                  onChange={(e) => setAddonPopup((cur) => cur ? { ...cur, value: e.target.value } : cur)}
+                  onChange={(e) =>
+                    setAddonPopup((cur) => cur ? { ...cur, value: e.target.value.toUpperCase() } : cur)
+                  }
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -2778,7 +2784,7 @@ function selectionStatus(order: Order) {
                     }
                   }}
                   placeholder="e.g. Jain Biryani"
-                  className={inputCls}
+                  className={`${inputCls} uppercase`}
                   autoFocus
                 />
               </Field>
@@ -2979,77 +2985,106 @@ function selectionStatus(order: Order) {
 
                   return (
                     <>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <InfoCard label="Customer">
-                    <p className="mt-2 text-lg font-semibold text-slate-900">
-                      {detailOrder.customer.firstName} {detailOrder.customer.lastName}
-                    </p>
-                    <p className="mt-2 text-slate-700">{detailOrder.customer.phone}</p>
-                    <p className="mt-1 text-slate-500">
-                      {detailOrder.customer.email || 'No email provided'}
-                    </p>
-                  </InfoCard>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(
+                      detailOrder.status,
+                    )}`}
+                  >
+                    {detailOrder.status}
+                  </span>
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${menuStatus.className}`}
+                  >
+                    {menuStatus.label}
+                  </span>
+                </div>
+
+                <div className="grid items-start gap-4 xl:grid-cols-[3fr_1fr]">
                   <InfoCard label="Inquiry Details">
                     <p className="mt-2 text-lg font-semibold text-slate-900">
                       {detailOrder.functionName || 'Booking details pending'}
                     </p>
-                    <p className="mt-2 text-slate-700">
-                      {detailOrder.eventDate
-                        ? formatDisplayDate(detailOrder.eventDate)
-                        : 'Date pending'}
-                    </p>
-                    <p className="mt-1 text-slate-500">
-                      {detailOrder.startTime && detailOrder.endTime
-                        ? formatTimeRange(detailOrder.startTime, detailOrder.endTime)
-                        : 'Time pending'}
-                    </p>
-                    <p className="mt-1 text-slate-500">
-                      {detailOrder.serviceSlot || 'Service slot pending'}
-                    </p>
-                    <p className="mt-1 text-slate-500">
-                      Hall details: {detailOrder.hallDetails || 'Hall details pending'}
-                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Customer Name</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailOrder.customer.firstName} {detailOrder.customer.lastName}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Mobile Number</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailOrder.customer.phone}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Function Date</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailOrder.eventDate
+                            ? formatDisplayDate(detailOrder.eventDate)
+                            : 'Date pending'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Time</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailOrder.startTime && detailOrder.endTime
+                            ? formatTimeRange(detailOrder.startTime, detailOrder.endTime)
+                            : 'Time pending'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Service Slot</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailOrder.serviceSlot || 'Service slot pending'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Hall Details</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailOrder.hallDetails || 'Hall details pending'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:col-span-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Jain/Swaminarayan Person</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailOrder.jainSwaminarayanPax ?? 'Pending'}
+                        </p>
+                      </div>
+                    </div>
                     {detailOrder.referenceBy ? (
-                      <p className="mt-1 text-slate-500">Reference: {detailOrder.referenceBy}</p>
+                      <p className="mt-3 text-sm text-slate-500">
+                        <span className="font-semibold uppercase tracking-wider text-slate-500">Reference:</span>{' '}
+                        {detailOrder.referenceBy}
+                      </p>
                     ) : null}
                   </InfoCard>
                   <InfoCard label="Package">
                     <p className="mt-2 text-lg font-semibold text-slate-900">
                       {detailOrder.categorySnapshot?.name ||
-                        (detailOrder.status === 'INQUIRY' && detailOrder.inquiryCustomPrice !== null
+                        (detailOrder.inquiryCustomPrice !== null
                           ? 'Custom Price'
                           : 'Package pending')}
                     </p>
-                    {detailOrder.status === 'INQUIRY' &&
-                    detailOrder.inquiryCustomPrice !== null ? (
-                      <p className="mt-2 text-slate-700">
-                        Custom Price: {formatCurrency(detailOrder.inquiryCustomPrice)}
-                      </p>
-                    ) : (
-                      <p className="mt-2 text-slate-700">
-                        {detailOrder.pax ?? 0} guests at{' '}
-                        {formatCurrency(detailOrder.pricePerPlate)} per plate
-                      </p>
-                    )}
-                  </InfoCard>
-                  <InfoCard label="Status">
-                    <span
-                      className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(
-                        detailOrder.status,
-                      )}`}
-                    >
-                      {detailOrder.status}
-                    </span>
-                    <span
-                      className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-medium ${menuStatus.className}`}
-                    >
-                      {menuStatus.label}
-                    </span>
-                    <p className="mt-3 text-slate-500">
-                      Order number #{detailOrder.orderNumber}
+                    <p className="mt-2 text-slate-700">
+                      <span className="font-medium text-slate-500">PAX: </span>
+                      {detailOrder.pax ?? 0}
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      <span className="font-medium text-slate-500">Price: </span>
+                      {formatCurrency(
+                        detailOrder.customPricePerPlate !== null
+                          ? detailOrder.customPricePerPlate
+                          : detailOrder.inquiryCustomPrice !== null
+                            ? detailOrder.inquiryCustomPrice
+                          : detailOrder.pricePerPlate,
+                      )}
                     </p>
                     {detailOrder.confirmedAt ? (
-                      <p className="mt-1 text-slate-500">
+                      <p className="mt-3 text-slate-500">
                         Confirmed on {formatFollowUpDate(detailOrder.confirmedAt)}
                       </p>
                     ) : null}
@@ -3416,7 +3451,7 @@ function InfoCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</p>
       {children}
     </div>
@@ -3453,7 +3488,7 @@ function TimePicker({
   minutePlaceholder?: string;
 }) {
   function parseValue(v: string) {
-    if (!v) return { hour: '', minute: '', period: '' };
+    if (!v) return { hour: '', minute: '00', period: '' };
     const [hourPart, minutePart] = v.split(':');
     const h24 = parseInt(hourPart, 10);
     return {
@@ -3511,7 +3546,6 @@ function TimePicker({
         }}
         className={`${inputCls} light-form-field min-h-12 flex-1`}
       >
-        <option value="">Min</option>
         {minuteOptions.map((minute) => (
           <option key={minute} value={minute}>{minute}</option>
         ))}
