@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -133,11 +132,29 @@ function IconReport() {
   );
 }
 
+function IconFire() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2c0 0-4 4-4 8a4 4 0 0 0 8 0c0-1.5-.5-3-1.5-4.5" />
+      <path d="M12 22c-3.3 0-6-2.7-6-6 0-2.5 1.5-4.5 3-6 0 2 1.5 3 3 3s3-1 3-3c1.5 1.5 3 3.5 3 6 0 3.3-2.7 6-6 6z" />
+    </svg>
+  );
+}
+
 function IconBell() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+function IconReceipt() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" />
+      <path d="M9 8h6M9 12h6M9 16h4" />
     </svg>
   );
 }
@@ -156,6 +173,7 @@ const NAV_CONFIG: Record<string, NavItem[]> = {
     { href: '/employees', label: 'Employees', icon: <IconUsers /> },
     { href: '/settings', label: 'Settings', icon: <IconSettings /> },
     { href: '/reports', label: 'Reports', icon: <IconReport /> },
+    { href: '/hot-dates', label: 'Hot Dates', icon: <IconFire /> },
   ],
   employee: [
     { href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
@@ -172,7 +190,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const navItems = NAV_CONFIG[user?.role ?? ''] ?? [];
+  const baseNavItems = NAV_CONFIG[user?.role ?? ''] ?? [];
+  const navItems =
+    ['company_admin', 'employee'].includes(user?.role ?? '') && user?.canAccessCancelledBookings
+      ? [
+          ...baseNavItems.slice(0, 2),
+          { href: '/cancelled-bookings', label: 'Cancel Bookings', icon: <IconReceipt /> },
+          ...baseNavItems.slice(2),
+        ]
+      : baseNavItems;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -233,7 +259,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
-            <Image src="/logo.png" alt="Banquate Booking System" width={22} height={22} />
+            <img
+              src={user?.restaurantLogoUrl || '/logo.png'}
+              alt="Banquate Booking System"
+              width={22}
+              height={22}
+              className="h-[22px] w-[22px] object-contain"
+            />
           </div>
           <div className="hidden sm:block">
             <p className="text-sm font-bold leading-none text-slate-900">Banquate Booking System</p>
@@ -360,7 +392,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   onClick={() => setSidebarOpen(false)}
                 >
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
-                    <Image src="/logo.png" alt="Banquate Booking System" width={22} height={22} />
+                    <img
+                      src={user?.restaurantLogoUrl || '/logo.png'}
+                      alt="Banquate Booking System"
+                      width={22}
+                      height={22}
+                      className="h-[22px] w-[22px] object-contain"
+                    />
                   </div>
                 </Link>
                 <button

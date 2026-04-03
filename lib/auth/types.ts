@@ -9,6 +9,8 @@ export interface AuthUser {
   designation?: string | null;
   role: UserRole;
   restaurantId: string | null;
+  canAccessCancelledBookings?: boolean;
+  restaurantLogoUrl?: string | null;
   isFirstLogin: boolean;
   isActive: boolean;
 }
@@ -37,11 +39,14 @@ export interface Restaurant {
   contactPersonName: string;
   contactPersonEmail: string;
   contactPersonNumber: string;
+  contactNumbers: string[];
   website: string | null;
+  logoUrl: string | null;
   address: string;
   startDate: string;
   endDate: string;
   bookingPrefix: string;
+  enableCancelledBookings?: boolean;
   isActive?: boolean;
   notes?: string | null;
   subscriptionLogs?: SubscriptionLog[];
@@ -168,7 +173,9 @@ export interface AppSettings {
   restaurantId: string;
   paymentOptions: SettingOption[];
   eventOptions: SettingOption[];
+  hallDetails: SettingOption[];
   banquetRules: SettingOption[];
+  addonServices: SettingOption[];
   createdAt: string;
   updatedAt: string;
 }
@@ -186,6 +193,12 @@ export interface OrderMenuSelectionSnapshot {
   sections: MenuSection[];
 }
 
+export interface OrderAddonServiceSnapshot {
+  addonServiceId: string;
+  label: string;
+  price: number;
+}
+
 export interface OrderFollowUp {
   followUpByName: string;
   date: string;
@@ -197,6 +210,15 @@ export interface OrderAdvancePayment {
   id: string;
   amount: number;
   paymentMode: PaymentMode;
+  date: string;
+  remark: string | null;
+  recordedByName: string;
+  createdAt: string;
+}
+
+export interface OrderDiningRedemption {
+  id: string;
+  amount: number;
   date: string;
   remark: string | null;
   recordedByName: string;
@@ -224,6 +246,7 @@ export interface Order {
   customPricePerPlate: number | null;
   inquiryCustomPrice: number | null;
   baseTotal: number;
+  addonServiceSnapshots: OrderAddonServiceSnapshot[];
   extrasTotal: number;
   discountAmount: number;
   grandTotal: number;
@@ -242,6 +265,8 @@ export interface Order {
   cancelReason: string | null;
   followUps: OrderFollowUp[];
   advancePayments: OrderAdvancePayment[];
+  diningRedemptions: OrderDiningRedemption[];
+  redeemableBalance: number;
   bookingTakenBy: string;
   createdAt: string;
   updatedAt: string;
@@ -324,4 +349,39 @@ export interface OrderReports {
     previous: ReportMetric;
   };
   bestSellingMenuItems: ReportMenuItem[];
+}
+
+export interface AdvancePaymentReportRow {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  eventType: string | null;
+  functionDate: string | null;
+  amount: number;
+  paymentMode: string;
+  paymentDate: string;
+  recordedByName: string;
+  remark: string | null;
+}
+
+export interface HotDate {
+  id: string;
+  restaurantId: string;
+  year: number;
+  date: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BulkUploadError {
+  row: number;
+  message: string;
+}
+
+export interface BulkUploadResult {
+  total: number;
+  inserted: number;
+  skipped: number;
+  errors: BulkUploadError[];
 }

@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchOrderReports, fetchOrders } from '@/lib/auth/api';
-import { Order, OrderReports } from '@/lib/auth/types';
+import {
+  fetchAdvancePaymentsReport,
+  fetchOrderReports,
+  fetchOrders,
+  fetchSettings,
+} from '@/lib/auth/api';
+import { AdvancePaymentReportRow, Order, OrderReports } from '@/lib/auth/types';
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-IN', {
@@ -18,6 +23,7 @@ const inputCls =
 
 const dateInputCls = `${inputCls} [color-scheme:light] [--tw-shadow:0_0_0_1000px_white_inset] [-webkit-text-fill-color:#0f172a] [&::-webkit-datetime-edit]:text-slate-900 [&::-webkit-datetime-edit-fields-wrapper]:text-slate-900 [&::-webkit-datetime-edit-text]:text-slate-500 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80`;
 const REPORT_FIELDS_STORAGE_KEY = 'banquate_report_fields_v1';
+type DownloadFormat = 'csv' | 'xlsx';
 const REPORT_FIELDS = [
   { key: 'eventDate', label: 'Function Date' },
   { key: 'inquiryDate', label: 'Inquiry Date' },
@@ -36,6 +42,12 @@ const REPORT_FIELDS = [
 ] as const;
 
 type ReportFieldKey = (typeof REPORT_FIELDS)[number]['key'];
+type AdvancePaymentFilters = {
+  from: string;
+  to: string;
+  paymentMode: string;
+  customer: string;
+};
 
 function MetricCard({
   label,
@@ -67,11 +79,25 @@ export default function ReportsPage() {
   const [downloadStatus, setDownloadStatus] = useState('CONFIRMED');
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [showFilteredView, setShowFilteredView] = useState(false);
+  const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('csv');
   const [selectedFields, setSelectedFields] = useState<ReportFieldKey[]>(
     REPORT_FIELDS.map((field) => field.key),
   );
   const [isViewing, setIsViewing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [advanceFilters, setAdvanceFilters] = useState<AdvancePaymentFilters>({
+    from: toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+    to: toDateInputValue(new Date()),
+    paymentMode: '',
+    customer: '',
+  });
+  const [advanceRows, setAdvanceRows] = useState<AdvancePaymentReportRow[]>([]);
+  const [showAdvanceView, setShowAdvanceView] = useState(false);
+  const [paymentModes, setPaymentModes] = useState<string[]>([]);
+  const [advanceDownloadFormat, setAdvanceDownloadFormat] =
+    useState<DownloadFormat>('csv');
+  const [isAdvanceViewing, setIsAdvanceViewing] = useState(false);
+  const [isAdvanceDownloading, setIsAdvanceDownloading] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -120,8 +146,12 @@ export default function ReportsPage() {
       try {
         setLoading(true);
         setError('');
-        const response = await fetchOrderReports(token);
+        const [response, settingsResponse] = await Promise.all([
+          fetchOrderReports(token),
+          fetchSettings(token).catch(() => null),
+        ]);
         setReports(response);
+        setPaymentModes(settingsResponse?.paymentOptions.map((option) => option.label) ?? []);
       } catch (requestError) {
         setError(
           requestError instanceof Error
@@ -162,7 +192,7 @@ export default function ReportsPage() {
             </p>
           </div>
         </div>
-        <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr_220px_auto_auto]">
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr_220px_180px_auto_auto]">
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
               Start Date
@@ -197,6 +227,19 @@ export default function ReportsPage() {
               <option value="CONFIRMED">Confirmed</option>
               <option value="INQUIRY">Inquiry</option>
               <option value="CANCELLED">Cancelled</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+              Download As
+            </span>
+            <select
+              value={downloadFormat}
+              onChange={(event) => setDownloadFormat(event.target.value as DownloadFormat)}
+              className={inputCls}
+            >
+              <option value="csv">CSV</option>
+              <option value="xlsx">Excel</option>
             </select>
           </label>
           <div className="flex items-end">
@@ -288,7 +331,7 @@ export default function ReportsPage() {
                   </button>
                 </div>
               </div>
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
@@ -325,6 +368,164 @@ export default function ReportsPage() {
               </div>
             </section>
           ) : null}
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Advance Payment Report</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Filter recorded advance payments by payment date, payment type, and customer, then preview or download the result.
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                {advanceRows.length} record{advanceRows.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_220px_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                  Start Date
+                </span>
+                <input
+                  type="date"
+                  value={advanceFilters.from}
+                  onChange={(event) =>
+                    setAdvanceFilters((current) => ({ ...current, from: event.target.value }))
+                  }
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                  End Date
+                </span>
+                <input
+                  type="date"
+                  value={advanceFilters.to}
+                  onChange={(event) =>
+                    setAdvanceFilters((current) => ({ ...current, to: event.target.value }))
+                  }
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                  Payment Type
+                </span>
+                <select
+                  value={advanceFilters.paymentMode}
+                  onChange={(event) =>
+                    setAdvanceFilters((current) => ({
+                      ...current,
+                      paymentMode: event.target.value,
+                    }))
+                  }
+                  className={inputCls}
+                >
+                  <option value="">All payment types</option>
+                  {paymentModes.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                  Customer
+                </span>
+                <input
+                  value={advanceFilters.customer}
+                  onChange={(event) =>
+                    setAdvanceFilters((current) => ({ ...current, customer: event.target.value }))
+                  }
+                  placeholder="Name, phone, or booking id"
+                  className={inputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                  Download As
+                </span>
+                <select
+                  value={advanceDownloadFormat}
+                  onChange={(event) =>
+                    setAdvanceDownloadFormat(event.target.value as DownloadFormat)
+                  }
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={isAdvanceViewing}
+                  onClick={() => void handleViewAdvanceReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {isAdvanceViewing ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={isAdvanceDownloading}
+                  onClick={() => void handleDownloadAdvanceReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  {isAdvanceDownloading ? 'Downloading…' : 'Download report'}
+                </button>
+              </div>
+            </div>
+
+            {showAdvanceView ? (
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Payment Date</th>
+                      <th className="px-4 py-3 font-medium">Booking Id</th>
+                      <th className="px-4 py-3 font-medium">Customer</th>
+                      <th className="px-4 py-3 font-medium">Phone</th>
+                      <th className="px-4 py-3 font-medium">Payment Type</th>
+                      <th className="px-4 py-3 font-medium">Amount</th>
+                      <th className="px-4 py-3 font-medium">Event</th>
+                      <th className="px-4 py-3 font-medium">Recorded By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advanceRows.length > 0 ? (
+                      advanceRows.map((row, index) => (
+                        <tr
+                          key={`${row.orderId}-${row.paymentDate}-${index}`}
+                          className={index > 0 ? 'border-t border-slate-200' : ''}
+                        >
+                          <td className="px-4 py-3 text-slate-600">
+                            {formatCsvDateTime(row.paymentDate)}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-900">{row.orderId}</td>
+                          <td className="px-4 py-3 text-slate-600">{row.customerName}</td>
+                          <td className="px-4 py-3 text-slate-600">{row.customerPhone || '-'}</td>
+                          <td className="px-4 py-3 text-slate-600">{row.paymentMode}</td>
+                          <td className="px-4 py-3 text-slate-600">{formatCurrency(row.amount)}</td>
+                          <td className="px-4 py-3 text-slate-600">{row.eventType || '-'}</td>
+                          <td className="px-4 py-3 text-slate-600">{row.recordedByName}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                          No advance payments found for the selected filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
@@ -365,7 +566,7 @@ export default function ReportsPage() {
                   </p>
                 </div>
               </div>
-              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
@@ -467,7 +668,7 @@ export default function ReportsPage() {
             <p className="mt-1 text-sm text-slate-500">
               Menu items selected most often across confirmed bookings.
             </p>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
@@ -509,13 +710,7 @@ export default function ReportsPage() {
       throw new Error('Missing session token.');
     }
 
-    if (!downloadFrom || !downloadTo) {
-      throw new Error('Start date and end date are required.');
-    }
-
-    if (downloadFrom > downloadTo) {
-      throw new Error('Start date cannot be later than end date.');
-    }
+    validateDateRange(downloadFrom, downloadTo);
 
     const allOrders: Order[] = [];
     let nextPage = 1;
@@ -537,6 +732,16 @@ export default function ReportsPage() {
     } while (nextPage <= totalPages);
 
     return allOrders;
+  }
+
+  async function loadAdvancePaymentRows() {
+    if (!accessToken) {
+      throw new Error('Missing session token.');
+    }
+
+    validateDateRange(advanceFilters.from, advanceFilters.to);
+
+    return fetchAdvancePaymentsReport(accessToken, advanceFilters);
   }
 
   async function handleViewReport() {
@@ -576,22 +781,15 @@ export default function ReportsPage() {
 
       const headers = selectedFields.map((fieldKey) => getReportFieldLabel(fieldKey));
       const rows = allOrders.map((order) =>
-        selectedFields.map((fieldKey) => getReportFieldValue(order, fieldKey)),
+        selectedFields.map((fieldKey) => getReportExportValue(order, fieldKey)),
       );
 
-      const csvContent = [headers, ...rows]
-        .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
-        .join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `booking-report-${downloadStatus.toLowerCase()}-${downloadFrom}-to-${downloadTo}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await downloadTable(
+        headers,
+        rows,
+        `booking-report-${downloadStatus.toLowerCase()}-${downloadFrom}-to-${downloadTo}`,
+        downloadFormat,
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -600,6 +798,70 @@ export default function ReportsPage() {
       );
     } finally {
       setIsDownloading(false);
+    }
+  }
+
+  async function handleViewAdvanceReport() {
+    try {
+      setIsAdvanceViewing(true);
+      setError('');
+      const rows = await loadAdvancePaymentRows();
+      setAdvanceRows(rows);
+      setShowAdvanceView(true);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to view advance payment report.',
+      );
+    } finally {
+      setIsAdvanceViewing(false);
+    }
+  }
+
+  async function handleDownloadAdvanceReport() {
+    try {
+      setIsAdvanceDownloading(true);
+      setError('');
+      const rows = await loadAdvancePaymentRows();
+      setAdvanceRows(rows);
+
+      await downloadTable(
+        [
+          'Payment Date',
+          'Booking Id',
+          'Customer Name',
+          'Customer Phone',
+          'Payment Type',
+          'Amount',
+          'Event Type',
+          'Function Date',
+          'Recorded By',
+          'Remarks',
+        ],
+        rows.map((row) => [
+          formatCsvDateTime(row.paymentDate),
+          row.orderId,
+          row.customerName,
+          row.customerPhone || '',
+          row.paymentMode,
+          formatExportAmount(row.amount),
+          row.eventType || '',
+          formatCsvDate(row.functionDate),
+          row.recordedByName,
+          row.remark || '',
+        ]),
+        `advance-payments-report-${advanceFilters.from}-to-${advanceFilters.to}`,
+        advanceDownloadFormat,
+      );
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to download advance payment report.',
+      );
+    } finally {
+      setIsAdvanceDownloading(false);
     }
   }
 
@@ -704,6 +966,76 @@ function getReportFieldValue(order: Order, fieldKey: ReportFieldKey) {
     default:
       return '-';
   }
+}
+
+function getReportExportValue(order: Order, fieldKey: ReportFieldKey) {
+  switch (fieldKey) {
+    case 'packageCategory':
+      return order.categorySnapshot
+        ? `${order.categorySnapshot.name} (${formatExportAmount(order.pricePerPlate)})`
+        : '-';
+    case 'grandTotal':
+      return formatExportAmount(order.grandTotal);
+    case 'advanceAmount':
+      return formatExportAmount(order.advanceAmount);
+    case 'pendingAmount':
+      return formatExportAmount(order.pendingAmount);
+    default:
+      return getReportFieldValue(order, fieldKey);
+  }
+}
+
+function formatExportAmount(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function validateDateRange(from: string, to: string) {
+  if (!from || !to) {
+    throw new Error('Start date and end date are required.');
+  }
+
+  if (from > to) {
+    throw new Error('Start date cannot be later than end date.');
+  }
+}
+
+async function downloadTable(
+  headers: string[],
+  rows: Array<Array<string | number | null>>,
+  fileName: string,
+  format: DownloadFormat,
+) {
+  if (format === 'xlsx') {
+    const { utils, write } = await import('xlsx');
+    const worksheet = utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = utils.book_new();
+    utils.book_append_sheet(workbook, worksheet, 'Report');
+    const buffer = write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+    downloadBlob(
+      new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }),
+      `${fileName}.xlsx`,
+    );
+    return;
+  }
+
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
+    .join('\n');
+
+  downloadBlob(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }), `${fileName}.csv`);
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function toDateInputValue(value: Date) {

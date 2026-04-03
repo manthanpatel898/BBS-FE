@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchOrderPrint, fetchRestaurantById, fetchSettings } from '@/lib/auth/api';
+import { fetchMyRestaurant, fetchOrderPrint, fetchRestaurantById, fetchSettings } from '@/lib/auth/api';
 import { AppSettings, Order, Restaurant } from '@/lib/auth/types';
 
 type CopyType = 'company' | 'manager' | 'customer';
@@ -60,18 +60,23 @@ export function PrintOrderView({
           setSettings(null);
         }
 
-        if (response.restaurantId) {
-          try {
-            const restaurantResponse = await fetchRestaurantById(
-              token,
-              response.restaurantId,
-            );
-            setRestaurant(restaurantResponse);
-          } catch {
+        try {
+          const myRestaurant = await fetchMyRestaurant(token);
+          setRestaurant(myRestaurant);
+        } catch {
+          if (response.restaurantId) {
+            try {
+              const restaurantResponse = await fetchRestaurantById(
+                token,
+                response.restaurantId,
+              );
+              setRestaurant(restaurantResponse);
+            } catch {
+              setRestaurant(null);
+            }
+          } else {
             setRestaurant(null);
           }
-        } else {
-          setRestaurant(null);
         }
       } catch (requestError) {
         setError(
@@ -153,13 +158,67 @@ function PrintDocument({
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
   const banquetRules = settings?.banquetRules ?? [];
+  const addonServicesSummary =
+    order.addonServiceSnapshots.length > 0
+      ? order.addonServiceSnapshots
+          .map((item) => `${item.label} (${formatCurrency(item.price)})`)
+          .join(', ')
+      : 'N/A';
+  const addonServicesTotal = order.addonServiceSnapshots.reduce(
+    (sum, item) => sum + item.price,
+    0,
+  );
+  const restaurantContacts =
+    restaurant?.contactNumbers?.filter(Boolean).length
+      ? restaurant.contactNumbers.filter(Boolean)
+      : restaurant?.contactPersonNumber
+        ? [restaurant.contactPersonNumber]
+        : [];
 
   return (
-    <article className="mx-auto max-w-[210mm] bg-white px-[7mm] py-[6mm] text-stone-900 shadow-sm print:max-w-none print:px-[4mm] print:py-[3mm] print:text-[11px] print:shadow-none">
-      <header className="border-b border-stone-300 pb-2">
-        <h1 className="text-lg font-bold uppercase tracking-[0.28em] text-stone-950 print:text-base">
-          Booking Summary
-        </h1>
+    <article className="mx-auto max-w-[210mm] bg-white px-[7mm] py-[6mm] text-stone-900 shadow-sm print:max-w-none print:px-[4mm] print:pb-[16mm] print:pt-[3mm] print:text-[11px] print:shadow-none">
+      <header className="border-b border-stone-300 pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            {restaurant?.logoUrl ? (
+              <div className="flex h-16 w-16 items-center justify-center p-1 print:h-14 print:w-14">
+                <img
+                  src={restaurant.logoUrl}
+                  alt={restaurant.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            ) : null}
+            <div className="w-px self-stretch bg-stone-300" />
+            <div className="pt-1">
+              {restaurant?.name ? (
+                <p className="text-[19px] font-semibold tracking-[0.08em] text-stone-950 print:text-[16px]">
+                  {restaurant.name}
+                </p>
+              ) : null}
+              {restaurantContacts.length > 0 ? (
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-stone-600 print:text-[10px]">
+                  <span className="font-semibold text-stone-700">Contact:</span>
+                  {restaurantContacts.map((contact) => (
+                    <span key={contact} className="rounded-full bg-stone-100 px-2 py-0.5">
+                      {contact}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="pt-3 text-right">
+            <p className="text-base font-semibold tracking-[0.14em] text-stone-800 print:text-[15px]">
+              Booking Summary
+            </p>
+            {restaurant?.address && restaurant.address.trim().toLowerCase() !== 'na' ? (
+              <p className="mt-2 max-w-[220px] text-xs leading-5 text-stone-500 print:max-w-[180px] print:text-[10px]">
+                {restaurant.address}
+              </p>
+            ) : null}
+          </div>
+        </div>
       </header>
 
       <section className="mt-3 grid gap-3 md:grid-cols-2 print:grid-cols-2 print:gap-2">
@@ -204,16 +263,6 @@ function PrintDocument({
           </p>
         </div>
         <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
-          <thead className="bg-stone-100 text-stone-700">
-            <tr>
-              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">
-                Section
-              </th>
-              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">
-                Selected Items
-              </th>
-            </tr>
-          </thead>
           <tbody>
             {menuRows.length > 0 ? (
               menuRows.map((row, index) => (
@@ -240,58 +289,69 @@ function PrintDocument({
         </table>
       </section>
 
-      <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2">
-        <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
-            Financial Summary
-          </p>
-        </div>
-        <div className="px-3 py-2.5 print:px-2 print:py-2">
-          <div className="rounded-[12px] border border-stone-200">
-            <div className="border-b border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
-              Advance Entries
-            </div>
-            <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
-              <thead className="bg-stone-100 text-stone-700">
-                <tr>
-                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Date</th>
-                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Mode</th>
-                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Amount</th>
-                  <th className="border-b border-stone-200 px-3 py-2 text-left font-semibold">Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {advanceRows.length > 0 ? (
-                  advanceRows.map((payment, index) => (
-                    <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
-                      <td className="border-b border-stone-200 px-3 py-1.5">{formatDateTime(payment.date)}</td>
-                      <td className="border-b border-stone-200 px-3 py-1.5">{payment.paymentMode}</td>
-                      <td className="border-b border-stone-200 px-3 py-1.5">{formatCurrency(payment.amount)}</td>
-                      <td className="border-b border-stone-200 px-3 py-1.5">{payment.remark || '-'}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-3 py-3 text-center text-stone-500">
-                      No advance entries recorded.
-                    </td>
+      <section className="mt-3 print:mt-2">
+        <table className="min-w-full border-collapse rounded-[14px] border border-stone-300 text-[11px] print:text-[10px]">
+          <thead className="bg-stone-100 text-stone-700">
+            <tr>
+              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Date</th>
+              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Mode</th>
+              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Amount</th>
+              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {advanceRows.length > 0 ? (
+              <>
+                {advanceRows.map((payment, index) => (
+                  <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
+                    <td className="border-b border-stone-200 px-3 py-1.5">{formatDateTime(payment.date)}</td>
+                    <td className="border-b border-stone-200 px-3 py-1.5">{payment.paymentMode}</td>
+                    <td className="border-b border-stone-200 px-3 py-1.5">{formatCurrency(payment.amount)}</td>
+                    <td className="border-b border-stone-200 px-3 py-1.5">{payment.remark || '-'}</td>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                ))}
+                <tr className="bg-stone-100">
+                  <td className="px-3 py-2 font-semibold text-stone-700">Advance Payment</td>
+                  <td className="px-3 py-2 text-right font-semibold text-stone-700">Total Advance Payment</td>
+                  <td className="px-3 py-2 font-semibold text-stone-900">{formatCurrency(order.advanceAmount)}</td>
+                  <td className="px-3 py-2" />
+                </tr>
+              </>
+            ) : (
+              <tr>
+                <td colSpan={4} className="px-3 py-3 text-center text-stone-500">
+                  No advance entries recorded.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        <div className="mt-2 overflow-hidden rounded-[12px] border border-stone-200">
+          <div className="grid grid-cols-2 divide-x divide-stone-200 bg-stone-50">
+            <SummaryCell
+              label="Addon Service"
+              value={addonServicesSummary}
+              valueClassName="text-[10px] leading-5 print:text-[9px]"
+            />
+            <SummaryCell
+              label="Total Addon Service"
+              value={formatCurrency(addonServicesTotal)}
+            />
           </div>
         </div>
       </section>
 
-      <section className="mt-4 pt-4 print:mt-3 print:pt-3">
-        <p className="text-[11px] font-medium text-stone-700 print:text-[10px]">
-          I agree to all banquet rules and confirm that I have read and understood them.
-        </p>
-      </section>
+      <section className="print:break-inside-avoid print:[page-break-inside:avoid]">
+        <section className="mt-4 pt-4 print:mt-3 print:pt-3">
+          <p className="text-[11px] font-medium text-stone-700 print:text-[10px]">
+            I agree to all banquet rules and confirm that I have read and understood them.
+          </p>
+        </section>
 
-      <section className="mt-4 grid gap-6 pt-4 md:grid-cols-2 print:mt-3 print:grid-cols-2 print:gap-4 print:pt-3">
-        <SignatureBox label="Customer Sign" />
-        <SignatureBox label="Manager Sign" />
+        <section className="mt-4 grid gap-6 pb-4 pt-4 md:grid-cols-2 print:mt-3 print:grid-cols-2 print:gap-4 print:pb-5 print:pt-3">
+          <SignatureBox label="Customer Sign" />
+          <SignatureBox label="Manager Sign" />
+        </section>
       </section>
 
       <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2 print:break-before-page">
@@ -315,8 +375,11 @@ function PrintDocument({
         </div>
       </section>
 
-      <div className="hidden print:fixed print:bottom-[3mm] print:right-[5mm] print:block print:text-[10px] print:font-medium print:text-stone-500">
-        Page 1
+      <div className="hidden print:fixed print:bottom-[4mm] print:left-[5mm] print:right-[5mm] print:block">
+        <div className="flex items-center justify-between border-t border-stone-300 pt-1.5 text-[10px] font-medium text-stone-500">
+          <span>{restaurant?.name || 'Booking Summary'}</span>
+          <span>Page 1</span>
+        </div>
       </div>
     </article>
   );
@@ -357,10 +420,31 @@ function CompactTable({
 
 function SignatureBox({ label }: { label: string }) {
   return (
-    <div className="rounded-[12px] border border-stone-300 px-4 pb-3 pt-6 print:px-3 print:pb-2 print:pt-5">
+    <div className="rounded-[12px] border border-stone-300 px-4 pb-3 pt-6 print:break-inside-avoid print:[page-break-inside:avoid] print:px-3 print:pb-2 print:pt-5">
       <div className="h-8 border-b border-stone-500 print:h-7" />
       <p className="mt-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-stone-600">
         {label}
+      </p>
+    </div>
+  );
+}
+
+function SummaryCell({
+  label,
+  value,
+  valueClassName = '',
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-stone-600">
+        {label}
+      </p>
+      <p className={`mt-1 text-sm font-semibold text-stone-900 ${valueClassName}`.trim()}>
+        {value}
       </p>
     </div>
   );

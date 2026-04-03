@@ -15,6 +15,14 @@ function isIos() {
   return /iPad|iPhone|iPod/.test(window.navigator.userAgent);
 }
 
+function isAndroid() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return /Android/i.test(window.navigator.userAgent);
+}
+
 function isStandalone() {
   if (typeof window === 'undefined') {
     return false;
@@ -27,10 +35,13 @@ export function PwaInstallCta({ className = '' }: { className?: string }) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showIosHint, setShowIosHint] = useState(false);
+  const [showAndroidHint, setShowAndroidHint] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     setIsInstalled(isStandalone());
     setShowIosHint(isIos() && !isStandalone());
+    setShowAndroidHint(isAndroid() && !isStandalone());
 
     function handleBeforeInstallPrompt(event: Event) {
       event.preventDefault();
@@ -55,7 +66,7 @@ export function PwaInstallCta({ className = '' }: { className?: string }) {
   if (isInstalled) {
     return (
       <span className={className}>
-        Installed
+        Added to Home Screen
       </span>
     );
   }
@@ -71,28 +82,71 @@ export function PwaInstallCta({ className = '' }: { className?: string }) {
         }}
         className={className}
       >
-        Install bbs App
+        Add bbs to Home Screen
       </button>
     );
   }
 
   if (showIosHint) {
     return (
-      <button
-        type="button"
-        onClick={() =>
-          window.alert('To install bbs on iPhone: open Share and tap "Add to Home Screen".')
-        }
-        className={className}
-      >
-        Add bbs to Home Screen
-      </button>
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setShowHelp((current) => !current)}
+          className={className}
+        >
+          Add bbs to Home Screen
+        </button>
+        {showHelp ? (
+          <div className="max-w-[360px] rounded-3xl border border-blue-100 bg-white/90 p-4 text-left text-sm text-slate-600 shadow-[0_12px_30px_rgba(148,163,184,0.12)]">
+            <p className="font-semibold text-slate-900">Install on iPhone</p>
+            <p className="mt-2">1. Open this site in Safari.</p>
+            <p className="mt-1">2. Tap the Share button.</p>
+            <p className="mt-1">3. Tap <span className="font-semibold text-slate-900">Add to Home Screen</span>.</p>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (showAndroidHint) {
+    return (
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setShowHelp((current) => !current)}
+          className={className}
+        >
+          Add bbs to Home Screen
+        </button>
+        {showHelp ? (
+          <div className="max-w-[360px] rounded-3xl border border-blue-100 bg-white/90 p-4 text-left text-sm text-slate-600 shadow-[0_12px_30px_rgba(148,163,184,0.12)]">
+            <p className="font-semibold text-slate-900">Install on Android</p>
+            <p className="mt-2">1. Open this site in Chrome.</p>
+            <p className="mt-1">2. Tap the browser menu.</p>
+            <p className="mt-1">3. Choose <span className="font-semibold text-slate-900">Install app</span> or <span className="font-semibold text-slate-900">Add to Home screen</span>.</p>
+          </div>
+        ) : null}
+      </div>
     );
   }
 
   return (
-    <a href="/manifest.webmanifest" className={className}>
-      Download PWA
-    </a>
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setShowHelp((current) => !current)}
+        className={className}
+      >
+        Download PWA
+      </button>
+      {showHelp ? (
+        <div className="max-w-[420px] rounded-3xl border border-blue-100 bg-white/90 p-4 text-left text-sm text-slate-600 shadow-[0_12px_30px_rgba(148,163,184,0.12)]">
+          <p className="font-semibold text-slate-900">Install bbs on mobile</p>
+          <p className="mt-2">Android: open the site in Chrome and choose <span className="font-semibold text-slate-900">Install app</span> or <span className="font-semibold text-slate-900">Add to Home screen</span>.</p>
+          <p className="mt-2">iPhone: open the site in Safari, tap Share, then choose <span className="font-semibold text-slate-900">Add to Home Screen</span>.</p>
+        </div>
+      ) : null}
+    </div>
   );
 }

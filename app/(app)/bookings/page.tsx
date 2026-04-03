@@ -14,6 +14,7 @@ import {
   deleteOrder,
   fetchCalendarOrders,
   fetchCategories,
+  fetchHotDates,
   fetchOrderById,
   fetchOrders,
   fetchSettings,
@@ -25,7 +26,6 @@ import {
   CalendarOrder,
   Category,
   Order,
-  OrderAdvancePayment,
   OrderStatus,
   PaymentMode,
 } from '@/lib/auth/types';
@@ -45,6 +45,12 @@ type SelectedMenu = {
   sections: SelectedMenuSection[];
 };
 
+type AddonEntry = {
+  id?: string;
+  label: string;
+  price: string;
+};
+
 type BookingFormState = {
   inquiryDate: string;
   customerName: string;
@@ -60,6 +66,7 @@ type BookingFormState = {
   serviceSlot: string;
   hallDetails: string;
   referenceBy: string;
+  addonEntries: AddonEntry[];
   additionalInformation: string;
   categoryId: string;
   inquiryCustomPrice: string;
@@ -94,6 +101,7 @@ const initialFormState: BookingFormState = {
   serviceSlot: '',
   hallDetails: '',
   referenceBy: '',
+  addonEntries: [],
   additionalInformation: '',
   categoryId: '',
   inquiryCustomPrice: '',
@@ -124,6 +132,8 @@ const fallbackEventOptions = [
   'Get together',
   'Anniversary',
 ];
+const EVENT_OTHER_VALUE = '__other__';
+const ADDON_OTHER_VALUE = '__other__';
 
 export default function BookingsPage() {
   const { accessToken, user } = useAuth();
@@ -148,12 +158,18 @@ export default function BookingsPage() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
+  const [hotDateKeys, setHotDateKeys] = useState<Set<string>>(new Set());
+  const loadedHotDateYear = useRef<number | null>(null);
   const [pageError, setPageError] = useState('');
   const [toast, setToast] = useState<ToastState | null>(null);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
+  const [customEventName, setCustomEventName] = useState('');
+  const [selectedAddonOption, setSelectedAddonOption] = useState('');
+  const [customAddonLabel, setCustomAddonLabel] = useState('');
+  const [customAddonPrice, setCustomAddonPrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [advancePopup, setAdvancePopup] = useState<{
     mode: 'new' | 'convert';
@@ -290,6 +306,21 @@ export default function BookingsPage() {
     void loadCalendar();
   }, [accessToken, calendarMonth, calendarScope]);
 
+  useEffect(() => {
+    if (!accessToken) return;
+    const year = calendarMonth.getFullYear();
+    if (loadedHotDateYear.current === year) return;
+    loadedHotDateYear.current = year;
+    const token = accessToken;
+    fetchHotDates(token, year)
+      .then((dates) => {
+        setHotDateKeys(new Set(dates.map((d) => d.date)));
+      })
+      .catch(() => {
+        // non-critical — silently ignore
+      });
+  }, [accessToken, calendarMonth]);
+
   const selectedCategory = useMemo(
     () => categories.find((category) => category.id === formState.categoryId) ?? null,
     [categories, formState.categoryId],
@@ -301,7 +332,16 @@ export default function BookingsPage() {
   const defaultPaymentMode = paymentOptions[0] ?? 'Cash';
   const paymentModeChoices = withCurrentOption(paymentOptions, paymentMode);
   const popupPaymentModeChoices = withCurrentOption(paymentOptions, paymentPopupMode);
-  const eventChoices = withCurrentOption(eventOptions, formState.eventName);
+  const eventChoices = [...eventOptions, 'Other'];
+  const isCustomEventSelected = formState.eventName === EVENT_OTHER_VALUE;
+  const hallDetailOptions = settings?.hallDetails.map((option) => option.label) ?? [];
+  const hallDetailChoices = formState.hallDetails && !hallDetailOptions.includes(formState.hallDetails)
+    ? [formState.hallDetails, ...hallDetailOptions]
+    : hallDetailOptions;
+  const addonOptions = settings?.addonServices ?? [];
+  const availableAddonOptions = addonOptions.filter(
+    (option) => !formState.addonEntries.some((entry) => entry.id === option.id),
+  );
 
   const categoryRules = useMemo(
     () => selectedCategory?.menuRules ?? [],
@@ -311,7 +351,11 @@ export default function BookingsPage() {
   const pax = Number(formState.totalPerson) || 0;
   const pricePerPlate = selectedCategory?.pricePerPlate ?? 0;
   const baseTotal = pax * pricePerPlate;
-  const grandTotal = baseTotal;
+  const addonPrice = formState.addonEntries.reduce(
+    (sum, entry) => sum + (Number(entry.price) || 0),
+    0,
+  );
+  const grandTotal = baseTotal + addonPrice;
   const monthGrid = useMemo(() => buildMonthGrid(calendarMonth), [calendarMonth]);
   const ordersByDate = useMemo(() => {
     const grouped = new Map<string, CalendarOrder[]>();
@@ -385,6 +429,7 @@ export default function BookingsPage() {
   function resetWizard() {
     setEditingOrder(null);
     setFormState(initialFormState);
+    setCustomEventName('');
     setIsWizardOpen(false);
   }
 
@@ -397,6 +442,7 @@ export default function BookingsPage() {
       inquiryDate: toDateInputValue(new Date()),
       functionDate: prefill?.functionDate ?? '',
     });
+    setCustomEventName('');
     setIsInquiryOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
@@ -407,11 +453,12 @@ export default function BookingsPage() {
 
   function openEditInquiry(order: Order) {
     setEditingOrder(order);
+    const resolvedEventName = resolveEventFormValue(eventOptions, order.functionName ?? '');
     setFormState({
       inquiryDate: order.inquiryDate ? formatDateKey(order.inquiryDate) : toDateInputValue(new Date()),
       customerName: `${order.customer.firstName} ${order.customer.lastName}`.trim(),
       mobileNumber: order.customer.phone,
-      eventName: order.functionName ?? '',
+      eventName: resolvedEventName.formValue,
       functionDate: order.eventDate ? formatDateKey(order.eventDate) : '',
       startTime: order.startTime ?? '',
       endTime: order.endTime ?? '',
@@ -422,6 +469,11 @@ export default function BookingsPage() {
       serviceSlot: order.serviceSlot ?? '',
       hallDetails: order.hallDetails ?? '',
       referenceBy: order.referenceBy ?? '',
+      addonEntries: order.addonServiceSnapshots.map((snap) => ({
+        id: snap.addonServiceId !== 'custom' ? snap.addonServiceId : undefined,
+        label: snap.label,
+        price: String(snap.price),
+      })),
       additionalInformation: order.additionalInformation ?? order.notes ?? '',
       categoryId: order.categorySnapshot?.categoryId ?? '',
       inquiryCustomPrice:
@@ -443,6 +495,7 @@ export default function BookingsPage() {
         })),
       })),
     });
+    setCustomEventName(resolvedEventName.customValue);
     setIsInquiryOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
@@ -453,11 +506,12 @@ export default function BookingsPage() {
 
   function openCategoryChooser(order: Order) {
     setEditingOrder(order);
+    const resolvedEventName = resolveEventFormValue(eventOptions, order.functionName ?? '');
     setFormState({
       inquiryDate: order.inquiryDate ? formatDateKey(order.inquiryDate) : toDateInputValue(new Date()),
       customerName: `${order.customer.firstName} ${order.customer.lastName}`.trim(),
       mobileNumber: order.customer.phone,
-      eventName: order.functionName ?? '',
+      eventName: resolvedEventName.formValue,
       functionDate: order.eventDate ? formatDateKey(order.eventDate) : '',
       startTime: order.startTime ?? '',
       endTime: order.endTime ?? '',
@@ -468,6 +522,11 @@ export default function BookingsPage() {
       serviceSlot: order.serviceSlot ?? '',
       hallDetails: order.hallDetails ?? '',
       referenceBy: order.referenceBy ?? '',
+      addonEntries: order.addonServiceSnapshots.map((snap) => ({
+        id: snap.addonServiceId !== 'custom' ? snap.addonServiceId : undefined,
+        label: snap.label,
+        price: String(snap.price),
+      })),
       additionalInformation: order.additionalInformation ?? order.notes ?? '',
       categoryId: order.categorySnapshot?.categoryId ?? '',
       inquiryCustomPrice:
@@ -489,6 +548,7 @@ export default function BookingsPage() {
         })),
       })),
     });
+    setCustomEventName(resolvedEventName.customValue);
     setIsWizardOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
@@ -704,6 +764,7 @@ export default function BookingsPage() {
 
     const normalizedPhone = formState.mobileNumber.trim();
     const customerName = formState.customerName.trim();
+    const resolvedEventName = getResolvedEventName(formState.eventName, customEventName);
     const { firstName, lastName } = splitFullName(customerName);
 
     if (!/^\d{10}$/.test(normalizedPhone)) {
@@ -716,8 +777,38 @@ export default function BookingsPage() {
       return;
     }
 
+    if (!resolvedEventName) {
+      setToast({ type: 'error', message: 'Event name is required.' });
+      return;
+    }
+
     if (!formState.hallDetails.trim()) {
       setToast({ type: 'error', message: 'Hall details is required.' });
+      return;
+    }
+
+    const missingAddonFields = formState.addonEntries.find(
+      (entry) => !entry.label.trim() || !entry.price.trim(),
+    );
+
+    if (missingAddonFields) {
+      setToast({
+        type: 'error',
+        message: 'Addon service name and price are required for every selected addon.',
+      });
+      return;
+    }
+
+    const invalidAddonPrice = formState.addonEntries.find((entry) => {
+      const price = Number(entry.price);
+      return !Number.isFinite(price) || price < 0;
+    });
+
+    if (invalidAddonPrice) {
+      setToast({
+        type: 'error',
+        message: 'Enter a valid addon price for every selected addon.',
+      });
       return;
     }
 
@@ -751,8 +842,8 @@ export default function BookingsPage() {
           phone: normalizedPhone,
         },
         pax: pax || undefined,
-        eventType: formState.eventName.trim() || undefined,
-        functionName: formState.eventName.trim() || undefined,
+        eventType: resolvedEventName,
+        functionName: resolvedEventName,
         inquiryDate: formState.inquiryDate || undefined,
         eventDate: formState.functionDate || undefined,
         startTime: formState.startTime || undefined,
@@ -764,6 +855,9 @@ export default function BookingsPage() {
         serviceSlot: formState.serviceSlot || undefined,
         hallDetails: formState.hallDetails.trim() || undefined,
         referenceBy: formState.referenceBy.trim() || undefined,
+        addonServices: formState.addonEntries.length
+          ? formState.addonEntries.map((e) => ({ id: e.id, label: e.label, price: Number(e.price) || 0 }))
+          : undefined,
         additionalInformation:
           formState.additionalInformation.trim() || undefined,
         categoryId: formState.categoryId || undefined,
@@ -786,7 +880,7 @@ export default function BookingsPage() {
                   })),
                 }))
               : undefined,
-          eventType: formState.eventName.trim() || editingOrder.eventType || '',
+          eventType: resolvedEventName || editingOrder.eventType || '',
           extrasTotal: editingOrder.extrasTotal,
           discountAmount: editingOrder.discountAmount,
           advanceAmount: editingOrder.advanceAmount,
@@ -814,6 +908,7 @@ export default function BookingsPage() {
       setIsInquiryOpen(false);
       setEditingOrder(null);
       setFormState(initialFormState);
+      setCustomEventName('');
       setPage(1);
       await refreshBookingViews(accessToken, 1);
     } catch (requestError) {
@@ -849,6 +944,7 @@ export default function BookingsPage() {
     }
 
     const normalizedPhone = formState.mobileNumber.trim();
+    const resolvedEventName = getResolvedEventName(formState.eventName, customEventName);
     const { firstName, lastName } = splitFullName(formState.customerName.trim());
 
     if (!/^\d{10}$/.test(normalizedPhone)) {
@@ -858,6 +954,11 @@ export default function BookingsPage() {
 
     if (!formState.hallDetails.trim()) {
       setToast({ type: 'error', message: 'Hall details is required.' });
+      return;
+    }
+
+    if (!resolvedEventName) {
+      setToast({ type: 'error', message: 'Event name is required.' });
       return;
     }
 
@@ -896,13 +997,16 @@ export default function BookingsPage() {
         },
         status: editingOrder.status,
         pax,
-        eventType: formState.eventName.trim() || editingOrder.eventType || '',
-        functionName: formState.eventName.trim(),
+        eventType: resolvedEventName || editingOrder.eventType || '',
+        functionName: resolvedEventName,
         inquiryDate: formState.inquiryDate,
         eventDate: formState.functionDate,
         startTime: formState.startTime,
         endTime: formState.endTime,
         categoryId: formState.categoryId,
+        addonServices: formState.addonEntries.length
+          ? formState.addonEntries.map((e) => ({ id: e.id, label: e.label, price: Number(e.price) || 0 }))
+          : undefined,
         customPricePerPlate: formState.customPricePerPlate.trim()
           ? Number(formState.customPricePerPlate)
           : undefined,
@@ -949,14 +1053,6 @@ export default function BookingsPage() {
   async function handleConvertInquiry() {
     if (!accessToken) return;
 
-    if ((Number(advanceAmount) || 0) < 1) {
-      setToast({
-        type: 'error',
-        message: 'Advance amount must be at least 1 to confirm booking.',
-      });
-      return;
-    }
-
     try {
       setIsAdvanceSubmitting(true);
 
@@ -973,6 +1069,7 @@ export default function BookingsPage() {
         setAdvancePopup(null);
         setEditingOrder(null);
         setFormState(initialFormState);
+        setCustomEventName('');
         setToast({ type: 'success', message: 'Booking confirmed successfully.' });
         setPage(1);
         await refreshBookingViews(accessToken, 1);
@@ -1000,6 +1097,38 @@ export default function BookingsPage() {
           requestError instanceof Error
             ? requestError.message
             : 'Unable to confirm booking.',
+      });
+    } finally {
+      setIsAdvanceSubmitting(false);
+    }
+  }
+
+  async function handleSaveAsInquiry() {
+    if (!accessToken || !pendingCreatePayload.current) return;
+    try {
+      setIsAdvanceSubmitting(true);
+      await createOrder(accessToken, {
+        ...pendingCreatePayload.current,
+        status: 'INQUIRY',
+        advanceAmount: undefined,
+        paymentMode: undefined,
+        notes: pendingCreatePayload.current.notes,
+      });
+      pendingCreatePayload.current = null;
+      setAdvancePopup(null);
+      setEditingOrder(null);
+      setFormState(initialFormState);
+      setCustomEventName('');
+      setToast({ type: 'success', message: 'Inquiry created successfully.' });
+      setPage(1);
+      await refreshBookingViews(accessToken, 1);
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to create inquiry.',
       });
     } finally {
       setIsAdvanceSubmitting(false);
@@ -1299,6 +1428,11 @@ export default function BookingsPage() {
         startTime: order.startTime,
         endTime: order.endTime,
         categoryId: order.categorySnapshot.categoryId,
+        addonServices: order.addonServiceSnapshots.map((snap) => ({
+          id: snap.addonServiceId !== 'custom' ? snap.addonServiceId : undefined,
+          label: snap.label,
+          price: snap.price,
+        })),
         selectedMenus: order.menuSelectionSnapshot.map((menu) => ({
           menuId: menu.menuId,
           sections: menu.sections.map((section) => ({
@@ -1835,6 +1969,7 @@ function selectionStatus(order: Order) {
                       const dayKey = formatDateKey(day);
                       const dayOrders = ordersByDate.get(dayKey) ?? [];
                       const isSelectedDay = selectedCalendarDay === dayKey;
+                      const isHotDate = hotDateKeys.has(dayKey);
 
                       return (
                         <button
@@ -1844,16 +1979,25 @@ function selectionStatus(order: Order) {
                             setSelectedCalendarDay(dayKey);
                             setDayRecordsPopup({ dateKey: dayKey, orders: dayOrders });
                           }}
-                          className={`min-h-[96px] rounded-[20px] border p-2.5 text-left transition ${
-                            isSelectedDay
-                              ? 'border-amber-200 bg-amber-50'
-                              : 'border-slate-200 bg-white'
+                          className={`relative min-h-[96px] rounded-[20px] border p-2.5 text-left transition ${
+                            isHotDate
+                              ? isSelectedDay
+                                ? 'border-red-300 bg-red-50 ring-1 ring-red-200'
+                                : 'border-red-200 bg-red-50/60'
+                              : isSelectedDay
+                                ? 'border-amber-200 bg-amber-50'
+                                : 'border-slate-200 bg-white'
                           }`}
                         >
+                          {isHotDate ? (
+                            <span className="absolute right-2 top-2 flex items-center gap-0.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-bold leading-none text-white shadow-sm">
+                              🔥 Hot
+                            </span>
+                          ) : null}
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold text-slate-900">{day.getDate()}</p>
+                            <p className={`text-sm font-semibold ${isHotDate ? 'text-red-700' : 'text-slate-900'}`}>{day.getDate()}</p>
                             {dayOrders.length ? (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isHotDate ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
                                 {dayOrders.length}
                               </span>
                             ) : null}
@@ -1890,6 +2034,7 @@ function selectionStatus(order: Order) {
                   {(calendarScope === 'week' ? buildWeekDays(calendarMonth) : [calendarMonth]).map((day) => {
                     const dayKey = formatDateKey(day);
                     const dayOrders = ordersByDate.get(dayKey) ?? [];
+                    const isHotDate = hotDateKeys.has(dayKey);
                     return (
                       <button
                         key={dayKey}
@@ -1898,19 +2043,30 @@ function selectionStatus(order: Order) {
                           setSelectedCalendarDay(dayKey);
                           setDayRecordsPopup({ dateKey: dayKey, orders: dayOrders });
                         }}
-                        className="w-full rounded-[24px] border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300"
+                        className={`w-full rounded-[24px] border p-4 text-left transition ${
+                          isHotDate
+                            ? 'border-red-200 bg-red-50/60 hover:border-red-300'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-slate-900">{formatDisplayDate(dayKey)}</p>
+                            <div className="flex items-center gap-2">
+                              <p className={`text-sm font-semibold ${isHotDate ? 'text-red-700' : 'text-slate-900'}`}>{formatDisplayDate(dayKey)}</p>
+                              {isHotDate ? (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-bold text-white">
+                                  🔥 Hot Date
+                                </span>
+                              ) : null}
+                            </div>
                             <p className="mt-1 text-xs text-slate-500">{dayOrders.length} booking{dayOrders.length === 1 ? '' : 's'}</p>
                           </div>
                           <span className="text-xs font-medium text-slate-500" />
                         </div>
                         <div className="mt-3 space-y-2">
-                          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-500">
+                          <div className={`rounded-2xl border border-dashed px-4 py-4 text-sm ${isHotDate ? 'border-red-200 text-red-600' : 'border-slate-200 text-slate-500'}`}>
                             {dayOrders.length === 0
-                              ? 'No bookings for this day.'
+                              ? isHotDate ? 'Hot date — no bookings yet.' : 'No bookings for this day.'
                               : `${dayOrders.length} booking${dayOrders.length > 1 ? 's' : ''} available. Tap to open the day panel.`}
                           </div>
                         </div>
@@ -1958,6 +2114,7 @@ function selectionStatus(order: Order) {
               setIsInquiryOpen(false);
               setEditingOrder(null);
               setFormState(initialFormState);
+              setCustomEventName('');
             }}
             widthClassName="max-w-5xl"
           >
@@ -2025,23 +2182,40 @@ function selectionStatus(order: Order) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Event Name">
-                  <select
-                    value={formState.eventName}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        eventName: event.target.value,
-                      }))
-                    }
-                    className={`${inputCls} min-h-12`}
-                  >
-                    <option value="">Select event option</option>
-                    {eventChoices.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-2">
+                    <select
+                      value={formState.eventName}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setFormState((current) => ({
+                          ...current,
+                          eventName: value,
+                        }));
+                        if (value !== EVENT_OTHER_VALUE) {
+                          setCustomEventName('');
+                        }
+                      }}
+                      className={`${inputCls} min-h-12`}
+                    >
+                      <option value="">Select event option</option>
+                      {eventChoices.map((option) => (
+                        <option
+                          key={option}
+                          value={option === 'Other' ? EVENT_OTHER_VALUE : option}
+                        >
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    {isCustomEventSelected ? (
+                      <input
+                        value={customEventName}
+                        onChange={(event) => setCustomEventName(event.target.value)}
+                        placeholder="Enter event name"
+                        className={`${inputCls} min-h-12`}
+                      />
+                    ) : null}
+                  </div>
                 </Field>
                 <Field label="Function Date">
                   <input
@@ -2154,7 +2328,7 @@ function selectionStatus(order: Order) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Hall Details" required>
-                  <input
+                  <select
                     value={formState.hallDetails}
                     onChange={(event) =>
                       setFormState((current) => ({
@@ -2162,9 +2336,15 @@ function selectionStatus(order: Order) {
                         hallDetails: event.target.value,
                       }))
                     }
-                    placeholder="Enter hall details"
                     className={`${inputCls} min-h-12`}
-                  />
+                  >
+                    <option value="">Select hall details</option>
+                    {hallDetailChoices.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="Reference By">
                   <input
@@ -2221,6 +2401,167 @@ function selectionStatus(order: Order) {
                 </Field>
               </div>
 
+              <Field label="Addon Services">
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-slate-300 bg-white p-3">
+                    <select
+                      value={selectedAddonOption}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setSelectedAddonOption(value);
+
+                        if (!value || value === ADDON_OTHER_VALUE) {
+                          return;
+                        }
+
+                        const selected = addonOptions.find((option) => option.id === value);
+                        if (!selected) {
+                          return;
+                        }
+
+                        setFormState((current) => ({
+                          ...current,
+                          addonEntries: [
+                            ...current.addonEntries,
+                            { id: selected.id, label: selected.label, price: '' },
+                          ],
+                        }));
+                        setSelectedAddonOption('');
+                      }}
+                      className={`${inputCls} min-h-12`}
+                    >
+                      <option value="">Select addon service</option>
+                      {availableAddonOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                      <option value={ADDON_OTHER_VALUE}>Other</option>
+                    </select>
+
+                    {selectedAddonOption === ADDON_OTHER_VALUE ? (
+                      <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_auto]">
+                        <input
+                          value={customAddonLabel}
+                          onChange={(e) => setCustomAddonLabel(e.target.value)}
+                          placeholder="Addon service name"
+                          className={`${inputCls} min-h-12`}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={customAddonPrice}
+                          onChange={(e) => setCustomAddonPrice(e.target.value)}
+                          placeholder="Price"
+                          className={`${inputCls} min-h-12`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const label = customAddonLabel.trim();
+                            if (!label || !customAddonPrice.trim()) {
+                              setToast({
+                                type: 'error',
+                                message: 'Custom addon name and price are required.',
+                              });
+                              return;
+                            }
+
+                            const price = Number(customAddonPrice);
+                            if (!Number.isFinite(price) || price < 0) {
+                              setToast({
+                                type: 'error',
+                                message: 'Enter a valid custom addon price.',
+                              });
+                              return;
+                            }
+
+                            setFormState((current) => ({
+                              ...current,
+                              addonEntries: [
+                                ...current.addonEntries,
+                                { id: undefined, label, price: customAddonPrice },
+                              ],
+                            }));
+                            setSelectedAddonOption('');
+                            setCustomAddonLabel('');
+                            setCustomAddonPrice('');
+                          }}
+                          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {formState.addonEntries.length > 0 && (
+                    <div className="space-y-1">
+                      {formState.addonEntries.map((entry, index) => (
+                        <div
+                          key={entry.id ?? `custom-${index}`}
+                          className="grid items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)_auto]"
+                        >
+                          {entry.id === undefined ? (
+                            <input
+                              value={entry.label}
+                              onChange={(event) =>
+                                setFormState((current) => ({
+                                  ...current,
+                                  addonEntries: current.addonEntries.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, label: event.target.value } : item,
+                                  ),
+                                }))
+                              }
+                              placeholder="Addon service name"
+                              className={`${inputCls} min-h-10`}
+                            />
+                          ) : (
+                            <input
+                              value={entry.label}
+                              readOnly
+                              className={`${inputCls} min-h-10 bg-slate-50`}
+                            />
+                          )}
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            value={entry.price}
+                            onChange={(event) =>
+                              setFormState((current) => ({
+                                ...current,
+                                addonEntries: current.addonEntries.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, price: event.target.value } : item,
+                                ),
+                              }))
+                            }
+                            placeholder="Price"
+                            className={`${inputCls} min-h-10`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormState((current) => ({
+                                ...current,
+                                addonEntries: current.addonEntries.filter((_, itemIndex) => itemIndex !== index),
+                              }))
+                            }
+                            className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <p className="text-xs text-slate-500">
+                        Total addon charge: {formatCurrency(addonPrice)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Field>
+
               <Field label="Additional Information">
                 <textarea
                   value={formState.additionalInformation}
@@ -2246,6 +2587,10 @@ function selectionStatus(order: Order) {
                   setIsInquiryOpen(false);
                   setEditingOrder(null);
                   setFormState(initialFormState);
+                  setCustomEventName('');
+                  setSelectedAddonOption('');
+                  setCustomAddonLabel('');
+                  setCustomAddonPrice('');
                 }}
                 className={`${ghostButtonCls} w-full sm:w-auto`}
               >
@@ -2475,8 +2820,8 @@ function selectionStatus(order: Order) {
           >
             <p className="mt-4 text-sm leading-7 text-slate-500">
               {advancePopup.mode === 'new'
-                ? 'Enter the advance amount and payment mode to confirm this booking.'
-                : 'Enter the advance amount, discount, and extra add-ons. The final payable balance is recalculated before confirmation.'}
+                ? 'Enter the advance amount and payment mode to confirm this booking. Zero amount is allowed.'
+                : 'Enter the advance amount, discount, and extra add-ons. Zero amount is allowed and the final payable balance is recalculated before confirmation.'}
             </p>
             <form
               className="mt-6 space-y-4"
@@ -2489,7 +2834,7 @@ function selectionStatus(order: Order) {
               <Field label="Advance Amount">
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   step="0.01"
                   value={advanceAmount}
                   onChange={(event) => setAdvanceAmount(event.target.value)}
@@ -2517,7 +2862,7 @@ function selectionStatus(order: Order) {
                   className={`${inputCls} min-h-24 resize-none`}
                 />
               </Field>
-              <div className="flex justify-end gap-3">
+              <div className="flex flex-wrap justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -2529,6 +2874,16 @@ function selectionStatus(order: Order) {
                 >
                   Cancel
                 </button>
+                {advancePopup?.mode === 'new' ? (
+                  <button
+                    type="button"
+                    disabled={isAdvanceSubmitting}
+                    onClick={() => void handleSaveAsInquiry()}
+                    className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    {isAdvanceSubmitting ? 'Saving…' : 'Keep as Inquiry'}
+                  </button>
+                ) : null}
                 <button
                   type="submit"
                   disabled={isAdvanceSubmitting}
@@ -3083,6 +3438,17 @@ function selectionStatus(order: Order) {
                           : detailOrder.pricePerPlate,
                       )}
                     </p>
+                    {detailOrder.addonServiceSnapshots.length > 0 ? (
+                      <p className="mt-1 text-slate-700">
+                        <span className="font-medium text-slate-500">Addons: </span>
+                        {detailOrder.addonServiceSnapshots
+                          .map(
+                            (item) =>
+                              `${item.label} (${formatCurrency(item.price)})`,
+                          )
+                          .join(', ')}
+                      </p>
+                    ) : null}
                     {detailOrder.confirmedAt ? (
                       <p className="mt-3 text-slate-500">
                         Confirmed on {formatFollowUpDate(detailOrder.confirmedAt)}
@@ -3220,25 +3586,27 @@ function selectionStatus(order: Order) {
                     </div>
                   </div>
                 </div>
-                {detailOrder.status === 'CONFIRMED' && (
+                {(detailOrder.status === 'CONFIRMED' || detailOrder.status === 'CANCELLED') && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
                         Advance Payments
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPaymentAmount('');
-                          setPaymentPopupMode(defaultPaymentMode);
-                          setPaymentRemark('');
-                          setPaymentEditor({ orderId: detailOrder.id });
-                          setPaymentPopup({ orderId: detailOrder.id });
-                        }}
-                        className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
-                      >
-                        Add Advance
-                      </button>
+                      {detailOrder.status === 'CONFIRMED' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentAmount('');
+                            setPaymentPopupMode(defaultPaymentMode);
+                            setPaymentRemark('');
+                            setPaymentEditor({ orderId: detailOrder.id });
+                            setPaymentPopup({ orderId: detailOrder.id });
+                          }}
+                          className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
+                        >
+                          Add Advance
+                        </button>
+                      ) : null}
                     </div>
                     {(!detailOrder.advancePayments || detailOrder.advancePayments.length === 0) ? (
                       <p className="mt-4 text-sm text-slate-500">No advance payments recorded yet.</p>
@@ -3267,7 +3635,7 @@ function selectionStatus(order: Order) {
                                   <td className="px-3 py-3 text-slate-700">{payment.paymentMode}</td>
                                   <td className="px-3 py-3 text-slate-700">{payment.remark || '-'}</td>
                                   <td className="px-3 py-3 text-slate-700">{payment.recordedByName}</td>
-                                  {isCompanyAdmin ? (
+                                  {isCompanyAdmin && detailOrder.status === 'CONFIRMED' ? (
                                     <td className="px-3 py-3">
                                       <div className="flex justify-end gap-2">
                                         <button
@@ -3741,11 +4109,7 @@ function formatCurrency(value: number) {
 }
 
 function splitFullName(value: string) {
-  const parts = value.trim().split(/\s+/).filter(Boolean);
-  const firstName = parts[0] ?? '';
-  const lastName = parts.slice(1).join(' ') || firstName;
-
-  return { firstName, lastName };
+  return { firstName: value.trim(), lastName: '' };
 }
 
 function formatDisplayDate(value: string | Date) {
@@ -3881,6 +4245,33 @@ function withCurrentOption(options: string[], current?: string | null) {
   }
 
   return normalized.includes(current) ? normalized : [current, ...normalized];
+}
+
+function resolveEventFormValue(options: string[], current?: string | null) {
+  if (!current?.trim()) {
+    return {
+      formValue: '',
+      customValue: '',
+    };
+  }
+
+  return options.includes(current)
+    ? {
+        formValue: current,
+        customValue: '',
+      }
+    : {
+        formValue: EVENT_OTHER_VALUE,
+        customValue: current,
+      };
+}
+
+function getResolvedEventName(selectedValue: string, customValue: string) {
+  if (selectedValue === EVENT_OTHER_VALUE) {
+    return customValue.trim() || '';
+  }
+
+  return selectedValue.trim();
 }
 
 function formatTimeOptionLabel(value: string) {

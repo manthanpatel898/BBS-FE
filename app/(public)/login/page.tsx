@@ -214,7 +214,7 @@ export default function LoginPage() {
               onChange={(e) => setIdentifier(e.target.value)}
               required
               autoComplete="username"
-              className="light-form-field w-full rounded-2xl px-4 py-3.5 text-sm text-slate-900 outline-none"
+              className="light-form-field w-full rounded-2xl px-4 py-3.5 text-[16px] text-slate-900 outline-none md:text-sm"
             />
           </div>
 
@@ -234,7 +234,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="light-form-field w-full rounded-2xl px-4 py-3.5 pr-12 text-sm text-slate-900 outline-none"
+                className="light-form-field w-full rounded-2xl px-4 py-3.5 pr-12 text-[16px] text-slate-900 outline-none md:text-sm"
               />
               <button
                 type="button"

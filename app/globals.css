@@ -348,7 +348,7 @@ html { scroll-behavior: smooth; }
   input[type='date']::-webkit-datetime-edit,
   input[type='time']::-webkit-datetime-edit,
   input[type='datetime-local']::-webkit-datetime-edit {
-    color: #f8fafc;
+    color: inherit;
     font-weight: 500;
   }
 

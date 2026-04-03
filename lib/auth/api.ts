@@ -4,12 +4,15 @@ import {
   Employee,
   AuthSession,
   AuthUser,
+  BulkUploadResult,
   CalendarOrder,
   Category,
   Customer,
+  HotDate,
   Menu,
   Order,
   OrderReports,
+  AdvancePaymentReportRow,
   OrderStats,
   PaymentMode,
   OrderStatus,
@@ -117,9 +120,13 @@ export async function fetchRestaurantById(accessToken: string, restaurantId: str
   return authorizedRequest<Restaurant>(`/restaurants/${restaurantId}`, accessToken);
 }
 
+export async function fetchMyRestaurant(accessToken: string) {
+  return authorizedRequest<Restaurant>('/restaurants/me', accessToken);
+}
+
 export async function createRestaurant(
   accessToken: string,
-  payload: Omit<Restaurant, 'id' | 'createdAt' | 'updatedAt'>,
+  payload: Omit<Restaurant, 'id' | 'createdAt' | 'updatedAt' | 'subscriptionLogs'>,
 ) {
   return authorizedRequest<{ restaurant: Restaurant }>('/restaurants', accessToken, {
     method: 'POST',
@@ -130,7 +137,7 @@ export async function createRestaurant(
 export async function updateRestaurant(
   accessToken: string,
   restaurantId: string,
-  payload: Omit<Restaurant, 'id' | 'createdAt' | 'updatedAt'>,
+  payload: Omit<Restaurant, 'id' | 'createdAt' | 'updatedAt' | 'subscriptionLogs'>,
 ) {
   return authorizedRequest<Restaurant>(
     `/restaurants/${restaurantId}`,
@@ -140,6 +147,16 @@ export async function updateRestaurant(
       body: JSON.stringify(payload),
     },
   );
+}
+
+export async function updateMyRestaurantBranding(
+  accessToken: string,
+  payload: Pick<Restaurant, 'name' | 'logoUrl' | 'contactNumbers'>,
+) {
+  return authorizedRequest<Restaurant>('/restaurants/me/branding', accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function deleteRestaurant(accessToken: string, restaurantId: string) {
@@ -386,6 +403,7 @@ export async function fetchOrders(
     to?: string;
     inquiryFrom?: string;
     inquiryTo?: string;
+    hasAdvancePayments?: boolean;
   },
 ) {
   const query = new URLSearchParams({
@@ -423,6 +441,10 @@ export async function fetchOrders(
 
   if (params.inquiryTo?.trim()) {
     query.set('inquiryTo', params.inquiryTo.trim());
+  }
+
+  if (params.hasAdvancePayments) {
+    query.set('hasAdvancePayments', 'true');
   }
 
   return authorizedRequest<PaginatedOrders>(`/orders?${query.toString()}`, accessToken);
@@ -469,6 +491,9 @@ export async function createOrder(
     startTime?: string;
     endTime?: string;
     categoryId?: string;
+    addonServiceIds?: string[];
+    addonServiceId?: string;
+    addonServices?: Array<{ id?: string; label: string; price: number }>;
     customPricePerPlate?: number;
     selectedMenus?: Array<{
       menuId: string;
@@ -516,6 +541,9 @@ export async function updateOrder(
     startTime?: string;
     endTime?: string;
     categoryId?: string;
+    addonServiceIds?: string[];
+    addonServiceId?: string;
+    addonServices?: Array<{ id?: string; label: string; price: number }>;
     customPricePerPlate?: number;
     selectedMenus?: Array<{
       menuId: string;
@@ -600,6 +628,17 @@ export async function addAdvancePayment(
   });
 }
 
+export async function addDiningRedemption(
+  accessToken: string,
+  orderId: string,
+  payload: { amount: number; date?: string; remark?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/dining-redemptions`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateAdvancePayment(
   accessToken: string,
   orderId: string,
@@ -660,6 +699,30 @@ export async function fetchOrderReports(accessToken: string) {
   return authorizedRequest<OrderReports>('/orders/reports', accessToken);
 }
 
+export async function fetchAdvancePaymentsReport(
+  accessToken: string,
+  params: {
+    from?: string;
+    to?: string;
+    paymentMode?: string;
+    customer?: string;
+  },
+) {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      searchParams.set(key, value);
+    }
+  }
+
+  const query = searchParams.toString();
+  return authorizedRequest<AdvancePaymentReportRow[]>(
+    `/orders/advance-payments-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
 export async function fetchSettings(accessToken: string) {
   return authorizedRequest<AppSettings>('/settings', accessToken);
 }
@@ -695,6 +758,30 @@ export async function createEventOption(accessToken: string, label: string) {
   });
 }
 
+export async function createHallDetail(accessToken: string, label: string) {
+  return authorizedRequest<AppSettings>('/settings/hall-details', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function updateHallDetail(
+  accessToken: string,
+  optionId: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(`/settings/hall-details/${optionId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function deleteHallDetail(accessToken: string, optionId: string) {
+  return authorizedRequest<AppSettings>(`/settings/hall-details/${optionId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
 export async function updateEventOption(
   accessToken: string,
   optionId: string,
@@ -719,6 +806,33 @@ export async function createBanquetRule(accessToken: string, label: string) {
   });
 }
 
+export async function createAddonService(
+  accessToken: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>('/settings/addon-services', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function updateAddonService(
+  accessToken: string,
+  optionId: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(`/settings/addon-services/${optionId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function deleteAddonService(accessToken: string, optionId: string) {
+  return authorizedRequest<AppSettings>(`/settings/addon-services/${optionId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
 export async function updateBanquetRule(
   accessToken: string,
   optionId: string,
@@ -734,4 +848,80 @@ export async function deleteBanquetRule(accessToken: string, optionId: string) {
   return authorizedRequest<AppSettings>(`/settings/banquet-rules/${optionId}`, accessToken, {
     method: 'DELETE',
   });
+}
+
+// ── Hot Dates ──────────────────────────────────────────────────────────────────
+
+export async function fetchHotDates(accessToken: string, year: number) {
+  return authorizedRequest<HotDate[]>(`/hot-dates?year=${year}`, accessToken);
+}
+
+export async function createHotDate(
+  accessToken: string,
+  payload: { year: number; date: string; description: string },
+) {
+  return authorizedRequest<HotDate>('/hot-dates', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateHotDate(
+  accessToken: string,
+  id: string,
+  payload: { date?: string; description?: string },
+) {
+  return authorizedRequest<HotDate>(`/hot-dates/${id}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteHotDate(accessToken: string, id: string) {
+  return authorizedRequest<null>(`/hot-dates/${id}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function uploadLogo(accessToken: string, file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_URL}/upload/logo`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  const payload = (await response.json()) as ApiEnvelope<{ url: string }>;
+  if (!response.ok || !payload.success) {
+    const message =
+      typeof payload.message === 'string' ? payload.message : 'Upload failed';
+    throw new Error(message);
+  }
+  return payload.data.url;
+}
+
+export async function bulkUploadHotDates(
+  accessToken: string,
+  year: number,
+  file: File,
+) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const response = await fetch(`${API_URL}/hot-dates/bulk?year=${year}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  const payload = (await response.json()) as ApiEnvelope<BulkUploadResult>;
+  if (!response.ok || !payload.success) {
+    const message =
+      typeof payload.message === 'string' ? payload.message : 'Upload failed';
+    throw new Error(message);
+  }
+  return payload.data;
 }

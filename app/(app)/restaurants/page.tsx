@@ -12,6 +12,7 @@ import {
   deleteRestaurant,
   fetchRestaurants,
   updateRestaurant,
+  uploadLogo,
 } from '@/lib/auth/api';
 import { Restaurant, SubscriptionLog } from '@/lib/auth/types';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
@@ -21,11 +22,14 @@ type RestaurantFormState = {
   contactPersonName: string;
   contactPersonEmail: string;
   contactPersonNumber: string;
+  contactNumbers: string;
   website: string;
+  logoUrl: string;
   address: string;
   startDate: string;
   endDate: string;
   bookingPrefix: string;
+  enableCancelledBookings: boolean;
 };
 
 const initialFormState: RestaurantFormState = {
@@ -33,11 +37,14 @@ const initialFormState: RestaurantFormState = {
   contactPersonName: '',
   contactPersonEmail: '',
   contactPersonNumber: '',
+  contactNumbers: '',
   website: '',
+  logoUrl: '',
   address: '',
   startDate: '',
   endDate: '',
   bookingPrefix: '',
+  enableCancelledBookings: false,
 };
 
 const inputCls =
@@ -87,6 +94,7 @@ export default function RestaurantsPage() {
   const [activeModalTab, setActiveModalTab] = useState<'info' | 'subscription'>('info');
   const [formState, setFormState] = useState<RestaurantFormState>(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLogoUploading, setIsLogoUploading] = useState(false);
 
   // Delete
   const [restaurantToDelete, setRestaurantToDelete] = useState<Restaurant | null>(null);
@@ -153,11 +161,14 @@ export default function RestaurantsPage() {
       contactPersonName: restaurant.contactPersonName,
       contactPersonEmail: restaurant.contactPersonEmail,
       contactPersonNumber: restaurant.contactPersonNumber,
+      contactNumbers: (restaurant.contactNumbers ?? []).join('\n'),
       website: restaurant.website ?? '',
+      logoUrl: restaurant.logoUrl ?? '',
       address: restaurant.address,
       startDate: restaurant.startDate.slice(0, 10),
       endDate: restaurant.endDate.slice(0, 10),
       bookingPrefix: restaurant.bookingPrefix,
+      enableCancelledBookings: restaurant.enableCancelledBookings ?? false,
     });
     setActiveModalTab('info');
     setError('');
@@ -180,7 +191,12 @@ export default function RestaurantsPage() {
     try {
       setIsSubmitting(true);
       setError('');
-      const payload = { ...formState, website: formState.website.trim() || null };
+      const payload = {
+        ...formState,
+        contactNumbers: parseContactNumbers(formState.contactNumbers),
+        website: formState.website.trim() || null,
+        logoUrl: formState.logoUrl.trim() || null,
+      };
 
       if (editingRestaurant) {
         await updateRestaurant(token, editingRestaurant.id, payload);
@@ -623,12 +639,67 @@ export default function RestaurantsPage() {
                     required
                     className={inputCls}
                   />
+                  <textarea
+                    value={formState.contactNumbers}
+                    onChange={(e) =>
+                      setFormState((s) => ({ ...s, contactNumbers: e.target.value }))
+                    }
+                    placeholder={'Restaurant contact numbers\n8980938142\n9876543210'}
+                    rows={3}
+                    className={`${inputCls} resize-none`}
+                  />
                   <input
                     value={formState.website}
                     onChange={(e) => setFormState((s) => ({ ...s, website: e.target.value }))}
                     placeholder="Website (optional)"
                     className={inputCls}
                   />
+                  <div className="flex items-center gap-3">
+                    <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 transition hover:border-amber-400 hover:text-amber-600 ${isLogoUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
+                      </svg>
+                      {isLogoUploading ? 'Uploading…' : formState.logoUrl ? 'Change logo' : 'Upload logo (optional)'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="sr-only"
+                        disabled={isLogoUploading}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!file) return;
+                          if (file.size > 5 * 1024 * 1024) {
+                            setError('Image must be under 5 MB.');
+                            return;
+                          }
+                          if (!accessToken) return;
+                          try {
+                            setIsLogoUploading(true);
+                            const url = await uploadLogo(accessToken, file);
+                            setFormState((s) => ({ ...s, logoUrl: url }));
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'Upload failed.');
+                          } finally {
+                            setIsLogoUploading(false);
+                          }
+                        }}
+                      />
+                    </label>
+                    {formState.logoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormState((s) => ({ ...s, logoUrl: '' }))}
+                        className="text-xs text-slate-400 hover:text-red-500"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">JPEG, PNG, WebP or GIF · max 2 MB</p>
+                  {formState.logoUrl && (
+                    <img src={formState.logoUrl} alt="Logo preview" className="h-12 w-12 rounded-xl border border-slate-200 object-contain p-1" />
+                  )}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Start date
@@ -661,6 +732,20 @@ export default function RestaurantsPage() {
                     rows={3}
                     className={`${inputCls} md:col-span-2 resize-none`}
                   />
+                  <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 md:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={formState.enableCancelledBookings}
+                      onChange={(e) =>
+                        setFormState((s) => ({
+                          ...s,
+                          enableCancelledBookings: e.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Show Cancel Bookings feature for this restaurant</span>
+                  </label>
                   <div className="flex items-center justify-end gap-3 md:col-span-2">
                     <button
                       type="button"
@@ -847,5 +932,16 @@ export default function RestaurantsPage() {
         )}
       </section>
     </SuperAdminRoute>
+  );
+}
+
+function parseContactNumbers(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/\n|,/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
   );
 }
