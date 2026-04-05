@@ -5,6 +5,7 @@ import { SuperAdminRoute } from '@/components/auth/super-admin-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { LoadingButton } from '@/components/ui/loading-button';
 import {
   activateRestaurant,
   createRestaurant,
@@ -30,6 +31,7 @@ type RestaurantFormState = {
   endDate: string;
   bookingPrefix: string;
   enableCancelledBookings: boolean;
+  enableVoucherFlow: boolean;
 };
 
 const initialFormState: RestaurantFormState = {
@@ -45,6 +47,7 @@ const initialFormState: RestaurantFormState = {
   endDate: '',
   bookingPrefix: '',
   enableCancelledBookings: false,
+  enableVoucherFlow: false,
 };
 
 const inputCls =
@@ -169,6 +172,7 @@ export default function RestaurantsPage() {
       endDate: restaurant.endDate.slice(0, 10),
       bookingPrefix: restaurant.bookingPrefix,
       enableCancelledBookings: restaurant.enableCancelledBookings ?? false,
+      enableVoucherFlow: restaurant.enableVoucherFlow ?? false,
     });
     setActiveModalTab('info');
     setError('');
@@ -407,7 +411,7 @@ export default function RestaurantsPage() {
               <p className="mt-0.5 text-2xl font-bold text-slate-900">{totalItems}</p>
             </div>
             <form
-              className="flex w-full max-w-xl gap-2"
+              className="flex w-full max-w-xl flex-col gap-2 sm:flex-row"
               onSubmit={(e) => { e.preventDefault(); setPage(1); setSearch(searchInput); }}
             >
               <input
@@ -654,7 +658,7 @@ export default function RestaurantsPage() {
                     placeholder="Website (optional)"
                     className={inputCls}
                   />
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
                     <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 transition hover:border-amber-400 hover:text-amber-600 ${isLogoUploading ? 'pointer-events-none opacity-60' : ''}`}>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
@@ -740,31 +744,53 @@ export default function RestaurantsPage() {
                         setFormState((s) => ({
                           ...s,
                           enableCancelledBookings: e.target.checked,
+                          enableVoucherFlow: e.target.checked ? s.enableVoucherFlow : false,
                         }))
                       }
                       className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
                     />
                     <span>Show Cancel Bookings feature for this restaurant</span>
                   </label>
-                  <div className="flex items-center justify-end gap-3 md:col-span-2">
+                  <label
+                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm md:col-span-2 ${
+                      formState.enableCancelledBookings
+                        ? 'border-slate-200 bg-slate-50 text-slate-700'
+                        : 'border-slate-100 bg-slate-50 text-slate-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formState.enableVoucherFlow}
+                      disabled={!formState.enableCancelledBookings}
+                      onChange={(e) =>
+                        setFormState((s) => ({
+                          ...s,
+                          enableVoucherFlow: e.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>
+                      Allow voucher flow for cancelled bookings
+                      {!formState.enableCancelledBookings ? ' (enable Cancel Bookings first)' : ''}
+                    </span>
+                  </label>
+                  <div className="flex flex-col-reverse gap-3 md:col-span-2 sm:flex-row sm:justify-end">
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                      className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
                     >
                       Cancel
                     </button>
-                    <button
+                    <LoadingButton
                       type="submit"
                       disabled={isSubmitting}
-                      className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                      isLoading={isSubmitting}
+                      className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
                     >
-                      {isSubmitting
-                        ? 'Saving…'
-                        : editingRestaurant
-                          ? 'Save changes'
-                          : 'Create restaurant'}
-                    </button>
+                      {editingRestaurant ? 'Save changes' : 'Create restaurant'}
+                    </LoadingButton>
                   </div>
                 </form>
               </>
@@ -898,22 +924,23 @@ export default function RestaurantsPage() {
                   className={`${inputCls} resize-none`}
                 />
               </div>
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setResubRestaurant(null)}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="button"
                   disabled={isResubmitting}
                   onClick={() => void handleResub()}
-                  className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                  isLoading={isResubmitting}
+                  className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
                 >
-                  {isResubmitting ? 'Saving…' : 'Confirm re-subscription'}
-                </button>
+                  Confirm re-subscription
+                </LoadingButton>
               </div>
             </div>
           </CommonModal>

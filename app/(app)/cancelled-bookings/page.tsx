@@ -4,8 +4,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
+import { LoadingButton } from '@/components/ui/loading-button';
 import {
   addDiningRedemption,
+  downloadVoucherFile,
   fetchOrderById,
   fetchOrders,
 } from '@/lib/auth/api';
@@ -24,6 +26,7 @@ export default function CancelledBookingsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -32,6 +35,8 @@ export default function CancelledBookingsPage() {
   const [redemptionDate, setRedemptionDate] = useState(toDateInputValue(new Date()));
   const [redemptionRemark, setRedemptionRemark] = useState('');
   const [isSubmittingRedemption, setIsSubmittingRedemption] = useState(false);
+  const [downloadingVoucherId, setDownloadingVoucherId] = useState<string | null>(null);
+  const [openingOrderId, setOpeningOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!accessToken || !user?.canAccessCancelledBookings) {
@@ -60,6 +65,7 @@ export default function CancelledBookingsPage() {
         });
       } finally {
         setIsLoading(false);
+        setIsSearching(false);
       }
     }
 
@@ -123,9 +129,10 @@ export default function CancelledBookingsPage() {
             </p>
           </div>
           <form
-            className="flex w-full max-w-xl gap-2"
+            className="flex w-full max-w-xl flex-col gap-2 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
+              setIsSearching(true);
               setPage(1);
               setSearch(searchInput.trim());
             }}
@@ -133,15 +140,16 @@ export default function CancelledBookingsPage() {
             <input
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by booking id, customer, phone, or event"
+              placeholder="Search by booking id, voucher number, customer, phone, or event"
               className={inputCls}
             />
-            <button
+            <LoadingButton
               type="submit"
+              isLoading={isSearching && isLoading}
               className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500"
             >
               Search
-            </button>
+            </LoadingButton>
           </form>
         </div>
 
@@ -166,6 +174,7 @@ export default function CancelledBookingsPage() {
                   <th className="px-5 py-3.5 font-medium">Customer</th>
                   <th className="px-5 py-3.5 font-medium">Event</th>
                   <th className="px-5 py-3.5 font-medium">Advance Paid</th>
+                  <th className="px-5 py-3.5 font-medium">Voucher</th>
                   <th className="px-5 py-3.5 font-medium">Available Balance</th>
                   <th className="px-5 py-3.5 font-medium text-right">Action</th>
                 </tr>
@@ -173,13 +182,13 @@ export default function CancelledBookingsPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
+                    <td colSpan={7} className="px-5 py-8 text-center text-slate-500">
                       Loading cancelled bookings…
                     </td>
                   </tr>
                 ) : orders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
+                    <td colSpan={7} className="px-5 py-8 text-center text-slate-500">
                       No cancelled bookings with advance found.
                     </td>
                   </tr>
@@ -205,17 +214,35 @@ export default function CancelledBookingsPage() {
                       <td className="px-5 py-4 font-medium text-slate-900">
                         {formatCurrency(order.advanceAmount)}
                       </td>
+                      <td className="px-5 py-4 text-slate-700">
+                        {order.voucher ? (
+                          <div className="space-y-1">
+                            <p className="font-medium text-slate-900">{order.voucher.voucherNumber}</p>
+                            <a
+                              href={order.voucher.voucherUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-amber-700 hover:text-amber-800"
+                            >
+                              View voucher
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">Not generated</span>
+                        )}
+                      </td>
                       <td className="px-5 py-4 font-medium text-slate-900">
                         {formatCurrency(order.redeemableBalance)}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <button
+                        <LoadingButton
                           type="button"
+                          isLoading={openingOrderId === order.id}
                           onClick={() => void openDetail(order.id)}
                           className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                         >
                           View
-                        </button>
+                        </LoadingButton>
                       </td>
                     </tr>
                   ))
@@ -274,10 +301,40 @@ export default function CancelledBookingsPage() {
                     <InfoLine label="Mobile" value={detailOrder.customer.phone} />
                     <InfoLine label="PAX" value={detailOrder.pax ? String(detailOrder.pax) : '-'} />
                     <InfoLine label="Advance Paid" value={formatCurrency(detailOrder.advanceAmount)} />
+                    <InfoLine label="Voucher Number" value={detailOrder.voucher?.voucherNumber || '-'} />
                     <InfoLine label="Dining Used" value={formatCurrency(totalDiningUsed(detailOrder))} />
                     <InfoLine label="Remaining Balance" value={formatCurrency(detailOrder.redeemableBalance)} />
                   </InfoCard>
                 </div>
+
+                {detailOrder.voucher ? (
+                  <div className="flex flex-wrap gap-3">
+                    <a
+                      href={detailOrder.voucher.voucherUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      View Voucher
+                    </a>
+                    <LoadingButton
+                      type="button"
+                      isLoading={downloadingVoucherId === detailOrder.id}
+                      onClick={() => {
+                        if (!accessToken) return;
+                        setDownloadingVoucherId(detailOrder.id);
+                        void downloadVoucherFile(accessToken, detailOrder.id).finally(() =>
+                          setDownloadingVoucherId((current) =>
+                            current === detailOrder.id ? null : current,
+                          ),
+                        );
+                      }}
+                      className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                    >
+                      Download Voucher
+                    </LoadingButton>
+                  </div>
+                ) : null}
 
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                   <div className="flex items-center justify-between gap-3">
@@ -312,13 +369,14 @@ export default function CancelledBookingsPage() {
                         placeholder="Remark (optional)"
                         className={inputCls}
                       />
-                      <button
+                      <LoadingButton
                         type="submit"
                         disabled={isSubmittingRedemption}
+                        isLoading={isSubmittingRedemption}
                         className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
                       >
-                        {isSubmittingRedemption ? 'Saving…' : 'Deduct'}
-                      </button>
+                        Deduct
+                      </LoadingButton>
                     </form>
                   ) : null}
 
@@ -403,6 +461,7 @@ export default function CancelledBookingsPage() {
     if (!accessToken) return;
 
     try {
+      setOpeningOrderId(orderId);
       setIsDetailOpen(true);
       setIsDetailLoading(true);
       const order = await fetchOrderById(accessToken, orderId);
@@ -415,6 +474,7 @@ export default function CancelledBookingsPage() {
       setIsDetailOpen(false);
     } finally {
       setIsDetailLoading(false);
+      setOpeningOrderId((current) => (current === orderId ? null : current));
     }
   }
 

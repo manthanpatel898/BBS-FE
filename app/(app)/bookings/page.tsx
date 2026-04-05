@@ -15,6 +15,7 @@ import {
   fetchCalendarOrders,
   fetchCategories,
   fetchHotDates,
+  fetchMenus,
   fetchOrderById,
   fetchOrders,
   fetchSettings,
@@ -25,10 +26,12 @@ import {
   AppSettings,
   CalendarOrder,
   Category,
+  Menu,
   Order,
   OrderStatus,
   PaymentMode,
 } from '@/lib/auth/types';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
 type ViewMode = 'list' | 'calendar';
@@ -84,6 +87,7 @@ type FollowUpPopupState = {
   orderName: string;
   note: string;
   date: string;
+  nextFollowUpDate: string;
 };
 
 const initialFormState: BookingFormState = {
@@ -120,6 +124,57 @@ const ghostButtonCls =
 const primaryButtonCls =
   'rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60';
 
+function normalizeMenuText(value: string | undefined | null) {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function isHotSellingMenuItem(
+  menu: Menu | undefined,
+  sectionTitle: string,
+  item: string,
+) {
+  const normalizedSectionTitle = normalizeMenuText(sectionTitle);
+  const normalizedItem = normalizeMenuText(item);
+
+  const matchedSection = menu?.sections.find(
+    (section) => normalizeMenuText(section.sectionTitle) === normalizedSectionTitle,
+  );
+
+  return (
+    matchedSection?.hotSellingItems?.some(
+      (hotItem) => normalizeMenuText(hotItem) === normalizedItem,
+    ) ||
+    menu?.hotSelling ||
+    false
+  );
+}
+
+function resolveMenuForRule(
+  menus: Menu[],
+  menuId: string,
+  menuTitle: string,
+  sectionTitle: string,
+) {
+  const byId = menus.find((menu) => menu.id === menuId);
+  if (byId) {
+    return byId;
+  }
+
+  const normalizedMenuTitle = normalizeMenuText(menuTitle);
+  const normalizedSectionTitle = normalizeMenuText(sectionTitle);
+
+  return menus.find((menu) => {
+    if (normalizeMenuText(menu.title) !== normalizedMenuTitle) {
+      return false;
+    }
+
+    return menu.sections.some(
+      (section) =>
+        normalizeMenuText(section.sectionTitle) === normalizedSectionTitle,
+    );
+  });
+}
+
 const hourOptions = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const minuteOptions = ['00', '15', '30', '45'];
 const fallbackPaymentOptions = ['Cash', 'UPI', 'Card', 'Bank', 'Cheque'];
@@ -135,12 +190,44 @@ const fallbackEventOptions = [
 const EVENT_OTHER_VALUE = '__other__';
 const ADDON_OTHER_VALUE = '__other__';
 
+function buildHallDetailChoices(hallLabels: string[]) {
+  const normalized = Array.from(
+    new Set(hallLabels.map((label) => label.trim()).filter(Boolean)),
+  );
+
+  const combinationsBySize = new Map<number, string[]>();
+
+  function visit(startIndex: number, path: string[]) {
+    if (path.length > 0) {
+      const current = combinationsBySize.get(path.length) ?? [];
+      current.push(path.join(' + '));
+      combinationsBySize.set(path.length, current);
+    }
+
+    for (let index = startIndex; index < normalized.length; index += 1) {
+      visit(index + 1, [...path, normalized[index]]);
+    }
+  }
+
+  visit(0, []);
+  return Array.from(combinationsBySize.entries())
+    .sort(([sizeA], [sizeB]) => sizeA - sizeB)
+    .flatMap(([, values]) => values);
+}
+
+type MenuSelectionTrackingState = {
+  orderId: string;
+  startedAt: string;
+  trigger: 'initial' | 'change';
+};
+
 export default function BookingsPage() {
   const { accessToken, user } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [orders, setOrders] = useState<Order[]>([]);
   const [calendarOrders, setCalendarOrders] = useState<CalendarOrder[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [menus, setMenus] = useState<Menu[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -150,6 +237,7 @@ export default function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [filterDate, setFilterDate] = useState(todayKey);
   const [calendarScope, setCalendarScope] = useState<CalendarScope>('month');
+  const [isCalendarScopeOpen, setIsCalendarScopeOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     return new Date();
   });
@@ -186,10 +274,12 @@ export default function BookingsPage() {
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('Cash');
   const [advanceRemark, setAdvanceRemark] = useState('');
   const [isAdvanceSubmitting, setIsAdvanceSubmitting] = useState(false);
-  const [cancelPopup, setCancelPopup] = useState<{ order: Order; reason: string } | null>(
+  const [cancelPopup, setCancelPopup] = useState<{ order: Order; reason: string; generateVoucher: boolean } | null>(
     null,
   );
+  const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
   const [deletePopup, setDeletePopup] = useState<Order | null>(null);
+  const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -215,6 +305,7 @@ export default function BookingsPage() {
     sectionTitle: string;
     value: string;
   } | null>(null);
+  const menuSelectionTrackingRef = useRef<MenuSelectionTrackingState | null>(null);
 
   useEffect(() => {
     if (!toast) {
@@ -257,6 +348,13 @@ export default function BookingsPage() {
         setTotalItems(ordersResponse.pagination.total);
         setCategories(categoriesResponse.items);
         setSettings(settingsResponse);
+        void fetchMenus(token, { page: 1, limit: 200, search: '' })
+          .then((menusResponse) => {
+            setMenus(menusResponse.items);
+          })
+          .catch(() => {
+            setMenus([]);
+          });
       } catch (requestError) {
         setPageError(
           requestError instanceof Error
@@ -335,9 +433,15 @@ export default function BookingsPage() {
   const eventChoices = [...eventOptions, 'Other'];
   const isCustomEventSelected = formState.eventName === EVENT_OTHER_VALUE;
   const hallDetailOptions = settings?.hallDetails.map((option) => option.label) ?? [];
-  const hallDetailChoices = formState.hallDetails && !hallDetailOptions.includes(formState.hallDetails)
-    ? [formState.hallDetails, ...hallDetailOptions]
-    : hallDetailOptions;
+  const generatedHallDetailChoices = useMemo(
+    () => buildHallDetailChoices(hallDetailOptions),
+    [hallDetailOptions],
+  );
+  const hallDetailChoices =
+    formState.hallDetails && !generatedHallDetailChoices.includes(formState.hallDetails)
+      ? [formState.hallDetails, ...generatedHallDetailChoices]
+      : generatedHallDetailChoices;
+  const showHallBookingInformation = settings?.showHallBookingInformation ?? false;
   const addonOptions = settings?.addonServices ?? [];
   const availableAddonOptions = addonOptions.filter(
     (option) => !formState.addonEntries.some((entry) => entry.id === option.id),
@@ -346,6 +450,10 @@ export default function BookingsPage() {
   const categoryRules = useMemo(
     () => selectedCategory?.menuRules ?? [],
     [selectedCategory],
+  );
+  const menuLookup = useMemo(
+    () => new Map(menus.map((menu) => [menu.id, menu])),
+    [menus],
   );
 
   const pax = Number(formState.totalPerson) || 0;
@@ -356,11 +464,12 @@ export default function BookingsPage() {
     0,
   );
   const grandTotal = baseTotal + addonPrice;
+  const filteredCalendarOrders = calendarOrders;
   const monthGrid = useMemo(() => buildMonthGrid(calendarMonth), [calendarMonth]);
   const ordersByDate = useMemo(() => {
     const grouped = new Map<string, CalendarOrder[]>();
 
-    for (const order of calendarOrders) {
+    for (const order of filteredCalendarOrders) {
       const key = formatDateKey(order.eventDate);
       const current = grouped.get(key) ?? [];
       current.push(order);
@@ -368,7 +477,7 @@ export default function BookingsPage() {
     }
 
     return grouped;
-  }, [calendarOrders]);
+  }, [filteredCalendarOrders]);
   const selectedCalendarOrders = ordersByDate.get(selectedCalendarDay) ?? [];
   const selectedMenuItemsCount = formState.selectedMenus.reduce(
     (count, menu) =>
@@ -427,6 +536,7 @@ export default function BookingsPage() {
   }
 
   function resetWizard() {
+    menuSelectionTrackingRef.current = null;
     setEditingOrder(null);
     setFormState(initialFormState);
     setCustomEventName('');
@@ -505,6 +615,11 @@ export default function BookingsPage() {
   }
 
   function openCategoryChooser(order: Order) {
+    menuSelectionTrackingRef.current = {
+      orderId: order.id,
+      startedAt: new Date().toISOString(),
+      trigger: order.categorySnapshot ? 'change' : 'initial',
+    };
     setEditingOrder(order);
     const resolvedEventName = resolveEventFormValue(eventOptions, order.functionName ?? '');
     setFormState({
@@ -988,6 +1103,13 @@ export default function BookingsPage() {
     }
 
     try {
+      const menuSelectionTracking =
+        menuSelectionTrackingRef.current?.orderId === editingOrder.id
+          ? {
+              startedAt: menuSelectionTrackingRef.current.startedAt,
+              trigger: menuSelectionTrackingRef.current.trigger,
+            }
+          : undefined;
       setIsSubmitting(true);
       await updateOrder(accessToken, editingOrder.id, {
         customer: {
@@ -1030,6 +1152,7 @@ export default function BookingsPage() {
         referenceBy: formState.referenceBy.trim() || undefined,
         additionalInformation:
           formState.additionalInformation.trim() || undefined,
+        menuSelectionTracking,
       });
       resetWizard();
       setToast({ type: 'success', message: 'Booking details saved successfully.' });
@@ -1135,14 +1258,21 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleCancel(orderId: string, reason?: string) {
+  async function handleCancel(orderId: string, reason?: string, generateVoucher?: boolean) {
     if (!accessToken) {
       return;
     }
 
     try {
-      await cancelOrder(accessToken, orderId, { reason });
-      setToast({ type: 'success', message: 'Order cancelled successfully.' });
+      setIsCancelSubmitting(true);
+      const updatedOrder = await cancelOrder(accessToken, orderId, { reason, generateVoucher });
+      setToast({
+        type: 'success',
+        message:
+          generateVoucher && updatedOrder.voucher
+            ? `Order cancelled successfully. Voucher ${updatedOrder.voucher.voucherNumber} generated.`
+            : 'Order cancelled successfully.',
+      });
       await refreshBookingViews(accessToken, page);
 
       if (isDetailOpen) {
@@ -1156,6 +1286,8 @@ export default function BookingsPage() {
             ? requestError.message
             : 'Unable to cancel order.',
       });
+    } finally {
+      setIsCancelSubmitting(false);
     }
   }
 
@@ -1165,6 +1297,7 @@ export default function BookingsPage() {
     }
 
     try {
+      setIsDeleteSubmitting(true);
       await deleteOrder(accessToken, orderId);
       setDeletePopup(null);
       setToast({ type: 'success', message: 'Inquiry deleted successfully.' });
@@ -1181,6 +1314,8 @@ export default function BookingsPage() {
             ? requestError.message
             : 'Unable to delete inquiry.',
       });
+    } finally {
+      setIsDeleteSubmitting(false);
     }
   }
 
@@ -1199,6 +1334,7 @@ export default function BookingsPage() {
       const updatedOrder = await addOrderFollowUp(accessToken, followUpPopup.orderId, {
         note: followUpPopup.note.trim(),
         date: followUpPopup.date || undefined,
+        nextFollowUpDate: followUpPopup.nextFollowUpDate || undefined,
       });
       setFollowUpPopup(null);
       setToast({ type: 'success', message: 'Follow up added successfully.' });
@@ -1379,7 +1515,7 @@ export default function BookingsPage() {
     try {
       const order = await fetchOrderById(accessToken, orderId);
       setDayRecordsPopup(null);
-      setCancelPopup({ order, reason: '' });
+      setCancelPopup({ order, reason: '', generateVoucher: order.advanceAmount > 0 });
     } catch (requestError) {
       setToast({
         type: 'error',
@@ -1505,7 +1641,7 @@ function selectionStatus(order: Order) {
             </p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">Inquiry and booking flow</h1>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex items-center justify-between gap-3 sm:justify-end">
             <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
               <button
                 type="button"
@@ -1542,46 +1678,48 @@ function selectionStatus(order: Order) {
 
         {toast ? <ToastMessage toast={toast} /> : null}
 
-        <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[220px_220px_auto] md:items-end">
-          <Field label="Status">
-            <select
-              value={statusFilter}
-              onChange={(event) => {
-                setPage(1);
-                setStatusFilter(event.target.value);
-              }}
-              className={inputCls}
-            >
-              <option value="">All statuses</option>
-              <option value="INQUIRY">Inquiry</option>
-              <option value="CONFIRMED">Confirmed</option>
-              <option value="CANCELLED">Cancelled</option>
-              <option value="COMPLETED">Completed</option>
-            </select>
-          </Field>
-          <Field label="Function Date">
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(event) => {
-                const nextDate = event.target.value;
-                setPage(1);
-                setFilterDate(nextDate);
-                if (nextDate) {
-                  const nextCalendarDate = new Date(`${nextDate}T00:00:00`);
-                  setCalendarMonth(nextCalendarDate);
-                  setSelectedCalendarDay(nextDate);
-                }
-              }}
-              aria-label="Filter function date"
-              className={`${dateTimeInputCls} min-h-12`}
-            />
-          </Field>
-          <div className="text-right">
-            <p className="text-xs text-slate-500">Bookings on selected function date</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{totalItems}</p>
+        {viewMode === 'list' ? (
+          <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[220px_220px_auto] md:items-end">
+            <Field label="Status">
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  setPage(1);
+                  setStatusFilter(event.target.value);
+                }}
+                className={inputCls}
+              >
+                <option value="">All statuses</option>
+                <option value="INQUIRY">Inquiry</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="CANCELLED">Cancelled</option>
+                <option value="COMPLETED">Completed</option>
+              </select>
+            </Field>
+            <Field label="Function Date">
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(event) => {
+                  const nextDate = event.target.value;
+                  setPage(1);
+                  setFilterDate(nextDate);
+                  if (nextDate) {
+                    const nextCalendarDate = new Date(`${nextDate}T00:00:00`);
+                    setCalendarMonth(nextCalendarDate);
+                    setSelectedCalendarDay(nextDate);
+                  }
+                }}
+                aria-label="Filter function date"
+                className={`${dateTimeInputCls} min-h-12`}
+              />
+            </Field>
+            <div className="text-right">
+              <p className="text-xs text-slate-500">Bookings on selected function date</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{totalItems}</p>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {pageError ? (
           <EmptyState
@@ -1589,9 +1727,7 @@ function selectionStatus(order: Order) {
             description={pageError}
             compact
           />
-        ) : null}
-
-        {viewMode === 'list' ? (
+        ) : viewMode === 'list' ? (
           <>
             <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
               <div className="overflow-x-auto">
@@ -1716,7 +1852,7 @@ function selectionStatus(order: Order) {
                                 order.status === 'CONFIRMED') ? (
                                 <IconActionButton
                                   label="Cancel booking"
-                                  onClick={() => setCancelPopup({ order, reason: '' })}
+                                  onClick={() => setCancelPopup({ order, reason: '', generateVoucher: order.advanceAmount > 0 })}
                                   icon="cancel"
                                   tone="danger"
                                 />
@@ -1844,7 +1980,7 @@ function selectionStatus(order: Order) {
                       (order.status === 'INQUIRY' || order.status === 'CONFIRMED') ? (
                         <IconActionButton
                           label="Cancel booking"
-                          onClick={() => setCancelPopup({ order, reason: '' })}
+                          onClick={() => setCancelPopup({ order, reason: '', generateVoucher: order.advanceAmount > 0 })}
                           icon="cancel"
                           tone="danger"
                           compact
@@ -1885,22 +2021,37 @@ function selectionStatus(order: Order) {
           </>
         ) : (
           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Calendar View
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
                   {formatCalendarHeading(calendarScope, calendarMonth)}
                 </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCalendarScopeOpen((current) => !current)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <span>View</span>
+                  <span className={`text-slate-400 transition-transform ${isCalendarScopeOpen ? 'rotate-180' : ''}`}>
+                    <IconChevronDown />
+                  </span>
+                </button>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              {isCalendarScopeOpen ? (
                 <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
                   {(['month', 'week', 'day'] as CalendarScope[]).map((scope) => (
                     <button
                       key={scope}
                       type="button"
-                      onClick={() => setCalendarScope(scope)}
+                      onClick={() => {
+                        setCalendarScope(scope);
+                        setIsCalendarScopeOpen(false);
+                      }}
                       className={`rounded-lg px-4 py-2 text-sm font-medium capitalize transition ${
                         calendarScope === scope
                           ? 'bg-amber-400 text-white'
@@ -1911,36 +2062,37 @@ function selectionStatus(order: Order) {
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCalendarMonth((current) => shiftCalendarDate(current, calendarScope, -1))}
-                  className={ghostButtonCls}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <IconGlyph icon="previous" />
-                    <span>{formatMonthLabel(shiftCalendarDate(calendarMonth, calendarScope, -1))}</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalendarMonth(new Date())}
-                  className={ghostButtonCls}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalendarMonth((current) => shiftCalendarDate(current, calendarScope, 1))}
-                  className={ghostButtonCls}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <span>{formatMonthLabel(shiftCalendarDate(calendarMonth, calendarScope, 1))}</span>
-                    <IconGlyph icon="next" />
-                  </span>
-                </button>
+              ) : null}
+              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((current) => shiftCalendarDate(current, calendarScope, -1))}
+                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <IconGlyph icon="previous" />
+                      <span>{formatMonthLabel(shiftCalendarDate(calendarMonth, calendarScope, -1))}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth(new Date())}
+                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((current) => shiftCalendarDate(current, calendarScope, 1))}
+                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <span>{formatMonthLabel(shiftCalendarDate(calendarMonth, calendarScope, 1))}</span>
+                      <IconGlyph icon="next" />
+                    </span>
+                  </button>
               </div>
             </div>
-
             {isCalendarLoading ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
                 Loading calendar…
@@ -1953,23 +2105,31 @@ function selectionStatus(order: Order) {
                       No bookings in this range. You can still browse dates and add a new inquiry.
                     </div>
                   ) : null}
-                  <div className="grid grid-cols-7 gap-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:gap-3 sm:text-xs">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                      <div key={day} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div key={day} className="rounded-2xl border border-slate-200 bg-slate-50 px-1.5 py-2 sm:px-3">
                         {day}
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-7">
+                  <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
                     {monthGrid.map((day, index) => {
                       if (!day) {
-                        return <div key={`month-empty-${index}`} className="hidden min-h-[96px] rounded-[20px] md:block" />;
+                        return <div key={`month-empty-${index}`} className="min-h-[112px] sm:min-h-[132px]" aria-hidden="true" />;
                       }
 
                       const dayKey = formatDateKey(day);
                       const dayOrders = ordersByDate.get(dayKey) ?? [];
+                      const statusCounts = getMonthTileStatusCounts(dayOrders);
                       const isSelectedDay = selectedCalendarDay === dayKey;
+                      const isToday = dayKey === formatDateKey(new Date());
+                      const isHighlightedDay = isSelectedDay || (!selectedCalendarDay && isToday);
                       const isHotDate = hotDateKeys.has(dayKey);
+                      const statusRows = [
+                        { key: 'booked', count: statusCounts.booked, markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
+                        { key: 'inquiry', count: statusCounts.inquiry, markerClassName: 'bg-amber-300', textClassName: 'text-slate-800' },
+                        { key: 'cancelled', count: statusCounts.cancelled, markerClassName: 'bg-red-300', textClassName: 'text-slate-800' },
+                      ];
 
                       return (
                         <button
@@ -1979,44 +2139,41 @@ function selectionStatus(order: Order) {
                             setSelectedCalendarDay(dayKey);
                             setDayRecordsPopup({ dateKey: dayKey, orders: dayOrders });
                           }}
-                          className={`relative min-h-[96px] rounded-[20px] border p-2.5 text-left transition ${
+                          className={`relative min-h-[112px] overflow-hidden rounded-[26px] border text-left transition sm:min-h-[132px] ${
                             isHotDate
-                              ? isSelectedDay
-                                ? 'border-red-300 bg-red-50 ring-1 ring-red-200'
-                                : 'border-red-200 bg-red-50/60'
-                              : isSelectedDay
-                                ? 'border-amber-200 bg-amber-50'
-                                : 'border-slate-200 bg-white'
+                              ? isHighlightedDay
+                                ? 'border-red-300 bg-white ring-2 ring-red-200'
+                                : 'border-red-200 bg-white'
+                              : isHighlightedDay
+                                ? 'border-amber-300 bg-white ring-2 ring-amber-100'
+                                : isToday
+                                  ? 'border-slate-200 bg-white'
+                                  : 'border-slate-200 bg-white'
                           }`}
                         >
-                          {isHotDate ? (
-                            <span className="absolute right-2 top-2 flex items-center gap-0.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-bold leading-none text-white shadow-sm">
-                              🔥 Hot
-                            </span>
-                          ) : null}
-                          <div className="flex items-center justify-between">
-                            <p className={`text-sm font-semibold ${isHotDate ? 'text-red-700' : 'text-slate-900'}`}>{day.getDate()}</p>
-                            {dayOrders.length ? (
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isHotDate ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
-                                {dayOrders.length}
-                              </span>
-                            ) : null}
+                          <div
+                            className={`absolute inset-x-0 top-0 flex min-h-[42px] items-center justify-center rounded-t-[25px] border-b px-2 py-2 sm:min-h-[48px] ${
+                              isHotDate
+                                ? 'border-b-red-200 bg-red-50'
+                                : isHighlightedDay
+                                  ? 'border-b-amber-200 bg-amber-50'
+                                  : 'border-b-slate-200 bg-slate-50'
+                            }`}
+                          >
+                            <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isHighlightedDay ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
                           </div>
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {dayOrders.slice(0, 6).map((order) => (
-                              <span
-                                key={order.id}
-                                className={`h-2.5 w-2.5 rounded-full ${monthDotClasses(order.status)}`}
-                              />
+                          <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-3 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
+                            {statusRows.map((statusRow, index) => (
+                              <div
+                                key={statusRow.key}
+                                className={`flex h-full items-center gap-1.5 ${index > 0 ? `border-t ${isHotDate ? 'border-red-200' : 'border-slate-200'}` : ''}`}
+                              >
+                                <span className={`h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 ${statusRow.markerClassName}`} />
+                                <span className={`text-[11px] font-medium tabular-nums sm:text-xs ${statusRow.textClassName}`}>
+                                  {statusRow.count}
+                                </span>
+                              </div>
                             ))}
-                          </div>
-                          <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500">
-                            <span>
-                              {dayOrders.length ? `${dayOrders.length} booking${dayOrders.length > 1 ? 's' : ''}` : 'No bookings'}
-                            </span>
-                            <span className="inline-flex items-center gap-1 font-medium text-slate-600">
-                              <IconGlyph icon="expand" />
-                            </span>
                           </div>
                         </button>
                       );
@@ -2059,7 +2216,6 @@ function selectionStatus(order: Order) {
                                 </span>
                               ) : null}
                             </div>
-                            <p className="mt-1 text-xs text-slate-500">{dayOrders.length} booking{dayOrders.length === 1 ? '' : 's'}</p>
                           </div>
                           <span className="text-xs font-medium text-slate-500" />
                         </div>
@@ -2596,23 +2752,25 @@ function selectionStatus(order: Order) {
               >
                 Cancel
               </button>
-              <button
+              <LoadingButton
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => void handleCreateInquiry('INQUIRY')}
+                isLoading={isSubmitting}
                 className={`${primaryButtonCls} w-full sm:w-auto`}
               >
-                {isSubmitting ? 'Saving…' : editingOrder ? 'Save inquiry' : 'Create inquiry'}
-              </button>
+                {editingOrder ? 'Save inquiry' : 'Create inquiry'}
+              </LoadingButton>
               {!editingOrder && (
-                <button
+                <LoadingButton
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => void handleCreateInquiry('CONFIRMED')}
+                  isLoading={isSubmitting}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-60 sm:w-auto"
                 >
-                  {isSubmitting ? 'Saving…' : 'Confirm Booking'}
-                </button>
+                  Confirm Booking
+                </LoadingButton>
               )}
             </div>
           </ModalShell>
@@ -2624,9 +2782,12 @@ function selectionStatus(order: Order) {
             eyebrow="Booking Category"
             onClose={resetWizard}
             widthClassName="max-w-5xl"
+            scrollablePanel={false}
+            panelClassName="flex h-[92vh] min-h-0 flex-col"
           >
-            <div className="mt-8 space-y-4">
-              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
+            <div className="mt-5 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+              <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(145deg,#fffdf7,#ffffff)] p-4 shadow-sm">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Customer
@@ -2674,9 +2835,10 @@ function selectionStatus(order: Order) {
                   </Field>
                 </div>
               </div>
+              </div>
 
-              <div className="min-h-0">
-                <div className="max-h-[58vh] overflow-y-auto pr-1">
+              <div className="min-h-0 flex-1">
+                <div className="h-full min-h-0 overflow-y-auto overscroll-contain pr-1 pb-3 [touch-action:pan-y]">
                   {categoryRules.length === 0 ? (
                     <EmptyState
                       title="No configured items for this category"
@@ -2688,13 +2850,16 @@ function selectionStatus(order: Order) {
                         key={`${rule.menuId}-${rule.sectionTitle}`}
                         className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
+                              {rule.menuTitle}
+                            </p>
                             <h3 className="mt-1 text-xl font-semibold text-slate-900">
                               {rule.sectionTitle}
                             </h3>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
                               Choose {rule.selectionLimit}
                             </span>
@@ -2741,6 +2906,19 @@ function selectionStatus(order: Order) {
                             </div>
                           ))}
                           {rule.allowedItems.map((item) => {
+                            const linkedMenu =
+                              menuLookup.get(rule.menuId) ??
+                              resolveMenuForRule(
+                                menus,
+                                rule.menuId,
+                                rule.menuTitle,
+                                rule.sectionTitle,
+                              );
+                            const isHotSelling = isHotSellingMenuItem(
+                              linkedMenu,
+                              rule.sectionTitle,
+                              item,
+                            );
                             const checked = isItemSelected(
                               rule.menuId,
                               rule.sectionTitle,
@@ -2779,7 +2957,19 @@ function selectionStatus(order: Order) {
                                     />
                                   </svg>
                                 </span>
-                                <span className="font-medium">{item}</span>
+                                <span className="flex flex-1 flex-wrap items-center gap-2 font-medium">
+                                  {isHotSelling ? (
+                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-sm text-red-600">
+                                      🔥
+                                    </span>
+                                  ) : null}
+                                  <span>{item}</span>
+                                  {isHotSelling ? (
+                                    <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-red-600">
+                                      Hot Selling
+                                    </span>
+                                  ) : null}
+                                </span>
                               </button>
                             );
                           })}
@@ -2789,20 +2979,26 @@ function selectionStatus(order: Order) {
                   )}
                 </div>
               </div>
-            </div>
-
-            <div className="mt-8 flex justify-end gap-3">
-              <button type="button" onClick={resetWizard} className={ghostButtonCls}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={() => void handleSaveBookingSelection()}
-                className={primaryButtonCls}
-              >
-                {isSubmitting ? 'Saving…' : 'Save category'}
-              </button>
+              <div className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-4 backdrop-blur">
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={resetWizard}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <LoadingButton
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => void handleSaveBookingSelection()}
+                    isLoading={isSubmitting}
+                    className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                  >
+                    Save category
+                  </LoadingButton>
+                </div>
+              </div>
             </div>
           </ModalShell>
         ) : null}
@@ -2875,22 +3071,24 @@ function selectionStatus(order: Order) {
                   Cancel
                 </button>
                 {advancePopup?.mode === 'new' ? (
-                  <button
+                  <LoadingButton
                     type="button"
                     disabled={isAdvanceSubmitting}
                     onClick={() => void handleSaveAsInquiry()}
+                    isLoading={isAdvanceSubmitting}
                     className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
                   >
-                    {isAdvanceSubmitting ? 'Saving…' : 'Keep as Inquiry'}
-                  </button>
+                    Keep as Inquiry
+                  </LoadingButton>
                 ) : null}
-                <button
+                <LoadingButton
                   type="submit"
                   disabled={isAdvanceSubmitting}
+                  isLoading={isAdvanceSubmitting}
                   className={primaryButtonCls}
                 >
-                  {isAdvanceSubmitting ? 'Saving…' : 'Confirm booking'}
-                </button>
+                  Confirm booking
+                </LoadingButton>
               </div>
             </form>
           </ModalShell>
@@ -2904,6 +3102,34 @@ function selectionStatus(order: Order) {
             widthClassName="max-w-md"
           >
             <p className="mt-4 text-sm text-slate-500">Add a cancellation reason.</p>
+            {cancelPopup.order.advanceAmount > 0 && user?.canAccessVoucherFlow ? (
+              <label className="mt-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={cancelPopup.generateVoucher}
+                  onChange={(event) =>
+                    setCancelPopup((current) =>
+                      current ? { ...current, generateVoucher: event.target.checked } : current,
+                    )
+                  }
+                  className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                />
+                <span>
+                  Generate cancellation voucher for advance amount
+                  <span className="ml-1 font-semibold text-slate-900">
+                    {formatCurrency(cancelPopup.order.advanceAmount)}
+                  </span>
+                </span>
+              </label>
+            ) : cancelPopup.order.advanceAmount > 0 ? (
+              <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                Voucher flow is not enabled for this restaurant.
+              </p>
+            ) : (
+              <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                No advance payment recorded, so voucher generation is not available.
+              </p>
+            )}
             <textarea
               value={cancelPopup.reason}
               onChange={(event) =>
@@ -2914,7 +3140,7 @@ function selectionStatus(order: Order) {
               placeholder="Reason (optional)"
               className={`${inputCls} mt-4 min-h-24 resize-none`}
             />
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setCancelPopup(null)}
@@ -2922,16 +3148,22 @@ function selectionStatus(order: Order) {
               >
                 Close
               </button>
-              <button
+              <LoadingButton
                 type="button"
+                disabled={isCancelSubmitting}
                 onClick={async () => {
-                  await handleCancel(cancelPopup.order.id, cancelPopup.reason);
+                  await handleCancel(
+                    cancelPopup.order.id,
+                    cancelPopup.reason,
+                    cancelPopup.generateVoucher,
+                  );
                   setCancelPopup(null);
                 }}
+                isLoading={isCancelSubmitting}
                 className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
               >
                 Confirm cancel
-              </button>
+              </LoadingButton>
             </div>
           </ModalShell>
         ) : null}
@@ -2946,7 +3178,7 @@ function selectionStatus(order: Order) {
             <p className="mt-4 text-sm text-slate-500">
               This will permanently delete the inquiry record.
             </p>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setDeletePopup(null)}
@@ -2954,13 +3186,15 @@ function selectionStatus(order: Order) {
               >
                 Cancel
               </button>
-              <button
+              <LoadingButton
                 type="button"
+                disabled={isDeleteSubmitting}
                 onClick={() => void handleDelete(deletePopup.id)}
+                isLoading={isDeleteSubmitting}
                 className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
               >
                 Delete inquiry
-              </button>
+              </LoadingButton>
             </div>
           </ModalShell>
         ) : null}
@@ -2970,19 +3204,19 @@ function selectionStatus(order: Order) {
             title="Add follow up"
             eyebrow="Follow Ups"
             onClose={() => setFollowUpPopup(null)}
-            widthClassName="max-w-lg"
+            widthClassName="max-w-3xl"
             zIndexClassName="z-[80]"
           >
-            <div className="mt-6 space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="mt-6 space-y-5">
+              <div className="rounded-[26px] border border-slate-200 bg-slate-50 px-5 py-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Customer
                 </p>
-                <p className="mt-1 text-base font-semibold text-slate-900">
+                <p className="mt-2 text-lg font-semibold text-slate-900">
                   {followUpPopup.orderName}
                 </p>
               </div>
-              <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Date">
                   <input
                     type="date"
@@ -2995,35 +3229,51 @@ function selectionStatus(order: Order) {
                     className={`${dateTimeInputCls} min-h-12`}
                   />
                 </Field>
-                <Field label="Note">
-                  <textarea
-                    value={followUpPopup.note}
+                <Field label="Next Follow Up Date">
+                  <input
+                    type="date"
+                    value={followUpPopup.nextFollowUpDate}
                     onChange={(event) =>
                       setFollowUpPopup((current) =>
-                        current ? { ...current, note: event.target.value } : current,
+                        current ? { ...current, nextFollowUpDate: event.target.value } : current,
                       )
                     }
-                    placeholder="Add follow up note"
-                    className={`${inputCls} min-h-28 resize-none`}
+                    className={`${dateTimeInputCls} min-h-12`}
                   />
                 </Field>
               </div>
-              <div className="flex justify-end gap-3">
+              <Field label="Note">
+                <textarea
+                  value={followUpPopup.note}
+                  onChange={(event) =>
+                    setFollowUpPopup((current) =>
+                      current ? { ...current, note: event.target.value } : current,
+                    )
+                  }
+                  placeholder="Add follow up note"
+                  className={`${inputCls} min-h-32 resize-none`}
+                />
+              </Field>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Set the next follow up date to keep today’s dashboard follow up list accurate.
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setFollowUpPopup(null)}
-                  className={ghostButtonCls}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="button"
                   onClick={() => void handleAddFollowUp()}
                   disabled={isFollowUpSubmitting}
-                  className={primaryButtonCls}
+                  isLoading={isFollowUpSubmitting}
+                  className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
                 >
-                  {isFollowUpSubmitting ? 'Saving…' : 'Save follow up'}
-                </button>
+                  Save follow up
+                </LoadingButton>
               </div>
             </div>
           </ModalShell>
@@ -3078,7 +3328,7 @@ function selectionStatus(order: Order) {
                 />
               </Field>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => {
@@ -3092,7 +3342,7 @@ function selectionStatus(order: Order) {
               >
                 Cancel
               </button>
-              <button
+              <LoadingButton
                 type="button"
                 disabled={isPaymentSubmitting}
                 onClick={() =>
@@ -3100,14 +3350,11 @@ function selectionStatus(order: Order) {
                     ? handleSaveAdvancePayment()
                     : handleAddAdvancePayment())
                 }
+                isLoading={isPaymentSubmitting}
                 className={primaryButtonCls}
               >
-                {isPaymentSubmitting
-                  ? 'Saving…'
-                  : paymentEditor?.paymentId
-                    ? 'Save payment'
-                    : 'Record payment'}
-              </button>
+                {paymentEditor?.paymentId ? 'Save payment' : 'Record payment'}
+              </LoadingButton>
             </div>
           </ModalShell>
         ) : null}
@@ -3144,7 +3391,7 @@ function selectionStatus(order: Order) {
                 />
               </Field>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setAddonPopup(null)}
@@ -3172,7 +3419,7 @@ function selectionStatus(order: Order) {
               className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm"
               onClick={() => setDayRecordsPopup(null)}
             />
-            <aside className="fixed inset-y-0 left-0 z-50 flex w-full max-w-xl flex-col border-r border-slate-200 bg-white shadow-2xl">
+            <aside className="fixed inset-y-0 left-0 z-50 flex w-full max-w-xl flex-col border-r border-slate-200 bg-white shadow-2xl lg:max-w-5xl">
               <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
@@ -3181,7 +3428,7 @@ function selectionStatus(order: Order) {
                   <h3 className="mt-2 text-2xl font-bold text-slate-900">
                     {formatDisplayDate(dayRecordsPopup.dateKey)}
                   </h3>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800 shadow-sm">
                     {dayRecordsPopup.orders.length} booking{dayRecordsPopup.orders.length === 1 ? '' : 's'}
                   </p>
                 </div>
@@ -3214,33 +3461,109 @@ function selectionStatus(order: Order) {
 
               <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
                 <div className="space-y-3">
-                  {dayRecordsPopup.orders.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                      No bookings for this day.
-                    </div>
-                  ) : (
-                    [...dayRecordsPopup.orders]
-                      .sort((a, b) => {
+                  {(() => {
+                      const sortedOrders = [...dayRecordsPopup.orders].sort((a, b) => {
                         const statusOrder: Record<string, number> = { CONFIRMED: 0, INQUIRY: 1, CANCELLED: 2 };
                         const slotOrder: Record<string, number> = { Breakfast: 0, Lunch: 1, Dinner: 2 };
                         const statusDiff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
                         if (statusDiff !== 0) return statusDiff;
                         return (slotOrder[a.serviceSlot ?? ''] ?? 9) - (slotOrder[b.serviceSlot ?? ''] ?? 9);
-                      })
-                      .map((calendarOrder) => {
+                      });
+                      const hallSlotMatrix = buildDayHallSlotMatrix(sortedOrders, hallDetailOptions);
+
+                      return (
+                        <>
+                          {showHallBookingInformation && hallSlotMatrix.halls.length > 0 ? (
+                            <div className="border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">Hall Slot Status</p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Green means booked. Yellow means inquiry pending.
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-3 text-[11px] font-medium text-slate-600">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                                    Booked
+                                  </span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                                    Inquiry
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="mt-4 overflow-x-auto">
+                                <table className="min-w-full border-collapse text-left text-sm">
+                                  <thead>
+                                    <tr>
+                                      <th className="border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                        Slot
+                                      </th>
+                                      {hallSlotMatrix.halls.map((hall) => (
+                                        <th
+                                          key={hall}
+                                          className="border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500"
+                                        >
+                                          {hall}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {hallSlotMatrix.slots.map((slot) => (
+                                      <tr key={slot}>
+                                        <td className="border border-slate-200 bg-white px-3 py-3 font-medium text-slate-900">
+                                          {slot}
+                                        </td>
+                                        {hallSlotMatrix.halls.map((hall) => {
+                                          const status = hallSlotMatrix.cellMap.get(`${hall}::${slot}`);
+                                          return (
+                                            <td key={`${slot}-${hall}`} className="border border-slate-200 bg-white px-3 py-3 text-center">
+                                              {status ? (
+                                                <span
+                                                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
+                                                    status === 'confirmed'
+                                                      ? 'bg-emerald-100 text-emerald-700'
+                                                      : 'bg-amber-100 text-amber-700'
+                                                  }`}
+                                                >
+                                                  {status === 'confirmed' ? '✓' : '!'}
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-300">-</span>
+                                              )}
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ) : null}
+                          {sortedOrders.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                              No bookings for this day.
+                            </div>
+                          ) : (
+                            <div className="grid gap-3 lg:grid-cols-2">
+                              {sortedOrders.map((calendarOrder) => {
                         const cardCls =
                           calendarOrder.status === 'CONFIRMED'
                             ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
                             : calendarOrder.status === 'INQUIRY'
                               ? 'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]'
                               : 'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]';
+                        const showMenuStatus = !['INQUIRY', 'CANCELLED'].includes(calendarOrder.status);
                         return (
                           <div
                             key={`popup-${calendarOrder.id}`}
                             className={`rounded-2xl border p-4 ${cardCls}`}
                           >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                              <div>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold text-slate-900">{calendarOrder.customerName}</p>
                                 <p className="mt-1 text-sm text-slate-600">{calendarOrder.functionName}</p>
                                 <p className="mt-1 text-xs text-slate-500">
@@ -3257,19 +3580,23 @@ function selectionStatus(order: Order) {
                                   </p>
                                 ) : null}
                               </div>
-                              <div className="flex flex-col items-start gap-2 sm:items-end">
-                                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(calendarOrder.status)}`}>
+                              <div className="flex shrink-0 flex-col items-end gap-2 text-right">
+                                <span
+                                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(calendarOrder.status)}`}
+                                >
                                   {calendarOrder.status}
                                 </span>
-                                <span
-                                  className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-medium ${
-                                    calendarOrder.hasMenuSelection
-                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                      : 'border-slate-200 bg-slate-50 text-slate-600'
-                                  }`}
-                                >
-                                  {calendarOrder.hasMenuSelection ? 'Menu Selected' : 'Menu Pending'}
-                                </span>
+                                {showMenuStatus ? (
+                                  <span
+                                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${
+                                      calendarOrder.hasMenuSelection
+                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                                    }`}
+                                  >
+                                    {calendarOrder.hasMenuSelection ? 'Menu Selected' : 'Menu Pending'}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                             <div className="mt-4 flex flex-wrap gap-2">
@@ -3290,6 +3617,7 @@ function selectionStatus(order: Order) {
                                     orderName: calendarOrder.customerName,
                                     note: '',
                                     date: toDateInputValue(new Date()),
+                                    nextFollowUpDate: '',
                                   });
                                 }}
                                 className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -3298,18 +3626,23 @@ function selectionStatus(order: Order) {
                               </button>
                               {isCompanyAdmin &&
                               (calendarOrder.status === 'INQUIRY' || calendarOrder.status === 'CONFIRMED') ? (
-                                <IconActionButton
-                                  label="Cancel booking"
+                                <button
+                                  type="button"
                                   onClick={() => void handleOpenCancelFromCalendar(calendarOrder.id)}
-                                  icon="cancel"
-                                  tone="danger"
-                                />
+                                  className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                                >
+                                  Cancel booking
+                                </button>
                               ) : null}
                             </div>
                           </div>
                         );
-                      })
-                  )}
+                      })}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                 </div>
               </div>
             </aside>
@@ -3575,7 +3908,7 @@ function selectionStatus(order: Order) {
                           type="button"
                           onClick={() => {
                             setIsDetailOpen(false);
-                            setCancelPopup({ order: detailOrder, reason: '' });
+                            setCancelPopup({ order: detailOrder, reason: '', generateVoucher: detailOrder.advanceAmount > 0 });
                           }}
                           className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
                         >
@@ -3692,6 +4025,7 @@ function selectionStatus(order: Order) {
                           orderName: `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`.trim(),
                           note: '',
                           date: toDateInputValue(new Date()),
+                          nextFollowUpDate: '',
                         })
                       }
                       className={ghostButtonCls}
@@ -3708,6 +4042,7 @@ function selectionStatus(order: Order) {
                           <tr className="border-b border-slate-200 text-slate-500">
                             <th className="px-3 py-2 font-medium">Follow Up By</th>
                             <th className="px-3 py-2 font-medium">Date</th>
+                            <th className="px-3 py-2 font-medium">Next Follow Up</th>
                             <th className="px-3 py-2 font-medium">Note</th>
                           </tr>
                         </thead>
@@ -3718,6 +4053,7 @@ function selectionStatus(order: Order) {
                               <tr key={`${followUp.createdAt}-${index}`} className="border-b border-slate-100 last:border-b-0">
                                 <td className="px-3 py-3 text-slate-700">{followUp.followUpByName}</td>
                                 <td className="px-3 py-3 text-slate-700">{formatFollowUpDate(followUp.date)}</td>
+                                <td className="px-3 py-3 text-slate-700">{followUp.nextFollowUpDate ? formatFollowUpDate(followUp.nextFollowUpDate) : '-'}</td>
                                 <td className="px-3 py-3 text-slate-700">{followUp.note}</td>
                               </tr>
                             ))}
@@ -3755,6 +4091,38 @@ function formatFollowUpDate(value: string) {
   }).format(new Date(value));
 }
 
+function getHallParts(hallDetails: string | null | undefined) {
+  if (!hallDetails) return [];
+  return hallDetails
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function buildDayHallSlotMatrix(orders: CalendarOrder[], hallLabels: string[]) {
+  const slotPriority = ['Breakfast', 'Lunch', 'Dinner'];
+  const slots = slotPriority;
+  const halls = Array.from(new Set(hallLabels.map((hall) => hall.trim()).filter(Boolean)));
+  const cellMap = new Map<string, 'confirmed' | 'inquiry'>();
+
+  for (const order of orders) {
+    const slot = order.serviceSlot?.trim();
+    if (!slot) continue;
+
+    for (const hall of getHallParts(order.hallDetails)) {
+      const key = `${hall}::${slot}`;
+      const current = cellMap.get(key);
+      if (order.status === 'CONFIRMED' || order.status === 'COMPLETED') {
+        cellMap.set(key, 'confirmed');
+      } else if (order.status === 'INQUIRY' && current !== 'confirmed') {
+        cellMap.set(key, 'inquiry');
+      }
+    }
+  }
+
+  return { halls, slots, cellMap };
+}
+
 function ModalShell({
   eyebrow,
   title,
@@ -3763,6 +4131,8 @@ function ModalShell({
   widthClassName = 'max-w-3xl',
   fullScreen = false,
   zIndexClassName = 'z-50',
+  panelClassName = '',
+  scrollablePanel = true,
 }: {
   eyebrow: string;
   title: string;
@@ -3771,39 +4141,43 @@ function ModalShell({
   widthClassName?: string;
   fullScreen?: boolean;
   zIndexClassName?: string;
+  panelClassName?: string;
+  scrollablePanel?: boolean;
 }) {
   return (
     <div
-      className={`fixed inset-0 ${zIndexClassName} bg-slate-900/50 backdrop-blur-sm ${
+      className={`modal-viewport-pad fixed inset-0 ${zIndexClassName} bg-slate-900/50 backdrop-blur-sm ${
         fullScreen
-          ? 'flex items-center justify-center px-3 py-3 sm:px-4 sm:py-4'
-          : 'flex items-end justify-center px-3 py-3 sm:items-center sm:px-4 sm:py-6'
+          ? 'flex items-center justify-center px-3 sm:px-4 sm:py-4'
+          : 'flex items-center justify-center px-3 sm:px-4 sm:py-6'
       }`}
-    >
-      <div
-        className={`w-full overflow-y-auto border border-slate-200 bg-white ${
-          fullScreen
-            ? 'max-h-[calc(100vh-1.5rem)] min-h-[calc(100vh-1.5rem)] max-w-6xl rounded-[28px] px-4 py-5 shadow-[0_28px_80px_rgba(0,0,0,0.5)] sm:max-h-[calc(100vh-2rem)] sm:min-h-[calc(100vh-2rem)] sm:px-6 sm:py-6'
-            : `max-h-[92vh] rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 ${widthClassName}`
-        }`}
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div
+        className={`relative w-full border border-slate-200 bg-white ${
+          scrollablePanel ? 'overflow-y-auto' : 'overflow-hidden'
+        } ${
+          fullScreen
+            ? 'modal-panel-fullscreen-height max-w-6xl rounded-[28px] px-4 py-5 shadow-[0_28px_80px_rgba(0,0,0,0.5)] sm:max-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:min-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:px-6 sm:py-6'
+            : `modal-panel-height safe-pad-bottom rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 ${widthClassName}`
+        } ${panelClassName}`}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close modal"
+          className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 sm:right-6 sm:top-6"
+        >
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+            <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
+          </svg>
+        </button>
+        <div className="pr-12 sm:pr-14">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
               {eyebrow}
             </p>
             <h2 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">{title}</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close modal"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
-          >
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
-              <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
-            </svg>
-          </button>
         </div>
         {children}
       </div>
@@ -3890,7 +4264,7 @@ function TimePicker({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid gap-2 sm:grid-cols-3">
       <select
         value={localHour}
         onChange={(e) => {
@@ -3983,6 +4357,7 @@ function IconGlyph({
     | 'cancel'
     | 'complete'
     | 'expand'
+    | 'search'
     | 'previous'
     | 'next';
 }) {
@@ -4037,6 +4412,13 @@ function IconGlyph({
           <path d="M4 10h12" />
         </svg>
       );
+    case 'search':
+      return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4.5 w-4.5">
+          <circle cx="9" cy="9" r="5.5" />
+          <path d="m13 13 4 4" />
+        </svg>
+      );
     case 'previous':
       return (
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-4 w-4">
@@ -4052,17 +4434,29 @@ function IconGlyph({
   }
 }
 
-function monthDotClasses(status: OrderStatus) {
-  switch (status) {
-    case 'CONFIRMED':
-      return 'bg-emerald-500';
-    case 'CANCELLED':
-      return 'bg-red-400';
-    case 'COMPLETED':
-      return 'bg-sky-500';
-    default:
-      return 'bg-amber-400';
-  }
+function IconChevronDown() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-4 w-4">
+      <path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function getMonthTileStatusCounts(orders: CalendarOrder[]) {
+  return orders.reduce(
+    (counts, order) => {
+      if (order.status === 'INQUIRY') {
+        counts.inquiry += 1;
+      } else if (order.status === 'CANCELLED') {
+        counts.cancelled += 1;
+      } else {
+        counts.booked += 1;
+      }
+
+      return counts;
+    },
+    { inquiry: 0, booked: 0, cancelled: 0 },
+  );
 }
 
 function EmptyState({

@@ -514,6 +514,10 @@ export async function createOrder(
     hallDetails?: string;
     referenceBy?: string;
     additionalInformation?: string;
+    menuSelectionTracking?: {
+      startedAt: string;
+      trigger: 'initial' | 'change';
+    };
   },
 ) {
   return authorizedRequest<Order>('/orders', accessToken, {
@@ -564,6 +568,10 @@ export async function updateOrder(
     hallDetails?: string;
     referenceBy?: string;
     additionalInformation?: string;
+    menuSelectionTracking?: {
+      startedAt: string;
+      trigger: 'initial' | 'change';
+    };
   },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}`, accessToken, {
@@ -598,7 +606,7 @@ export async function confirmInquiry(
 export async function cancelOrder(
   accessToken: string,
   orderId: string,
-  payload?: { reason?: string },
+  payload?: { reason?: string; generateVoucher?: boolean },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/cancel`, accessToken, {
     method: 'PATCH',
@@ -606,10 +614,54 @@ export async function cancelOrder(
   });
 }
 
+export async function fetchVouchers(
+  accessToken: string,
+  params: { page: number; limit: number; search: string },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  return authorizedRequest<PaginatedOrders>(
+    `/orders/vouchers?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function downloadVoucherFile(accessToken: string, orderId: string) {
+  const response = await fetch(`${API_URL}/orders/${orderId}/voucher/download`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Unable to download voucher.');
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const filenameMatch = disposition.match(/filename=\"?([^"]+)\"?/i);
+  const filename = filenameMatch?.[1] ?? 'voucher.png';
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
 export async function addOrderFollowUp(
   accessToken: string,
   orderId: string,
-  payload: { note: string; date?: string },
+  payload: { note: string; date?: string; nextFollowUpDate?: string },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/follow-ups`, accessToken, {
     method: 'PATCH',
@@ -779,6 +831,16 @@ export async function updateHallDetail(
 export async function deleteHallDetail(accessToken: string, optionId: string) {
   return authorizedRequest<AppSettings>(`/settings/hall-details/${optionId}`, accessToken, {
     method: 'DELETE',
+  });
+}
+
+export async function updateHallBookingInformationVisibility(
+  accessToken: string,
+  enabled: boolean,
+) {
+  return authorizedRequest<AppSettings>('/settings/hall-booking-information', accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled }),
   });
 }
 

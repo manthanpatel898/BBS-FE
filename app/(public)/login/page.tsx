@@ -153,7 +153,7 @@ export default function LoginPage() {
                 </div>
                 <p className="text-[10px] text-white/35">Today</p>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 {[
                   { val: '12',  lbl: 'Bookings'  },
                   { val: '78%', lbl: 'Conversion' },

@@ -5,6 +5,7 @@ import { ConfigRoute } from '@/components/auth/config-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { RoleBasedRestaurantSelector } from '@/components/ui/role-based-restaurant-selector';
 import {
   createCategory,
@@ -424,7 +425,7 @@ export default function CategoriesPage() {
               Create booking categories with item-wise visibility and selection limits.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={() => setIsFiltersOpen((current) => !current)}
@@ -436,7 +437,7 @@ export default function CategoriesPage() {
               type="button"
               onClick={openCreateModal}
               disabled={!canLoad}
-              className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ml-auto rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               + Add category
             </button>
@@ -686,7 +687,7 @@ export default function CategoriesPage() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Category Summary
                   </p>
-                  <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-xl border border-slate-200 bg-white p-3">
                       <p className="text-xs text-slate-500">Items</p>
                       <p className="mt-1 text-xl font-bold text-slate-900">{configuredRuleCount}</p>
@@ -879,21 +880,22 @@ export default function CategoriesPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                  isLoading={isSubmitting}
+                  className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
                 >
-                  {isSubmitting ? 'Saving…' : editingCategory ? 'Save changes' : 'Create category'}
-                </button>
+                  {editingCategory ? 'Save changes' : 'Create category'}
+                </LoadingButton>
               </div>
             </form>
           </CommonModal>

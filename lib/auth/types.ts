@@ -10,6 +10,7 @@ export interface AuthUser {
   role: UserRole;
   restaurantId: string | null;
   canAccessCancelledBookings?: boolean;
+  canAccessVoucherFlow?: boolean;
   restaurantLogoUrl?: string | null;
   isFirstLogin: boolean;
   isActive: boolean;
@@ -47,6 +48,7 @@ export interface Restaurant {
   endDate: string;
   bookingPrefix: string;
   enableCancelledBookings?: boolean;
+  enableVoucherFlow?: boolean;
   isActive?: boolean;
   notes?: string | null;
   subscriptionLogs?: SubscriptionLog[];
@@ -122,6 +124,7 @@ export interface PaginatedCategories {
 export interface MenuSection {
   sectionTitle: string;
   items: string[];
+  hotSellingItems?: string[];
 }
 
 export interface Menu {
@@ -131,6 +134,7 @@ export interface Menu {
   categoryName: string;
   title: string;
   sections: MenuSection[];
+  hotSelling?: boolean;
   isActive?: boolean;
   createdByUserId?: string;
   updatedByUserId?: string;
@@ -174,6 +178,7 @@ export interface AppSettings {
   paymentOptions: SettingOption[];
   eventOptions: SettingOption[];
   hallDetails: SettingOption[];
+  showHallBookingInformation?: boolean;
   banquetRules: SettingOption[];
   addonServices: SettingOption[];
   createdAt: string;
@@ -202,6 +207,7 @@ export interface OrderAddonServiceSnapshot {
 export interface OrderFollowUp {
   followUpByName: string;
   date: string;
+  nextFollowUpDate: string | null;
   note: string;
   createdAt: string;
 }
@@ -223,6 +229,26 @@ export interface OrderDiningRedemption {
   remark: string | null;
   recordedByName: string;
   createdAt: string;
+}
+
+export interface OrderVoucher {
+  voucherNumber: string;
+  voucherUrl: string;
+  customerName: string;
+  bookingId: string;
+  amount: number;
+  generatedByName: string;
+  issuedAt: string;
+}
+
+export interface MenuSelectionSession {
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+  trigger: 'initial' | 'change';
+  categoryIdBefore: string | null;
+  categoryIdAfter: string | null;
+  savedByName: string;
 }
 
 export interface Order {
@@ -255,6 +281,7 @@ export interface Order {
   pendingAmount: number;
   paymentStatus: PaymentStatus;
   notes: string | null;
+  inquiryToConfirmationDays?: number | null;
   jainSwaminarayanPax: number | null;
   jainSwaminarayanDetails: string | null;
   seatingRequired: number | null;
@@ -263,6 +290,8 @@ export interface Order {
   referenceBy: string | null;
   additionalInformation: string | null;
   cancelReason: string | null;
+  voucher: OrderVoucher | null;
+  menuSelectionSessions?: MenuSelectionSession[];
   followUps: OrderFollowUp[];
   advancePayments: OrderAdvancePayment[];
   diningRedemptions: OrderDiningRedemption[];
@@ -317,6 +346,13 @@ export interface OrderStats {
   followUps: number;
   monthRevenue: number;
   monthAdvance: number;
+  avgMenuSelectionDurationSeconds: number;
+  avgInitialMenuSelectionDurationSeconds: number;
+  avgCategoryChangeDurationSeconds: number;
+  menuSelectionSampleCount: number;
+  avgInquiryToConfirmationDays: number;
+  inquiryToConfirmationSampleCount: number;
+  confirmationConversionRate: number;
 }
 
 export interface ReportMetric {

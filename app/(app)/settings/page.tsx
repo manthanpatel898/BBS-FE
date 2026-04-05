@@ -1,8 +1,11 @@
 'use client';
 
 import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CompanyAdminRoute } from '@/components/auth/company-admin-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { HotDatesManager } from '@/components/settings/hot-dates-manager';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { PageLoader } from '@/components/ui/page-loader';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -22,6 +25,7 @@ import {
   updateBanquetRule,
   updateEventOption,
   updateHallDetail,
+  updateHallBookingInformationVisibility,
   updateMyRestaurantBranding,
   updatePaymentOption,
   uploadLogo,
@@ -36,7 +40,8 @@ type SettingsTabKey =
   | 'eventOptions'
   | 'hallDetails'
   | 'banquetRules'
-  | 'addonServices';
+  | 'addonServices'
+  | 'hotDates';
 
 type TabularOptionsSectionProps = {
   title: string;
@@ -88,7 +93,7 @@ function TabularOptionsSection({
       </div>
 
       <form
-        className="mt-5 flex flex-col gap-3 sm:flex-row"
+        className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center"
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
           onAdd();
@@ -100,15 +105,19 @@ function TabularOptionsSection({
           placeholder={addPlaceholder}
           className={inputCls}
         />
-        <button
+        <LoadingButton
           type="submit"
           disabled={isSaving}
+          isLoading={isSaving}
           aria-label={addButtonLabel}
           title={addButtonLabel}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400 text-white transition hover:bg-amber-500 disabled:opacity-60"
+          className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl bg-amber-400 px-5 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60 sm:ml-auto"
         >
-          <AddIcon />
-        </button>
+          <span className="inline-flex items-center gap-2">
+            <AddIcon />
+            {addButtonLabel}
+          </span>
+        </LoadingButton>
       </form>
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
@@ -151,7 +160,7 @@ function TabularOptionsSection({
                       <div className="flex justify-end gap-2">
                         {isEditing ? (
                           <>
-                            <IconButton label="Save" onClick={onSaveEdit} disabled={isSaving} tone="dark">
+                            <IconButton label="Save" onClick={onSaveEdit} disabled={isSaving} isLoading={isSaving} tone="dark">
                               <CheckIcon />
                             </IconButton>
                             <IconButton label="Cancel" onClick={onCancelEdit}>
@@ -167,6 +176,7 @@ function TabularOptionsSection({
                               label={`Delete ${option.label}`}
                               onClick={() => onDelete(option.id)}
                               disabled={isSaving}
+                              isLoading={isSaving}
                               tone="danger"
                             >
                               <DeleteIcon />
@@ -186,16 +196,67 @@ function TabularOptionsSection({
   );
 }
 
+function ToggleSettingCard({
+  title,
+  description,
+  checked,
+  isSaving,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  isSaving: boolean;
+  onChange: (nextValue: boolean) => void;
+}) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+            Visibility
+          </p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-900">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        <label className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <span className="text-sm font-medium text-slate-700">
+            {checked ? 'Enabled' : 'Disabled'}
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            disabled={isSaving}
+            onClick={() => onChange(!checked)}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+              checked ? 'bg-amber-400' : 'bg-slate-300'
+            } ${isSaving ? 'opacity-60' : ''}`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                checked ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </label>
+      </div>
+    </section>
+  );
+}
+
 function IconButton({
   label,
   onClick,
   disabled,
+  isLoading,
   tone = 'default',
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  isLoading?: boolean;
   tone?: 'default' | 'danger' | 'dark';
   children: ReactNode;
 }) {
@@ -207,16 +268,17 @@ function IconButton({
         : 'border-slate-300 text-slate-700 hover:bg-white';
 
   return (
-    <button
+    <LoadingButton
       type="button"
       aria-label={label}
       title={label}
       disabled={disabled}
+      isLoading={isLoading}
       onClick={onClick}
       className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition disabled:opacity-60 ${toneClass}`}
     >
       {children}
-    </button>
+    </LoadingButton>
   );
 }
 
@@ -273,6 +335,7 @@ function SettingsTabs({
     { key: 'hallDetails', label: 'Hall Details' },
     { key: 'banquetRules', label: 'Banquet Rules' },
     { key: 'addonServices', label: 'Addon Services' },
+    { key: 'hotDates', label: 'Hot Dates' },
   ];
 
   return (
@@ -335,10 +398,20 @@ function getTabMeta(tab: SettingsTabKey) {
         addButtonLabel: 'Add addon',
         emptyMessage: 'No addon services configured yet.',
       };
+    case 'hotDates':
+      return {
+        title: 'Hot Dates',
+        description: 'Manage high-demand dates that affect booking demand and planning.',
+        addPlaceholder: '',
+        addButtonLabel: '',
+        emptyMessage: '',
+      };
   }
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { accessToken, setSession, user } = useAuth();
   const { showToast } = useToast();
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -366,6 +439,22 @@ export default function SettingsPage() {
   const [brandingName, setBrandingName] = useState('');
   const [brandingLogoUrl, setBrandingLogoUrl] = useState('');
   const [brandingContactNumbers, setBrandingContactNumbers] = useState('');
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    const validTabs: SettingsTabKey[] = [
+      'paymentOptions',
+      'eventOptions',
+      'hallDetails',
+      'banquetRules',
+      'addonServices',
+      'hotDates',
+    ];
+
+    if (requestedTab && validTabs.includes(requestedTab as SettingsTabKey)) {
+      setActiveTab(requestedTab as SettingsTabKey);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -640,6 +729,16 @@ export default function SettingsPage() {
     );
   }
 
+  async function handleHallBookingInformationVisibilityChange(enabled: boolean) {
+    const token = requireToken();
+    if (!token) return;
+
+    await mutateSettings(
+      () => updateHallBookingInformationVisibility(token, enabled),
+      `Hall booking information ${enabled ? 'enabled' : 'disabled'} successfully.`,
+    );
+  }
+
   async function handleBanquetRuleSave() {
     const token = requireToken();
     if (!token || !editingBanquetRuleId) return;
@@ -694,6 +793,20 @@ export default function SettingsPage() {
       () => deleteAddonService(token, id),
       'Addon service deleted successfully.',
     );
+  }
+
+  function handleTabChange(tab: SettingsTabKey) {
+    setActiveTab(tab);
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (tab === 'paymentOptions') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', tab);
+    }
+
+    const query = nextParams.toString();
+    router.replace(query ? `/settings?${query}` : '/settings', { scroll: false });
   }
 
   return (
@@ -821,176 +934,192 @@ export default function SettingsPage() {
                     </p>
                   </div>
                 </div>
-                <button
+                <LoadingButton
                   type="button"
                   onClick={() => void handleBrandingSave()}
                   disabled={isBrandingSaving}
+                  isLoading={isBrandingSaving}
                   className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
                 >
-                  {isBrandingSaving ? 'Saving…' : 'Save branding'}
-                </button>
+                  Save branding
+                </LoadingButton>
               </div>
             </section>
-            <SettingsTabs activeTab={activeTab} onChange={setActiveTab} />
-            <TabularOptionsSection
-              {...getTabMeta(activeTab)}
-              options={
-                activeTab === 'paymentOptions'
-                  ? settings.paymentOptions
-                  : activeTab === 'eventOptions'
-                    ? settings.eventOptions
-                    : activeTab === 'hallDetails'
-                      ? settings.hallDetails
-                      : activeTab === 'banquetRules'
-                        ? settings.banquetRules
-                        : settings.addonServices
-              }
-              value={
-                activeTab === 'paymentOptions'
-                  ? paymentValue
-                  : activeTab === 'eventOptions'
-                    ? eventValue
-                    : activeTab === 'hallDetails'
-                      ? hallDetailValue
-                      : activeTab === 'banquetRules'
-                        ? banquetRuleValue
-                        : addonValue
-              }
-              editingId={
-                activeTab === 'paymentOptions'
-                  ? editingPaymentId
-                  : activeTab === 'eventOptions'
-                    ? editingEventId
-                    : activeTab === 'hallDetails'
-                      ? editingHallDetailId
-                      : activeTab === 'banquetRules'
-                        ? editingBanquetRuleId
-                        : editingAddonId
-              }
-              editingValue={
-                activeTab === 'paymentOptions'
-                  ? editingPaymentValue
-                  : activeTab === 'eventOptions'
-                    ? editingEventValue
-                    : activeTab === 'hallDetails'
-                      ? editingHallDetailValue
-                      : activeTab === 'banquetRules'
-                        ? editingBanquetRuleValue
-                        : editingAddonValue
-              }
-              isSaving={isSaving}
-              onValueChange={
-                activeTab === 'paymentOptions'
-                  ? setPaymentValue
-                  : activeTab === 'eventOptions'
-                    ? setEventValue
-                    : activeTab === 'hallDetails'
-                      ? setHallDetailValue
-                      : activeTab === 'banquetRules'
-                        ? setBanquetRuleValue
-                        : setAddonValue
-              }
-              onAdd={
-                activeTab === 'paymentOptions'
-                  ? () => void handlePaymentAdd()
-                  : activeTab === 'eventOptions'
-                    ? () => void handleEventAdd()
-                    : activeTab === 'hallDetails'
-                      ? () => void handleHallDetailAdd()
-                      : activeTab === 'banquetRules'
-                        ? () => void handleBanquetRuleAdd()
-                        : () => void handleAddonAdd()
-              }
-              onStartEdit={(option) => {
-                if (activeTab === 'paymentOptions') {
-                  setEditingPaymentId(option.id);
-                  setEditingPaymentValue(option.label);
-                  return;
-                }
-                if (activeTab === 'eventOptions') {
-                  setEditingEventId(option.id);
-                  setEditingEventValue(option.label);
-                  return;
-                }
-                if (activeTab === 'hallDetails') {
-                  setEditingHallDetailId(option.id);
-                  setEditingHallDetailValue(option.label);
-                  return;
-                }
-                if (activeTab === 'banquetRules') {
-                  setEditingBanquetRuleId(option.id);
-                  setEditingBanquetRuleValue(option.label);
-                  return;
-                }
-                setEditingAddonId(option.id);
-                setEditingAddonValue(option.label);
-              }}
-              onEditValueChange={
-                activeTab === 'paymentOptions'
-                  ? setEditingPaymentValue
-                  : activeTab === 'eventOptions'
-                    ? setEditingEventValue
-                    : activeTab === 'hallDetails'
-                      ? setEditingHallDetailValue
-                      : activeTab === 'banquetRules'
-                        ? setEditingBanquetRuleValue
-                        : setEditingAddonValue
-              }
-              onSaveEdit={
-                activeTab === 'paymentOptions'
-                  ? () => void handlePaymentSave()
-                  : activeTab === 'eventOptions'
-                    ? () => void handleEventSave()
-                    : activeTab === 'hallDetails'
-                      ? () => void handleHallDetailSave()
-                      : activeTab === 'banquetRules'
-                        ? () => void handleBanquetRuleSave()
-                        : () => void handleAddonSave()
-              }
-              onCancelEdit={() => {
-                if (activeTab === 'paymentOptions') {
-                  setEditingPaymentId(null);
-                  setEditingPaymentValue('');
-                  return;
-                }
-                if (activeTab === 'eventOptions') {
-                  setEditingEventId(null);
-                  setEditingEventValue('');
-                  return;
-                }
-                if (activeTab === 'hallDetails') {
-                  setEditingHallDetailId(null);
-                  setEditingHallDetailValue('');
-                  return;
-                }
-                if (activeTab === 'banquetRules') {
-                  setEditingBanquetRuleId(null);
-                  setEditingBanquetRuleValue('');
-                  return;
-                }
-                setEditingAddonId(null);
-                setEditingAddonValue('');
-              }}
-              onDelete={(id) => {
-                if (activeTab === 'paymentOptions') {
-                  void handlePaymentDelete(id);
-                  return;
-                }
-                if (activeTab === 'eventOptions') {
-                  void handleEventDelete(id);
-                  return;
-                }
-                if (activeTab === 'hallDetails') {
-                  void handleHallDetailDelete(id);
-                  return;
-                }
-                if (activeTab === 'banquetRules') {
-                  void handleBanquetRuleDelete(id);
-                  return;
-                }
-                void handleAddonDelete(id);
-              }}
-            />
+            <SettingsTabs activeTab={activeTab} onChange={handleTabChange} />
+            {activeTab === 'hotDates' ? (
+              <HotDatesManager />
+            ) : (
+              <div className="space-y-5">
+                {activeTab === 'hallDetails' ? (
+                  <ToggleSettingCard
+                    title="Hall Booking Information"
+                    description="Show hall-wise booking availability in the booking day side panel."
+                    checked={Boolean(settings.showHallBookingInformation)}
+                    isSaving={isSaving}
+                    onChange={(nextValue) => void handleHallBookingInformationVisibilityChange(nextValue)}
+                  />
+                ) : null}
+                <TabularOptionsSection
+                  {...getTabMeta(activeTab)}
+                  options={
+                    activeTab === 'paymentOptions'
+                      ? settings.paymentOptions
+                      : activeTab === 'eventOptions'
+                        ? settings.eventOptions
+                        : activeTab === 'hallDetails'
+                          ? settings.hallDetails
+                          : activeTab === 'banquetRules'
+                            ? settings.banquetRules
+                            : settings.addonServices
+                  }
+                  value={
+                    activeTab === 'paymentOptions'
+                      ? paymentValue
+                      : activeTab === 'eventOptions'
+                        ? eventValue
+                        : activeTab === 'hallDetails'
+                          ? hallDetailValue
+                          : activeTab === 'banquetRules'
+                            ? banquetRuleValue
+                            : addonValue
+                  }
+                  editingId={
+                    activeTab === 'paymentOptions'
+                      ? editingPaymentId
+                      : activeTab === 'eventOptions'
+                        ? editingEventId
+                        : activeTab === 'hallDetails'
+                          ? editingHallDetailId
+                          : activeTab === 'banquetRules'
+                            ? editingBanquetRuleId
+                            : editingAddonId
+                  }
+                  editingValue={
+                    activeTab === 'paymentOptions'
+                      ? editingPaymentValue
+                      : activeTab === 'eventOptions'
+                        ? editingEventValue
+                        : activeTab === 'hallDetails'
+                          ? editingHallDetailValue
+                          : activeTab === 'banquetRules'
+                            ? editingBanquetRuleValue
+                            : editingAddonValue
+                  }
+                  isSaving={isSaving}
+                  onValueChange={
+                    activeTab === 'paymentOptions'
+                      ? setPaymentValue
+                      : activeTab === 'eventOptions'
+                        ? setEventValue
+                        : activeTab === 'hallDetails'
+                          ? setHallDetailValue
+                          : activeTab === 'banquetRules'
+                            ? setBanquetRuleValue
+                            : setAddonValue
+                  }
+                  onAdd={
+                    activeTab === 'paymentOptions'
+                      ? () => void handlePaymentAdd()
+                      : activeTab === 'eventOptions'
+                        ? () => void handleEventAdd()
+                        : activeTab === 'hallDetails'
+                          ? () => void handleHallDetailAdd()
+                          : activeTab === 'banquetRules'
+                            ? () => void handleBanquetRuleAdd()
+                            : () => void handleAddonAdd()
+                  }
+                  onStartEdit={(option) => {
+                    if (activeTab === 'paymentOptions') {
+                      setEditingPaymentId(option.id);
+                      setEditingPaymentValue(option.label);
+                      return;
+                    }
+                    if (activeTab === 'eventOptions') {
+                      setEditingEventId(option.id);
+                      setEditingEventValue(option.label);
+                      return;
+                    }
+                    if (activeTab === 'hallDetails') {
+                      setEditingHallDetailId(option.id);
+                      setEditingHallDetailValue(option.label);
+                      return;
+                    }
+                    if (activeTab === 'banquetRules') {
+                      setEditingBanquetRuleId(option.id);
+                      setEditingBanquetRuleValue(option.label);
+                      return;
+                    }
+                    setEditingAddonId(option.id);
+                    setEditingAddonValue(option.label);
+                  }}
+                  onEditValueChange={
+                    activeTab === 'paymentOptions'
+                      ? setEditingPaymentValue
+                      : activeTab === 'eventOptions'
+                        ? setEditingEventValue
+                        : activeTab === 'hallDetails'
+                          ? setEditingHallDetailValue
+                          : activeTab === 'banquetRules'
+                            ? setEditingBanquetRuleValue
+                            : setEditingAddonValue
+                  }
+                  onSaveEdit={
+                    activeTab === 'paymentOptions'
+                      ? () => void handlePaymentSave()
+                      : activeTab === 'eventOptions'
+                        ? () => void handleEventSave()
+                        : activeTab === 'hallDetails'
+                          ? () => void handleHallDetailSave()
+                          : activeTab === 'banquetRules'
+                            ? () => void handleBanquetRuleSave()
+                            : () => void handleAddonSave()
+                  }
+                  onCancelEdit={() => {
+                    if (activeTab === 'paymentOptions') {
+                      setEditingPaymentId(null);
+                      setEditingPaymentValue('');
+                      return;
+                    }
+                    if (activeTab === 'eventOptions') {
+                      setEditingEventId(null);
+                      setEditingEventValue('');
+                      return;
+                    }
+                    if (activeTab === 'hallDetails') {
+                      setEditingHallDetailId(null);
+                      setEditingHallDetailValue('');
+                      return;
+                    }
+                    if (activeTab === 'banquetRules') {
+                      setEditingBanquetRuleId(null);
+                      setEditingBanquetRuleValue('');
+                      return;
+                    }
+                    setEditingAddonId(null);
+                    setEditingAddonValue('');
+                  }}
+                  onDelete={(id) => {
+                    if (activeTab === 'paymentOptions') {
+                      void handlePaymentDelete(id);
+                      return;
+                    }
+                    if (activeTab === 'eventOptions') {
+                      void handleEventDelete(id);
+                      return;
+                    }
+                    if (activeTab === 'hallDetails') {
+                      void handleHallDetailDelete(id);
+                      return;
+                    }
+                    if (activeTab === 'banquetRules') {
+                      void handleBanquetRuleDelete(id);
+                      return;
+                    }
+                    void handleAddonDelete(id);
+                  }}
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">

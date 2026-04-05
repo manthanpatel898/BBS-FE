@@ -2,6 +2,7 @@
 
 import { useMemo, useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { addOrderFollowUp, fetchOrderById, fetchOrders } from '@/lib/auth/api';
 import { Order, OrderFollowUp, OrderStatus } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
@@ -135,10 +136,10 @@ function ModalShell({
 }) {
   return (
     <div
-      className={`fixed inset-0 ${zIndexClassName} flex items-end justify-center bg-slate-900/50 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6`}
+      className={`modal-viewport-pad fixed inset-0 ${zIndexClassName} flex items-center justify-center bg-slate-900/50 px-3 backdrop-blur-sm sm:px-4 sm:py-6`}
     >
       <div
-        className={`w-full overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-xl sm:rounded-[28px] sm:p-6 max-h-[92vh] ${widthClassName}`}
+        className={`modal-panel-height safe-pad-bottom w-full overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-xl sm:rounded-[28px] sm:p-6 ${widthClassName}`}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -174,7 +175,13 @@ function InfoCard({ label, children }: { label: string; children: React.ReactNod
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type ToastState = { type: 'success' | 'error'; message: string };
-type FollowUpPopupState = { orderId: string; orderName: string; note: string; date: string };
+type FollowUpPopupState = {
+  orderId: string;
+  orderName: string;
+  note: string;
+  date: string;
+  nextFollowUpDate: string;
+};
 
 export default function FollowupsPage() {
   const { accessToken } = useAuth();
@@ -281,6 +288,7 @@ export default function FollowupsPage() {
       const updatedOrder = await addOrderFollowUp(accessToken, followUpPopup.orderId, {
         note: followUpPopup.note.trim(),
         date: followUpPopup.date || undefined,
+        nextFollowUpDate: followUpPopup.nextFollowUpDate || undefined,
       });
       setFollowUpPopup(null);
       setToast({ type: 'success', message: 'Follow up added successfully.' });
@@ -309,18 +317,18 @@ export default function FollowupsPage() {
       </div>
 
       {/* Month navigation */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
             Follow Ups
           </p>
-          <h2 className="text-2xl font-bold text-slate-900">{formatMonthLabel(currentMonth)}</h2>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">{formatMonthLabel(currentMonth)}</h2>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 md:justify-end">
           <button
             type="button"
             onClick={() => setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
-            className={ghostButtonCls}
+            className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
           >
             <span className="inline-flex items-center gap-2">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-4 w-4">
@@ -332,14 +340,14 @@ export default function FollowupsPage() {
           <button
             type="button"
             onClick={() => setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1))}
-            className={ghostButtonCls}
+            className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
           >
             Today
           </button>
           <button
             type="button"
             onClick={() => setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
-            className={ghostButtonCls}
+            className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
           >
             <span className="inline-flex items-center gap-2">
               {formatMonthLabel(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
@@ -482,27 +490,15 @@ export default function FollowupsPage() {
                       key={order.id}
                       className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                     >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-slate-900">
                             {order.customer.firstName} {order.customer.lastName}
                           </p>
                           {order.functionName ? (
                             <p className="mt-1 text-sm text-slate-600">{order.functionName}</p>
                           ) : null}
-                          <span className="mt-1 flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500">{order.customer.phone}</span>
-                            <a
-                              href={`tel:${order.customer.phone}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-slate-400 hover:text-emerald-600 transition"
-                              title="Call"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                                <path fillRule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 16.352V17.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z" clipRule="evenodd" />
-                              </svg>
-                            </a>
-                          </span>
+                          <p className="mt-1 text-xs text-slate-500">{order.customer.phone}</p>
                           {order.eventDate ? (
                             <p className="mt-1 text-xs text-slate-500">
                               Function: {formatDisplayDate(order.eventDate)}
@@ -525,12 +521,23 @@ export default function FollowupsPage() {
                             </p>
                           ) : null}
                         </div>
-                        <div className="flex flex-col items-start gap-2 sm:items-end">
+                        <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                           <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(order.status)}`}
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(order.status)}`}
                           >
                             {order.status}
                           </span>
+                          <a
+                            href={`tel:${order.customer.phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600"
+                            title="Call"
+                            aria-label={`Call ${order.customer.firstName} ${order.customer.lastName}`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                              <path fillRule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h1.148a1.5 1.5 0 011.465 1.175l.716 3.223a1.5 1.5 0 01-1.052 1.767l-.933.267c-.41.117-.643.555-.48.95a11.542 11.542 0 006.254 6.254c.395.163.833-.07.95-.48l.267-.933a1.5 1.5 0 011.767-1.052l3.223.716A1.5 1.5 0 0118 16.352V17.5a1.5 1.5 0 01-1.5 1.5H15c-1.149 0-2.263-.15-3.326-.43A13.022 13.022 0 012.43 8.326 13.019 13.019 0 012 5V3.5z" clipRule="evenodd" />
+                            </svg>
+                          </a>
                         </div>
                       </div>
 
@@ -559,6 +566,7 @@ export default function FollowupsPage() {
                               orderName: `${order.customer.firstName} ${order.customer.lastName}`.trim(),
                               note: '',
                               date: toDateInputValue(new Date()),
+                              nextFollowUpDate: '',
                             })
                           }
                           className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -665,6 +673,7 @@ export default function FollowupsPage() {
                           `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`.trim(),
                         note: '',
                         date: toDateInputValue(new Date()),
+                        nextFollowUpDate: '',
                       })
                     }
                     className={ghostButtonCls}
@@ -681,6 +690,7 @@ export default function FollowupsPage() {
                         <tr className="border-b border-slate-200 text-slate-500">
                           <th className="px-3 py-2 font-medium">Follow Up By</th>
                           <th className="px-3 py-2 font-medium">Date</th>
+                          <th className="px-3 py-2 font-medium">Next Follow Up</th>
                           <th className="px-3 py-2 font-medium">Note</th>
                         </tr>
                       </thead>
@@ -697,6 +707,7 @@ export default function FollowupsPage() {
                             >
                               <td className="px-3 py-3 text-slate-700">{fu.followUpByName}</td>
                               <td className="px-3 py-3 text-slate-700">{formatFollowUpDate(fu.date)}</td>
+                              <td className="px-3 py-3 text-slate-700">{fu.nextFollowUpDate ? formatFollowUpDate(fu.nextFollowUpDate) : '-'}</td>
                               <td className="px-3 py-3 text-slate-700">{fu.note}</td>
                             </tr>
                           ))}
@@ -727,15 +738,15 @@ export default function FollowupsPage() {
           eyebrow="Follow Ups"
           title="Add follow up"
           onClose={() => setFollowUpPopup(null)}
-          widthClassName="max-w-lg"
+          widthClassName="max-w-3xl"
           zIndexClassName="z-[80]"
         >
-          <div className="mt-6 space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="mt-6 space-y-5">
+            <div className="rounded-[26px] border border-slate-200 bg-slate-50 px-5 py-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Customer</p>
-              <p className="mt-1 text-base font-semibold text-slate-900">{followUpPopup.orderName}</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{followUpPopup.orderName}</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="grid gap-4 md:grid-cols-2">
               <Field label="Date">
                 <input
                   type="date"
@@ -746,29 +757,47 @@ export default function FollowupsPage() {
                   className={`${dateTimeInputCls} min-h-12`}
                 />
               </Field>
-              <Field label="Note">
-                <textarea
-                  value={followUpPopup.note}
+              <Field label="Next Follow Up Date">
+                <input
+                  type="date"
+                  value={followUpPopup.nextFollowUpDate}
                   onChange={(e) =>
-                    setFollowUpPopup((c) => (c ? { ...c, note: e.target.value } : c))
+                    setFollowUpPopup((c) => (c ? { ...c, nextFollowUpDate: e.target.value } : c))
                   }
-                  placeholder="Add follow up note"
-                  className={`${inputCls} min-h-28 resize-none`}
+                  className={`${dateTimeInputCls} min-h-12`}
                 />
               </Field>
             </div>
-            <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => setFollowUpPopup(null)} className={ghostButtonCls}>
+            <Field label="Note">
+              <textarea
+                value={followUpPopup.note}
+                onChange={(e) =>
+                  setFollowUpPopup((c) => (c ? { ...c, note: e.target.value } : c))
+                }
+                placeholder="Add follow up note"
+                className={`${inputCls} min-h-32 resize-none`}
+              />
+            </Field>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Set the next follow up date to keep today’s dashboard follow up list accurate.
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setFollowUpPopup(null)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
                 Cancel
               </button>
-              <button
+              <LoadingButton
                 type="button"
                 onClick={() => void handleAddFollowUp()}
                 disabled={isFollowUpSubmitting}
-                className={primaryButtonCls}
+                isLoading={isFollowUpSubmitting}
+                className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
               >
-                {isFollowUpSubmitting ? 'Saving…' : 'Save follow up'}
-              </button>
+                Save follow up
+              </LoadingButton>
             </div>
           </div>
         </ModalShell>

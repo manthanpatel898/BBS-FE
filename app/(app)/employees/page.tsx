@@ -5,6 +5,7 @@ import { CompanyAdminRoute } from '@/components/auth/company-admin-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { LoadingButton } from '@/components/ui/loading-button';
 import {
   createEmployee,
   deleteEmployee,
@@ -229,7 +230,7 @@ export default function EmployeesPage() {
               Company admins can create and manage employee login access for this restaurant.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={() => setIsFiltersOpen((current) => !current)}
@@ -240,7 +241,7 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500"
+              className="ml-auto rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500"
             >
               + Add employee
             </button>
@@ -600,25 +601,22 @@ export default function EmployeesPage() {
                     Employee is active
                   </label>
                 ) : null}
-                <div className="md:col-span-2 flex items-center justify-end gap-3">
+                <div className="flex flex-col-reverse gap-3 md:col-span-2 sm:flex-row sm:justify-end">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
                   >
                     Cancel
                   </button>
-                  <button
+                  <LoadingButton
                     type="submit"
                     disabled={isSubmitting}
-                    className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                    isLoading={isSubmitting}
+                    className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
                   >
-                    {isSubmitting
-                      ? 'Saving…'
-                      : editingEmployee
-                        ? 'Save changes'
-                        : 'Create employee'}
-                  </button>
+                    {editingEmployee ? 'Save changes' : 'Create employee'}
+                  </LoadingButton>
                 </div>
             </form>
           </CommonModal>

@@ -3,10 +3,43 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchRestaurantStats, fetchOrderStats } from '@/lib/auth/api';
-import { RestaurantStats, OrderStats, Restaurant } from '@/lib/auth/types';
+import { fetchRestaurantStats, fetchOrderReports, fetchOrderStats } from '@/lib/auth/api';
+import { RestaurantStats, OrderReports, OrderStats, Restaurant } from '@/lib/auth/types';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDuration(seconds: number) {
+  if (!seconds || seconds <= 0) {
+    return '0m';
+  }
+
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+
+  const minutes = seconds / 60;
+  if (minutes < 60) {
+    return `${minutes.toFixed(1)}m`;
+  }
+
+  return `${(minutes / 60).toFixed(1)}h`;
+}
+
+function formatDays(value: number) {
+  if (!value || value <= 0) {
+    return '0d';
+  }
+
+  return `${value.toFixed(1)}d`;
+}
 
 function SkeletonCard() {
   return <div className="animate-pulse rounded-2xl border border-slate-100 bg-white h-36 shadow-sm" />;
@@ -119,6 +152,91 @@ function CoinIcon() {
       <circle cx="12" cy="12" r="10" />
       <path d="M14.31 8a6 6 0 0 0-4.62 0M9.69 16a6 6 0 0 0 4.62 0M12 8v1m0 6v1" />
     </svg>
+  );
+}
+
+function BarChart({
+  title,
+  subtitle,
+  items,
+  valuePrefix = '',
+}: {
+  title: string;
+  subtitle: string;
+  items: Array<{ label: string; value: number; helper: string }>;
+  valuePrefix?: string;
+}) {
+  const maxValue = Math.max(...items.map((item) => item.value), 1);
+
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      <div className="mt-5 space-y-4">
+        {items.map((item) => (
+          <div key={item.label} className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
+                <p className="text-xs text-slate-400">{item.helper}</p>
+              </div>
+              <p className="shrink-0 text-sm font-semibold text-slate-700">
+                {valuePrefix}{item.value.toLocaleString('en-IN')}
+              </p>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400"
+                style={{ width: `${Math.max((item.value / maxValue) * 100, item.value > 0 ? 10 : 0)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ComparisonChart({
+  title,
+  subtitle,
+  current,
+  previous,
+}: {
+  title: string;
+  subtitle: string;
+  current: { label: string; revenue: number; bookings: number };
+  previous: { label: string; revenue: number; bookings: number };
+}) {
+  const maxRevenue = Math.max(current.revenue, previous.revenue, 1);
+
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {[current, previous].map((entry, index) => (
+          <div
+            key={entry.label}
+            className={`rounded-2xl border p-4 ${index === 0 ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50'}`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+              {entry.label}
+            </p>
+            <p className="mt-3 text-2xl font-bold text-slate-900">
+              {formatCurrency(entry.revenue)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">{entry.bookings} bookings</p>
+            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/80">
+              <div
+                className={`h-full rounded-full ${index === 0 ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-gradient-to-r from-slate-400 to-slate-600'}`}
+                style={{ width: `${Math.max((entry.revenue / maxRevenue) * 100, entry.revenue > 0 ? 10 : 0)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -319,7 +437,15 @@ function SuperAdminDashboard({ stats, loading }: { stats: RestaurantStats | null
 
 // ─── Company Admin Dashboard ──────────────────────────────────────────────────
 
-function CompanyAdminDashboard({ stats, loading }: { stats: OrderStats | null; loading: boolean }) {
+function CompanyAdminDashboard({
+  stats,
+  reports,
+  loading,
+}: {
+  stats: OrderStats | null;
+  reports: OrderReports | null;
+  loading: boolean;
+}) {
   if (loading) {
     return (
       <div className="space-y-6">
@@ -363,12 +489,12 @@ function CompanyAdminDashboard({ stats, loading }: { stats: OrderStats | null; l
           delay="zb-fade-up-2"
         />
         <StatCard
-          label="Follow Ups Required"
+          label="Follow Ups Due Today"
           value={stats.followUps}
           icon={<InboxIcon />}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
-          sub="Future date follow ups"
+          sub="Due today, overdue, or no next date"
           delay="zb-fade-up-3"
         />
         <StatCard
@@ -381,6 +507,131 @@ function CompanyAdminDashboard({ stats, loading }: { stats: OrderStats | null; l
           delay="zb-fade-up-4"
         />
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="This Month Revenue"
+          value={formatCurrency(stats.monthRevenue)}
+          icon={<CoinIcon />}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+          sub="Confirmed booking value"
+        />
+        <StatCard
+          label="This Month Advance"
+          value={formatCurrency(stats.monthAdvance)}
+          icon={<TrendingUpIcon />}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+          sub="Collected advances"
+        />
+        <StatCard
+          label="Completion Pipeline"
+          value={stats.completed}
+          icon={<CheckCircleIcon />}
+          iconBg="bg-slate-100"
+          iconColor="text-slate-700"
+          sub="Completed functions"
+        />
+        <StatCard
+          label="Total Order Records"
+          value={stats.total}
+          icon={<InboxIcon />}
+          iconBg="bg-purple-50"
+          iconColor="text-purple-600"
+          sub="All statuses combined"
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+        <StatCard
+          label="Avg Menu Selection"
+          value={formatDuration(stats.avgMenuSelectionDurationSeconds)}
+          icon={<ClockIcon />}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-600"
+          sub={`${stats.menuSelectionSampleCount} saved sessions`}
+        />
+        <StatCard
+          label="Confirmation Rate"
+          value={`${stats.confirmationConversionRate.toFixed(1)}%`}
+          icon={<CoinIcon />}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+          sub="Inquiry to confirmed/completed"
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Avg Inquiry To Confirm"
+          value={formatDays(stats.avgInquiryToConfirmationDays)}
+          icon={<ClockIcon />}
+          iconBg="bg-rose-50"
+          iconColor="text-rose-600"
+          sub={`${stats.inquiryToConfirmationSampleCount} confirmed bookings`}
+        />
+      </div>
+
+      {reports ? (
+        <>
+          <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <BarChart
+              title="Category Performance"
+              subtitle="Top categories by confirmed booking revenue."
+              items={reports.highestSellingCategories.slice(0, 5).map((category) => ({
+                label: category.name,
+                value: category.revenue,
+                helper: `${category.bookings} bookings`,
+              }))}
+            />
+            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Peak Sales Month</h3>
+              <p className="mt-1 text-sm text-slate-500">Best performing month from confirmed bookings.</p>
+              <div className="mt-5 rounded-[28px] border border-amber-200 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.25),transparent_45%),linear-gradient(145deg,#fffaf0,#ffffff)] p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-700">
+                  {reports.busiestMonth.label}
+                </p>
+                <p className="mt-4 text-4xl font-bold text-slate-900">
+                  {reports.busiestMonth.bookings}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">Bookings in the busiest month</p>
+                <div className="mt-6 rounded-2xl bg-white/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Revenue</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900">
+                    {formatCurrency(reports.busiestMonth.revenue)}
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ComparisonChart
+              title="Year on Year"
+              subtitle="Current year compared with the previous year."
+              current={reports.yearComparison.current}
+              previous={reports.yearComparison.previous}
+            />
+            <ComparisonChart
+              title="Month on Month"
+              subtitle="Current month compared with the previous month."
+              current={reports.monthComparison.current}
+              previous={reports.monthComparison.previous}
+            />
+          </div>
+
+          <BarChart
+            title="Menu Item Trends"
+            subtitle="Most selected menu items across confirmed bookings."
+            items={reports.bestSellingMenuItems.slice(0, 6).map((item) => ({
+              label: item.name,
+              value: item.count,
+              helper: item.categories.join(', ') || 'No category tag',
+            }))}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
@@ -391,6 +642,7 @@ export default function DashboardPage() {
   const { accessToken, user } = useAuth();
   const [restaurantStats, setRestaurantStats] = useState<RestaurantStats | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
+  const [orderReports, setOrderReports] = useState<OrderReports | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -402,8 +654,12 @@ export default function DashboardPage() {
           const stats = await fetchRestaurantStats(accessToken);
           setRestaurantStats(stats);
         } else if (user?.role === 'company_admin') {
-          const stats = await fetchOrderStats(accessToken);
+          const [stats, reports] = await Promise.all([
+            fetchOrderStats(accessToken),
+            fetchOrderReports(accessToken).catch(() => null),
+          ]);
           setOrderStats(stats);
+          setOrderReports(reports);
         }
       } catch {
         // show null state in each dashboard
@@ -446,7 +702,7 @@ export default function DashboardPage() {
         <SuperAdminDashboard stats={restaurantStats} loading={loading} />
       )}
       {user?.role === 'company_admin' && (
-        <CompanyAdminDashboard stats={orderStats} loading={loading} />
+        <CompanyAdminDashboard stats={orderStats} reports={orderReports} loading={loading} />
       )}
       {user?.role === 'employee' && (
         <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center shadow-sm">

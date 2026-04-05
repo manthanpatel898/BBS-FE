@@ -2,10 +2,27 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { CommonModal } from '@/components/ui/common-modal';
+import { fetchMyRestaurant } from '@/lib/auth/api';
+import { Restaurant } from '@/lib/auth/types';
 
-type NavItem = { href: string; label: string; icon: React.ReactNode };
+type NavLinkItem = {
+  type: 'link';
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+};
+
+type NavGroupItem = {
+  type: 'group';
+  label: string;
+  icon: React.ReactNode;
+  children: NavLinkItem[];
+};
+
+type NavItem = NavLinkItem | NavGroupItem;
 
 function IconGrid() {
   return (
@@ -71,23 +88,18 @@ function IconSettings() {
   );
 }
 
-function IconList() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <circle cx="3" cy="6" r="1" fill="currentColor" stroke="none" />
-      <circle cx="3" cy="12" r="1" fill="currentColor" stroke="none" />
-      <circle cx="3" cy="18" r="1" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
 function IconChevronDown() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function IconChevronRight() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="m9 18 6-6-6-6" />
     </svg>
   );
 }
@@ -132,15 +144,6 @@ function IconReport() {
   );
 }
 
-function IconFire() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2c0 0-4 4-4 8a4 4 0 0 0 8 0c0-1.5-.5-3-1.5-4.5" />
-      <path d="M12 22c-3.3 0-6-2.7-6-6 0-2.5 1.5-4.5 3-6 0 2 1.5 3 3 3s3-1 3-3c1.5 1.5 3 3.5 3 6 0 3.3-2.7 6-6 6z" />
-    </svg>
-  );
-}
-
 function IconBell() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -159,46 +162,115 @@ function IconReceipt() {
   );
 }
 
-const NAV_CONFIG: Record<string, NavItem[]> = {
-  super_admin: [
-    { href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
-    { href: '/restaurants', label: 'Restaurants', icon: <IconBuilding /> },
-  ],
-  company_admin: [
-    { href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
-    { href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
-    { href: '/followups', label: 'Followups', icon: <IconBell /> },
-    { href: '/categories', label: 'Categories', icon: <IconTag /> },
-    { href: '/menus', label: 'Menus', icon: <IconMenu /> },
-    { href: '/employees', label: 'Employees', icon: <IconUsers /> },
-    { href: '/settings', label: 'Settings', icon: <IconSettings /> },
-    { href: '/reports', label: 'Reports', icon: <IconReport /> },
-    { href: '/hot-dates', label: 'Hot Dates', icon: <IconFire /> },
-  ],
-  employee: [
-    { href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
-    { href: '/followups', label: 'Followups', icon: <IconBell /> },
-  ],
-};
+function IconTicket() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9a3 3 0 0 0 3-3h12a3 3 0 0 0 3 3v2a3 3 0 0 0-3 3H6a3 3 0 0 0-3-3V9z" />
+      <path d="M13 6v12" />
+      <path d="M10 9h.01M10 15h.01" />
+    </svg>
+  );
+}
+
+function buildNavItems(
+  role: string,
+  canAccessCancelledBookings?: boolean,
+  canAccessVoucherFlow?: boolean,
+): NavItem[] {
+  if (role === 'super_admin') {
+    return [
+      { type: 'link', href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
+      { type: 'link', href: '/restaurants', label: 'Restaurants', icon: <IconBuilding /> },
+    ];
+  }
+
+  if (role === 'company_admin') {
+    const items: NavItem[] = [
+      { type: 'link', href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
+      { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
+      { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
+      { type: 'link', href: '/reports', label: 'Reports', icon: <IconReport /> },
+      {
+        type: 'group',
+        label: 'Configuration',
+        icon: <IconSettings />,
+        children: [
+          { type: 'link', href: '/categories', label: 'Categories', icon: <IconTag /> },
+          { type: 'link', href: '/menus', label: 'Menus', icon: <IconMenu /> },
+          { type: 'link', href: '/employees', label: 'Employees', icon: <IconUsers /> },
+          { type: 'link', href: '/settings', label: 'Settings', icon: <IconSettings /> },
+        ],
+      },
+    ];
+
+    if (canAccessCancelledBookings) {
+      items.splice(2, 0, {
+        type: 'link',
+        href: '/cancelled-bookings',
+        label: 'Cancel Bookings',
+        icon: <IconReceipt />,
+      });
+    }
+
+    if (canAccessVoucherFlow) {
+      items.splice(canAccessCancelledBookings ? 3 : 2, 0, {
+        type: 'link',
+        href: '/vouchers',
+        label: 'Vouchers',
+        icon: <IconTicket />,
+      });
+    }
+
+    return items;
+  }
+
+  return [
+    { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
+    { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
+  ];
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return 'Not available';
+  return new Date(value).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatContactNumbers(restaurant: Restaurant | null) {
+  if (!restaurant) return 'Not available';
+  return restaurant.contactNumbers?.filter(Boolean).join(', ') || restaurant.contactPersonNumber || 'Not available';
+}
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { logout, user } = useAuth();
+  const { accessToken, logout, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(true);
+  const [configOpen, setConfigOpen] = useState(() =>
+    ['/categories', '/menus', '/employees', '/settings'].some((href) => pathname === href || pathname.startsWith(`${href}/`)),
+  );
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileRestaurant, setProfileRestaurant] = useState<Restaurant | null>(null);
+  const [sidebarRestaurant, setSidebarRestaurant] = useState<Restaurant | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
   const profileRef = useRef<HTMLDivElement>(null);
+  const canAccessCancelledBookings =
+    user?.canAccessCancelledBookings ?? sidebarRestaurant?.enableCancelledBookings ?? false;
+  const canAccessVoucherFlow =
+    user?.canAccessVoucherFlow ??
+    ((sidebarRestaurant?.enableCancelledBookings ?? false) &&
+      (sidebarRestaurant?.enableVoucherFlow ?? false));
 
-  const baseNavItems = NAV_CONFIG[user?.role ?? ''] ?? [];
-  const navItems =
-    ['company_admin', 'employee'].includes(user?.role ?? '') && user?.canAccessCancelledBookings
-      ? [
-          ...baseNavItems.slice(0, 2),
-          { href: '/cancelled-bookings', label: 'Cancel Bookings', icon: <IconReceipt /> },
-          ...baseNavItems.slice(2),
-        ]
-      : baseNavItems;
+  const navItems = useMemo(
+    () => buildNavItems(user?.role ?? '', canAccessCancelledBookings, canAccessVoucherFlow),
+    [canAccessCancelledBookings, canAccessVoucherFlow, user?.role],
+  );
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -206,6 +278,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         setProfileOpen(false);
       }
     }
+
     if (profileOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -215,7 +288,45 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSidebarOpen(false);
     setDesktopSidebarCollapsed(true);
+    if (['/categories', '/menus', '/employees', '/settings'].some((href) => pathname === href || pathname.startsWith(`${href}/`))) {
+      setConfigOpen(true);
+    }
   }, [pathname]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (!accessToken || user?.role !== 'company_admin' || !user.restaurantId) {
+      setSidebarRestaurant(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    fetchMyRestaurant(accessToken)
+      .then((restaurant) => {
+        if (isMounted) {
+          setSidebarRestaurant(restaurant);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSidebarRestaurant(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken, user?.restaurantId, user?.role]);
 
   function handleLogout() {
     logout();
@@ -224,7 +335,128 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   function checkActive(href: string) {
     if (href === '/dashboard') return pathname === '/dashboard';
-    return pathname === href || pathname.startsWith(href + '/');
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  function isGroupActive(children: NavLinkItem[]) {
+    return children.some((child) => checkActive(child.href));
+  }
+
+  async function openProfileModal() {
+    setProfileOpen(false);
+    setProfileModalOpen(true);
+    setProfileError('');
+
+    if (!accessToken || !user?.restaurantId) {
+      setProfileRestaurant(null);
+      return;
+    }
+
+    try {
+      setProfileLoading(true);
+      const restaurant = await fetchMyRestaurant(accessToken);
+      setProfileRestaurant(restaurant);
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Unable to load profile details.');
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  function handleConfigToggle(isMobile: boolean) {
+    if (!isMobile && desktopSidebarCollapsed) {
+      setDesktopSidebarCollapsed(false);
+      setConfigOpen(true);
+      return;
+    }
+
+    setConfigOpen((current) => !current);
+  }
+
+  function renderNavItem(item: NavItem, isMobile: boolean) {
+    if (item.type === 'link') {
+      const active = checkActive(item.href);
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          title={item.label}
+          onClick={() => {
+            if (isMobile) {
+              setSidebarOpen(false);
+            }
+          }}
+          className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
+            active
+              ? 'border border-amber-300 bg-amber-50 text-slate-900'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <span className={active ? 'text-amber-600' : 'text-slate-500'}>
+            {item.icon}
+          </span>
+          {isMobile || !desktopSidebarCollapsed ? item.label : null}
+        </Link>
+      );
+    }
+
+    const groupActive = isGroupActive(item.children);
+    const showChildren = isMobile || !desktopSidebarCollapsed ? configOpen : false;
+
+    return (
+      <div key={item.label} className="space-y-1">
+        <button
+          type="button"
+          onClick={() => handleConfigToggle(isMobile)}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-colors ${
+            groupActive
+              ? 'border border-amber-300 bg-amber-50 text-slate-900'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+          }`}
+        >
+          <span className={groupActive ? 'text-amber-600' : 'text-slate-500'}>
+            {item.icon}
+          </span>
+          {isMobile || !desktopSidebarCollapsed ? (
+            <>
+              <span className="min-w-0 flex-1">{item.label}</span>
+              <span className="text-slate-400">
+                {configOpen ? <IconChevronDown /> : <IconChevronRight />}
+              </span>
+            </>
+          ) : null}
+        </button>
+
+        {showChildren ? (
+          <div className="space-y-1 pl-4">
+            {item.children.map((child) => {
+              const active = checkActive(child.href);
+              return (
+                <Link
+                  key={child.href}
+                  href={child.href}
+                  onClick={() => {
+                    if (isMobile) {
+                      setSidebarOpen(false);
+                    }
+                  }}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                    active
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <span className={active ? 'text-white' : 'text-slate-400'}>
+                    {child.icon}
+                  </span>
+                  <span>{child.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   const initials = user
@@ -233,9 +465,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      {/* Sticky Header */}
       <header className="sticky top-0 z-40 flex h-16 flex-none items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:px-6">
-        {/* Navigation toggle */}
         <button
           type="button"
           onClick={() => {
@@ -256,7 +486,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </span>
         </button>
 
-        {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
             <img
@@ -277,7 +506,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="flex-1" />
 
-        {/* User profile dropdown */}
         <div ref={profileRef} className="relative">
           <button
             type="button"
@@ -316,8 +544,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="border-t border-slate-100 pt-2">
                 <button
                   type="button"
+                  onClick={() => void openProfileModal()}
+                  className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                  Profile
+                </button>
+                <button
+                  type="button"
                   onClick={handleLogout}
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+                  className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
                 >
                   Sign out
                 </button>
@@ -327,38 +562,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-4rem)] flex-1 overflow-hidden">
-        {/* Sidebar — desktop */}
+      <div className="app-shell-height flex flex-1 overflow-hidden">
         <aside
-          className={`sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:flex ${
+          className={`app-shell-height sticky top-16 hidden shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:flex ${
             desktopSidebarCollapsed ? 'w-20' : 'w-64'
           }`}
         >
-          <nav className="flex flex-col gap-1 p-4">
-            {navItems.map((item) => {
-              const active = checkActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.label}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                    active
-                      ? 'border border-amber-300 bg-amber-50 text-slate-900'
-                      : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                >
-                  <span className={active ? 'text-amber-600' : 'text-slate-500'}>
-                    {item.icon}
-                  </span>
-                  {!desktopSidebarCollapsed ? item.label : null}
-                </Link>
-              );
-            })}
+          <nav className="flex-1 overflow-y-auto p-4">
+            <div className="flex flex-col gap-1">
+              {navItems.map((item) => renderNavItem(item, false))}
+            </div>
           </nav>
 
-          {/* Sidebar footer */}
-          <div className="mt-auto border-t border-slate-100 p-4">
+          <div className="border-t border-slate-100 p-4">
             <div className={`flex rounded-xl bg-slate-50 px-3 py-2.5 ${desktopSidebarCollapsed ? 'justify-center' : 'items-center gap-3'}`}>
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400 text-xs font-bold text-white">
                 {initials}
@@ -377,14 +593,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
 
-        {/* Mobile sidebar drawer */}
         {sidebarOpen && (
           <>
             <div
-              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm lg:hidden"
               onClick={() => setSidebarOpen(false)}
             />
-            <aside className="fixed inset-x-0 bottom-0 left-0 top-16 z-50 flex w-72 flex-col bg-white shadow-2xl lg:hidden">
+            <aside className="safe-pad-bottom fixed inset-y-0 left-0 z-[60] flex h-screen w-full max-w-[18rem] flex-col overflow-hidden bg-white shadow-2xl lg:hidden">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
                 <Link
                   href="/dashboard"
@@ -410,34 +625,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
 
-              <nav className="flex flex-col gap-1 p-4">
-                {navItems.map((item) => {
-                  const active = checkActive(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
-                        active
-                          ? 'border border-amber-300 bg-amber-50 text-slate-900'
-                          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                      }`}
-                    >
-                      <span className={active ? 'text-amber-600' : 'text-slate-500'}>
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </Link>
-                  );
-                })}
+              <nav className="flex-1 overflow-y-auto overscroll-contain p-4">
+                <div className="flex flex-col gap-1">
+                  {navItems.map((item) => renderNavItem(item, true))}
+                </div>
               </nav>
 
-              <div className="mt-auto border-t border-slate-100 p-4">
+              <div className="border-t border-slate-100 p-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void openProfileModal();
+                    setSidebarOpen(false);
+                  }}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                  Profile
+                </button>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-medium text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-medium text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                 >
                   Sign out
                 </button>
@@ -446,11 +654,117 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </>
         )}
 
-        {/* Main content */}
-        <main className="h-[calc(100vh-4rem)] flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className="app-shell-height safe-pad-bottom flex-1 overflow-y-auto p-3 sm:p-6">
           {children}
         </main>
       </div>
+
+      {profileModalOpen ? (
+        <CommonModal
+          title="Profile"
+          description="Review your account details and assigned restaurant information."
+          onClose={() => setProfileModalOpen(false)}
+          widthClassName="max-w-3xl"
+        >
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">
+                User Account
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Name</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {user ? `${user.firstName} ${user.lastName}` : 'Not available'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Role</p>
+                  <p className="mt-1 text-sm font-semibold capitalize text-slate-900">
+                    {user?.role.replace('_', ' ') || 'Not available'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Email</p>
+                  <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                    {user?.email || 'Not available'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs text-slate-500">Contact Number</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {user?.contactNo || 'Not available'}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {profileLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+                Loading profile details...
+              </div>
+            ) : profileError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {profileError}
+              </div>
+            ) : user?.restaurantId ? (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">
+                  Restaurant Profile
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Restaurant Name</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {profileRestaurant?.name || 'Not available'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Booking Prefix</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {profileRestaurant?.bookingPrefix || 'Not available'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Contact Numbers</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {formatContactNumbers(profileRestaurant)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Website</p>
+                    <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                      {profileRestaurant?.website || 'Not available'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
+                    <p className="text-xs text-slate-500">Address</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {profileRestaurant?.address || 'Not available'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Subscription Start</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {formatDate(profileRestaurant?.startDate)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs text-slate-500">Subscription End</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {formatDate(profileRestaurant?.endDate)}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+                No restaurant is assigned to this account.
+              </div>
+            )}
+          </div>
+        </CommonModal>
+      ) : null}
     </div>
   );
 }

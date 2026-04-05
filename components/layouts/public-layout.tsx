@@ -15,7 +15,7 @@ export function PublicLayout({
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-slate-900">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_0%,rgba(246,173,28,0.2),transparent_30%),radial-gradient(circle_at_100%_8%,rgba(191,219,254,0.62),transparent_38%),radial-gradient(circle_at_18%_78%,rgba(254,226,226,0.55),transparent_32%),radial-gradient(circle_at_88%_72%,rgba(220,252,231,0.45),transparent_30%),linear-gradient(180deg,#fffef9_0%,#f8fafc_30%,#eef4ff_68%,#fdf2f8_100%)]" />
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+      <div className="safe-pad-bottom mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8">
         <header className="sticky top-4 z-20 rounded-[26px] border border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,248,235,0.86),rgba(239,246,255,0.9))] px-4 py-3 shadow-[0_18px_40px_rgba(148,163,184,0.12)] backdrop-blur-md sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Link href="/" className="flex items-center gap-3">
@@ -52,7 +52,7 @@ export function PublicLayout({
           </div>
         </header>
 
-        <main className="flex-1 py-8">{children}</main>
+        <main className="flex-1 py-6 sm:py-8">{children}</main>
 
         <footer className="mt-8 rounded-[30px] border border-white/80 bg-[linear-gradient(140deg,rgba(255,255,255,0.9),rgba(255,248,235,0.82),rgba(240,249,255,0.84))] p-6 shadow-[0_18px_40px_rgba(148,163,184,0.12)] backdrop-blur-md sm:p-8">
           <div className="grid gap-8 md:grid-cols-4">
@@ -94,7 +94,7 @@ export function PublicLayout({
               </div>
             </div>
           </div>
-          <div className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500">
+          <div className="mt-8 border-t border-slate-200 pt-4 text-xs leading-6 text-slate-500">
             © {new Date().getFullYear()} Zenovel Technolab. All rights reserved.
             &nbsp;·&nbsp; Banquate Booking System &nbsp;·&nbsp; Developed by Zenovel Technolab
           </div>

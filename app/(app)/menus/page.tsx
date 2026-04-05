@@ -5,6 +5,7 @@ import { ConfigRoute } from '@/components/auth/config-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { RoleBasedRestaurantSelector } from '@/components/ui/role-based-restaurant-selector';
 import {
   createMenu,
@@ -20,11 +21,13 @@ import { PageLoader } from '@/components/ui/page-loader';
 type MenuFormState = {
   sectionTitle: string;
   items: string[];
+  hotSellingItems: string[];
 };
 
 const initialFormState: MenuFormState = {
   sectionTitle: '',
   items: [],
+  hotSellingItems: [],
 };
 
 const inputCls =
@@ -66,6 +69,7 @@ export default function MenusPage() {
   const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
   const [formState, setFormState] = useState<MenuFormState>(initialFormState);
   const [itemDraft, setItemDraft] = useState('');
+  const [subitemSearch, setSubitemSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [menuToDelete, setMenuToDelete] = useState<Menu | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -175,6 +179,7 @@ export default function MenusPage() {
     setEditingMenu(null);
     setFormState(initialFormState);
     setItemDraft('');
+    setSubitemSearch('');
     setError('');
     setSuccessMessage('');
     setIsModalOpen(true);
@@ -185,8 +190,10 @@ export default function MenusPage() {
     setFormState({
       sectionTitle: menu.sections[0]?.sectionTitle ?? menu.title,
       items: [...(menu.sections[0]?.items ?? [])],
+      hotSellingItems: [...(menu.sections[0]?.hotSellingItems ?? [])],
     });
     setItemDraft('');
+    setSubitemSearch('');
     setError('');
     setSuccessMessage('');
     setIsModalOpen(true);
@@ -209,7 +216,20 @@ export default function MenusPage() {
     setFormState((current) => ({
       ...current,
       items: current.items.filter((currentItem) => currentItem !== item),
+      hotSellingItems: current.hotSellingItems.filter((currentItem) => currentItem !== item),
     }));
+  }
+
+  function toggleHotSellingItem(item: string) {
+    setFormState((current) => {
+      const exists = current.hotSellingItems.includes(item);
+      return {
+        ...current,
+        hotSellingItems: exists
+          ? current.hotSellingItems.filter((currentItem) => currentItem !== item)
+          : [...current.hotSellingItems, item],
+      };
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -239,6 +259,9 @@ export default function MenusPage() {
             items: Array.from(new Set(formState.items.map((item) => item.trim()))).filter(
               Boolean,
             ),
+            hotSellingItems: Array.from(
+              new Set(formState.hotSellingItems.map((item) => item.trim())),
+            ).filter(Boolean),
           },
         ],
         ...(isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {}),
@@ -294,6 +317,11 @@ export default function MenusPage() {
   );
 
   const totalConfiguredSubitems = formState.items.length;
+  const filteredSubitems = useMemo(() => {
+    const query = subitemSearch.trim().toLowerCase();
+    if (!query) return formState.items;
+    return formState.items.filter((item) => item.toLowerCase().includes(query));
+  }, [formState.items, subitemSearch]);
 
   return (
     <ConfigRoute>
@@ -308,7 +336,7 @@ export default function MenusPage() {
               Create item groups like Mocktail or Soups and manage multiple subitems under each one.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={() => setIsFiltersOpen((current) => !current)}
@@ -320,7 +348,7 @@ export default function MenusPage() {
               type="button"
               onClick={openCreateModal}
               disabled={!effectiveRestaurantId}
-              className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="ml-auto rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               + Add menu
             </button>
@@ -563,17 +591,18 @@ export default function MenusPage() {
                       Type a subitem and press Enter.
                     </p>
                   </div>
-                  <textarea
+                  <input
+                    type="text"
                     value={itemDraft}
                     onChange={(event) => setItemDraft(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
+                      if (event.key === 'Enter') {
                         event.preventDefault();
                         addItems();
                       }
                     }}
-                    placeholder={'MINT MOJITO,\nORANGE MARTINI,\nPINEAPPLE MARTINI'}
-                    className={`${inputCls} min-h-40 resize-none`}
+                    placeholder="MINT MOJITO"
+                    className={inputCls}
                   />
                   <div className="flex justify-end">
                     <button
@@ -591,54 +620,76 @@ export default function MenusPage() {
                     <div>
                       <p className="text-sm font-semibold text-slate-900">Current subitems</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        Added subitems appear here.
+                        Added subitems appear here one by one.
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
                       {totalConfiguredSubitems}
                     </span>
                   </div>
+                  <div className="mt-4">
+                    <input
+                      value={subitemSearch}
+                      onChange={(event) => setSubitemSearch(event.target.value)}
+                      placeholder="Search current subitems"
+                      className={`${inputCls} bg-white`}
+                    />
+                  </div>
                   <div className="mt-4 max-h-64 overflow-y-auto pr-1">
-                    <div className="flex flex-wrap gap-2">
                     {formState.items.length === 0 ? (
                       <p className="text-sm text-slate-400">No subitems added yet.</p>
+                    ) : filteredSubitems.length === 0 ? (
+                      <p className="text-sm text-slate-400">No subitems match your search.</p>
                     ) : (
-                      formState.items.map((item) => (
-                        <span
-                          key={`${formState.sectionTitle}-${item}`}
-                          className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
-                        >
-                          {item}
-                          <button
-                            type="button"
-                            onClick={() => removeItem(item)}
-                            className="rounded-full bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600"
+                      <div className="space-y-2">
+                        {filteredSubitems.map((item) => (
+                          <div
+                            key={`${formState.sectionTitle}-${item}`}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium text-slate-700"
                           >
-                            Remove
-                          </button>
-                        </span>
-                      ))
+                            <span className="min-w-0 flex-1 break-words">{item}</span>
+                            <div className="flex shrink-0 items-center gap-3">
+                              <label className="flex items-center gap-2 text-xs font-semibold text-amber-700">
+                                <input
+                                  type="checkbox"
+                                  checked={formState.hotSellingItems.includes(item)}
+                                  onChange={() => toggleHotSellingItem(item)}
+                                  className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                                />
+                                Hot selling
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => removeItem(item)}
+                                className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                  isLoading={isSubmitting}
+                  className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
                 >
-                  {isSubmitting ? 'Saving…' : editingMenu ? 'Save changes' : 'Create menu'}
-                </button>
+                  {editingMenu ? 'Save changes' : 'Create menu'}
+                </LoadingButton>
               </div>
             </form>
           </CommonModal>
