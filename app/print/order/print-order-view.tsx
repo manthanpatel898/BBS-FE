@@ -6,7 +6,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { fetchMyRestaurant, fetchOrderPrint, fetchRestaurantById, fetchSettings } from '@/lib/auth/api';
 import { AppSettings, Order, Restaurant } from '@/lib/auth/types';
 
-type CopyType = 'company' | 'manager' | 'customer';
+type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
 
 type MenuRow = {
   key: string;
@@ -30,7 +30,11 @@ export function PrintOrderView({
   const [error, setError] = useState('');
 
   const resolvedCopyType: CopyType = useMemo(() => {
-    if (copyType === 'manager' || copyType === 'customer') {
+    if (
+      copyType === 'manager' ||
+      copyType === 'customer' ||
+      copyType === 'kitchen'
+    ) {
       return copyType;
     }
 
@@ -158,6 +162,7 @@ function PrintDocument({
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
   const banquetRules = settings?.banquetRules ?? [];
+  const isKitchenCopy = copyType === 'kitchen';
   const addonServicesSummary =
     order.addonServiceSnapshots.length > 0
       ? order.addonServiceSnapshots
@@ -210,7 +215,7 @@ function PrintDocument({
           </div>
           <div className="pt-3 text-right">
             <p className="text-base font-semibold tracking-[0.14em] text-stone-800 print:text-[15px]">
-              Booking Summary
+              {isKitchenCopy ? 'Kitchen Print' : 'Booking Summary'}
             </p>
             {restaurant?.address && restaurant.address.trim().toLowerCase() !== 'na' ? (
               <p className="mt-2 max-w-[220px] text-xs leading-5 text-stone-500 print:max-w-[180px] print:text-[10px]">
@@ -341,39 +346,43 @@ function PrintDocument({
         </div>
       </section>
 
-      <section className="print:break-inside-avoid print:[page-break-inside:avoid]">
-        <section className="mt-4 pt-4 print:mt-3 print:pt-3">
-          <p className="text-[11px] font-medium text-stone-700 print:text-[10px]">
-            I agree to all banquet rules and confirm that I have read and understood them.
-          </p>
-        </section>
+      {!isKitchenCopy ? (
+        <>
+          <section className="print:break-inside-avoid print:[page-break-inside:avoid]">
+            <section className="mt-4 pt-4 print:mt-3 print:pt-3">
+              <p className="text-[11px] font-medium text-stone-700 print:text-[10px]">
+                I agree to all banquet rules and confirm that I have read and understood them.
+              </p>
+            </section>
 
-        <section className="mt-4 grid gap-6 pb-4 pt-4 md:grid-cols-2 print:mt-3 print:grid-cols-2 print:gap-4 print:pb-5 print:pt-3">
-          <SignatureBox label="Customer Sign" />
-          <SignatureBox label="Manager Sign" />
-        </section>
-      </section>
+            <section className="mt-4 grid gap-6 pb-4 pt-4 md:grid-cols-2 print:mt-3 print:grid-cols-2 print:gap-4 print:pb-5 print:pt-3">
+              <SignatureBox label="Customer Sign" />
+              <SignatureBox label="Manager Sign" />
+            </section>
+          </section>
 
-      <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2 print:break-before-page">
-        <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
-            Banquet Rules
-          </p>
-        </div>
-        <div className="px-3 py-2.5 print:px-2 print:py-2">
-          {banquetRules.length > 0 ? (
-            <ol className="space-y-1 pl-5 text-[11px] text-stone-700 print:text-[10px]">
-              {banquetRules.map((rule) => (
-                <li key={rule.id}>{rule.label}</li>
-              ))}
-            </ol>
-          ) : (
-            <p className="text-[11px] text-stone-500 print:text-[10px]">
-              No banquet rules configured.
-            </p>
-          )}
-        </div>
-      </section>
+          <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2 print:break-before-page">
+            <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+                Banquet Rules
+              </p>
+            </div>
+            <div className="px-3 py-2.5 print:px-2 print:py-2">
+              {banquetRules.length > 0 ? (
+                <ol className="space-y-1 pl-5 text-[11px] text-stone-700 print:text-[10px]">
+                  {banquetRules.map((rule) => (
+                    <li key={rule.id}>{rule.label}</li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-[11px] text-stone-500 print:text-[10px]">
+                  No banquet rules configured.
+                </p>
+              )}
+            </div>
+          </section>
+        </>
+      ) : null}
 
       <div className="hidden print:fixed print:bottom-[4mm] print:left-[5mm] print:right-[5mm] print:block">
         <div className="flex items-center justify-between border-t border-stone-300 pt-1.5 text-[10px] font-medium text-stone-500">

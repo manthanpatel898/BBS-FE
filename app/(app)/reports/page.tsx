@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/auth-provider';
 
-type ReportType = 'booking' | 'advance' | 'cancelled';
+type ReportType = 'booking' | 'advance' | 'cancelled' | 'itemSales' | 'eventPlanner';
 
 const REPORT_CARDS: Array<{
   type: ReportType;
@@ -31,6 +31,20 @@ const REPORT_CARDS: Array<{
     description:
       'Export cancelled booking history with reason, advance paid, totals, and inquiry details.',
     eyebrow: 'Cancellations',
+  },
+  {
+    type: 'itemSales',
+    title: 'Item Sales Report',
+    description:
+      'Select a confirmed date range and see which menu item groups like Soup or Farsan sold the most.',
+    eyebrow: 'Sales',
+  },
+  {
+    type: 'eventPlanner',
+    title: 'Event Planner Report',
+    description:
+      'Track which confirmed bookings were attached to which event planner with assignment date, function details, and guest count.',
+    eyebrow: 'Planning',
   },
 ];
 

@@ -12,6 +12,7 @@ export interface AuthUser {
   canAccessCancelledBookings?: boolean;
   canAccessVoucherFlow?: boolean;
   restaurantLogoUrl?: string | null;
+  subscriptionStatus?: SubscriptionStatus | null;
   isFirstLogin: boolean;
   isActive: boolean;
 }
@@ -34,6 +35,19 @@ export interface SubscriptionLog {
   performedAt: string;
 }
 
+export interface SubscriptionStatus {
+  isExpired: boolean;
+  isInGracePeriod: boolean;
+  isWithinWarningWindow: boolean;
+  isAccessAllowed: boolean;
+  daysUntilExpiry: number;
+  graceDaysRemaining: number;
+  warningStartsInDays: number;
+  gracePeriodDays: number;
+  severity: 'info' | 'warning' | 'critical' | null;
+  message: string | null;
+}
+
 export interface Restaurant {
   id: string;
   name: string;
@@ -50,6 +64,7 @@ export interface Restaurant {
   enableCancelledBookings?: boolean;
   enableVoucherFlow?: boolean;
   isActive?: boolean;
+  subscriptionStatus?: SubscriptionStatus | null;
   notes?: string | null;
   subscriptionLogs?: SubscriptionLog[];
   createdAt: string;
@@ -58,6 +73,38 @@ export interface Restaurant {
 
 export interface PaginatedRestaurants {
   items: Restaurant[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AuditLogItem {
+  id: string;
+  module: string;
+  action: string;
+  operation: 'create' | 'read' | 'update' | 'delete';
+  entityType: string | null;
+  entityId: string | null;
+  restaurantId: string | null;
+  actor: {
+    userId: string | null;
+    name: string | null;
+    role: string | null;
+  } | null;
+  route: string | null;
+  method: string | null;
+  summary: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface PaginatedAuditLogs {
+  items: AuditLogItem[];
   pagination: {
     page: number;
     limit: number;
@@ -177,7 +224,9 @@ export interface AppSettings {
   restaurantId: string;
   paymentOptions: SettingOption[];
   eventOptions: SettingOption[];
+  eventPlanners: SettingOption[];
   hallDetails: SettingOption[];
+  hiddenHallDetailCombinations: string[];
   showHallBookingInformation?: boolean;
   banquetRules: SettingOption[];
   addonServices: SettingOption[];
@@ -295,6 +344,16 @@ export interface Order {
   followUps: OrderFollowUp[];
   advancePayments: OrderAdvancePayment[];
   diningRedemptions: OrderDiningRedemption[];
+  currentEventPlanner: {
+    plannerName: string;
+    assignedAt: string;
+    assignedByName: string;
+  } | null;
+  eventPlannerAssignments: Array<{
+    plannerName: string;
+    assignedAt: string;
+    assignedByName: string;
+  }>;
   redeemableBalance: number;
   bookingTakenBy: string;
   createdAt: string;
@@ -346,6 +405,11 @@ export interface OrderStats {
   followUps: number;
   monthRevenue: number;
   monthAdvance: number;
+  monthAdvanceByPaymentMethod: Array<{
+    label: string;
+    amount: number;
+    count: number;
+  }>;
   avgMenuSelectionDurationSeconds: number;
   avgInitialMenuSelectionDurationSeconds: number;
   avgCategoryChangeDurationSeconds: number;
@@ -398,6 +462,26 @@ export interface AdvancePaymentReportRow {
   paymentDate: string;
   recordedByName: string;
   remark: string | null;
+}
+
+export interface EventPlannerReportRow {
+  orderId: string;
+  plannerName: string;
+  assignedAt: string;
+  assignedByName: string;
+  customerName: string;
+  customerPhone: string;
+  eventType: string | null;
+  functionDate: string | null;
+  pax: number | null;
+  serviceSlot: string | null;
+  hallDetails: string | null;
+}
+
+export interface ItemSalesReportRow {
+  itemName: string;
+  timesSold: number;
+  subitems: string[];
 }
 
 export interface HotDate {

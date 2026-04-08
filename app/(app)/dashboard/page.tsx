@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchRestaurantStats, fetchOrderReports, fetchOrderStats } from '@/lib/auth/api';
+import { fetchMyRestaurant, fetchRestaurantStats, fetchOrderReports, fetchOrderStats } from '@/lib/auth/api';
 import { RestaurantStats, OrderReports, OrderStats, Restaurant } from '@/lib/auth/types';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ interface StatCardProps {
   delay?: string;
 }
 
-function StatCard({ label, value, icon, iconBg, iconColor, sub, delay = '' }: StatCardProps) {
+function StatCard({ label, value, icon, iconBg, iconColor, delay = '' }: StatCardProps) {
   return (
     <div
       className={`zb-fade-up-1 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md ${delay}`}
@@ -65,8 +65,59 @@ function StatCard({ label, value, icon, iconBg, iconColor, sub, delay = '' }: St
       </div>
       <p className="mt-4 text-3xl font-bold text-slate-900">{value}</p>
       <p className="mt-1 text-sm font-medium text-slate-500">{label}</p>
-      {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
     </div>
+  );
+}
+
+function AdvanceBreakdownCard({
+  total,
+  items,
+}: {
+  total: number;
+  items: Array<{ label: string; amount: number; count: number }>;
+}) {
+  const maxAmount = Math.max(...items.map((item) => item.amount), 1);
+
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 p-2.5">
+            <span className="text-blue-600">
+              <TrendingUpIcon />
+            </span>
+          </div>
+          <p className="mt-4 text-3xl font-bold text-slate-900">{formatCurrency(total)}</p>
+          <p className="mt-1 text-sm font-medium text-slate-500">This Month Advance</p>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {items.length === 0 ? (
+          <p className="text-sm text-slate-400">No advance payments recorded this month.</p>
+        ) : (
+          items.map((item) => (
+            <div key={item.label} className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-sm font-medium text-slate-700">{item.label}</p>
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold text-slate-900">{formatCurrency(item.amount)}</p>
+                  <p className="text-xs text-slate-400">{item.count} payment{item.count === 1 ? '' : 's'}</p>
+                </div>
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-400"
+                  style={{
+                    width: `${Math.max((item.amount / maxAmount) * 100, item.amount > 0 ? 8 : 0)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -189,6 +240,44 @@ function BarChart({
                 className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400"
                 style={{ width: `${Math.max((item.value / maxValue) * 100, item.value > 0 ? 10 : 0)}%` }}
               />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function VerticalBarChart({
+  title,
+  subtitle,
+  items,
+}: {
+  title: string;
+  subtitle: string;
+  items: Array<{ label: string; value: number; helper: string }>;
+}) {
+  const maxValue = Math.max(...items.map((item) => item.value), 1);
+
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {items.map((item) => (
+          <div key={item.label} className="flex min-w-0 flex-col items-center gap-3">
+            <div className="flex h-48 w-full items-end justify-center rounded-2xl bg-slate-50 px-3 py-3">
+              <div
+                className="w-full rounded-t-xl bg-gradient-to-t from-amber-400 via-orange-400 to-rose-400"
+                style={{
+                  height: `${Math.max((item.value / maxValue) * 100, item.value > 0 ? 10 : 0)}%`,
+                }}
+              />
+            </div>
+            <div className="w-full text-center">
+              <p className="text-lg font-bold text-slate-900">{formatCurrency(item.value)}</p>
+              <p className="truncate text-sm font-semibold text-slate-800">{item.label}</p>
+              <p className="text-xs text-slate-500">{item.helper}</p>
             </div>
           </div>
         ))}
@@ -440,10 +529,12 @@ function SuperAdminDashboard({ stats, loading }: { stats: RestaurantStats | null
 function CompanyAdminDashboard({
   stats,
   reports,
+  restaurant,
   loading,
 }: {
   stats: OrderStats | null;
   reports: OrderReports | null;
+  restaurant: Restaurant | null;
   loading: boolean;
 }) {
   if (loading) {
@@ -469,6 +560,50 @@ function CompanyAdminDashboard({
 
   return (
     <div className="space-y-6">
+      {restaurant?.subscriptionStatus?.message ? (
+        <div
+          className={`rounded-2xl border px-5 py-4 ${
+            restaurant.subscriptionStatus.isInGracePeriod
+              ? 'border-red-200 bg-red-50'
+              : 'border-amber-200 bg-amber-50'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <span
+              className={
+                restaurant.subscriptionStatus.isInGracePeriod
+                  ? 'text-red-600'
+                  : 'text-amber-600'
+              }
+            >
+              <AlertIcon />
+            </span>
+            <div>
+              <p
+                className={`text-sm font-semibold ${
+                  restaurant.subscriptionStatus.isInGracePeriod
+                    ? 'text-red-700'
+                    : 'text-amber-700'
+                }`}
+              >
+                {restaurant.subscriptionStatus.isInGracePeriod
+                  ? 'Subscription Expired'
+                  : 'Subscription Renewal Reminder'}
+              </p>
+              <p
+                className={`mt-1 text-sm ${
+                  restaurant.subscriptionStatus.isInGracePeriod
+                    ? 'text-red-600'
+                    : 'text-amber-700'
+                }`}
+              >
+                {restaurant.subscriptionStatus.message}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Inquiries"
@@ -508,39 +643,41 @@ function CompanyAdminDashboard({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="This Month Revenue"
-          value={formatCurrency(stats.monthRevenue)}
-          icon={<CoinIcon />}
-          iconBg="bg-emerald-50"
-          iconColor="text-emerald-600"
-          sub="Confirmed booking value"
-        />
-        <StatCard
-          label="This Month Advance"
-          value={formatCurrency(stats.monthAdvance)}
-          icon={<TrendingUpIcon />}
-          iconBg="bg-blue-50"
-          iconColor="text-blue-600"
-          sub="Collected advances"
-        />
-        <StatCard
-          label="Completion Pipeline"
-          value={stats.completed}
-          icon={<CheckCircleIcon />}
-          iconBg="bg-slate-100"
-          iconColor="text-slate-700"
-          sub="Completed functions"
-        />
-        <StatCard
-          label="Total Order Records"
-          value={stats.total}
-          icon={<InboxIcon />}
-          iconBg="bg-purple-50"
-          iconColor="text-purple-600"
-          sub="All statuses combined"
-        />
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-6">
+          <AdvanceBreakdownCard
+            total={stats.monthAdvance}
+            items={stats.monthAdvanceByPaymentMethod.filter(
+              (item) => item.amount > 0 || item.count > 0,
+            )}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:col-span-6">
+          <StatCard
+            label="This Month Revenue"
+            value={formatCurrency(stats.monthRevenue)}
+            icon={<CoinIcon />}
+            iconBg="bg-emerald-50"
+            iconColor="text-emerald-600"
+            sub="Confirmed booking value"
+          />
+          <StatCard
+            label="Completion Pipeline"
+            value={stats.completed}
+            icon={<CheckCircleIcon />}
+            iconBg="bg-slate-100"
+            iconColor="text-slate-700"
+            sub="Completed functions"
+          />
+          <StatCard
+            label="Total Order Records"
+            value={stats.total}
+            icon={<InboxIcon />}
+            iconBg="bg-purple-50"
+            iconColor="text-purple-600"
+            sub="All statuses combined"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
@@ -576,7 +713,7 @@ function CompanyAdminDashboard({
       {reports ? (
         <>
           <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-            <BarChart
+            <VerticalBarChart
               title="Category Performance"
               subtitle="Top categories by confirmed booking revenue."
               items={reports.highestSellingCategories.slice(0, 5).map((category) => ({
@@ -643,6 +780,7 @@ export default function DashboardPage() {
   const [restaurantStats, setRestaurantStats] = useState<RestaurantStats | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
   const [orderReports, setOrderReports] = useState<OrderReports | null>(null);
+  const [myRestaurant, setMyRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -654,12 +792,17 @@ export default function DashboardPage() {
           const stats = await fetchRestaurantStats(accessToken);
           setRestaurantStats(stats);
         } else if (user?.role === 'company_admin') {
-          const [stats, reports] = await Promise.all([
+          const [stats, reports, restaurant] = await Promise.all([
             fetchOrderStats(accessToken),
             fetchOrderReports(accessToken).catch(() => null),
+            fetchMyRestaurant(accessToken).catch(() => null),
           ]);
           setOrderStats(stats);
           setOrderReports(reports);
+          setMyRestaurant(restaurant);
+        } else if (user?.role === 'employee') {
+          const restaurant = await fetchMyRestaurant(accessToken).catch(() => null);
+          setMyRestaurant(restaurant);
         }
       } catch {
         // show null state in each dashboard
@@ -702,19 +845,64 @@ export default function DashboardPage() {
         <SuperAdminDashboard stats={restaurantStats} loading={loading} />
       )}
       {user?.role === 'company_admin' && (
-        <CompanyAdminDashboard stats={orderStats} reports={orderReports} loading={loading} />
+        <CompanyAdminDashboard stats={orderStats} reports={orderReports} restaurant={myRestaurant} loading={loading} />
       )}
       {user?.role === 'employee' && (
-        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm font-medium text-slate-700">
-            Ready to manage bookings?
-          </p>
-          <Link
-            href="/bookings"
-            className="mt-4 inline-flex items-center rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500"
-          >
-            Open Bookings
-          </Link>
+        <div className="space-y-6">
+          {myRestaurant?.subscriptionStatus?.message ? (
+            <div
+              className={`rounded-2xl border px-5 py-4 ${
+                myRestaurant.subscriptionStatus.isInGracePeriod
+                  ? 'border-red-200 bg-red-50'
+                  : 'border-amber-200 bg-amber-50'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={
+                    myRestaurant.subscriptionStatus.isInGracePeriod
+                      ? 'text-red-600'
+                      : 'text-amber-600'
+                  }
+                >
+                  <AlertIcon />
+                </span>
+                <div>
+                  <p
+                    className={`text-sm font-semibold ${
+                      myRestaurant.subscriptionStatus.isInGracePeriod
+                        ? 'text-red-700'
+                        : 'text-amber-700'
+                    }`}
+                  >
+                    {myRestaurant.subscriptionStatus.isInGracePeriod
+                      ? 'Subscription Expired'
+                      : 'Subscription Renewal Reminder'}
+                  </p>
+                  <p
+                    className={`mt-1 text-sm ${
+                      myRestaurant.subscriptionStatus.isInGracePeriod
+                        ? 'text-red-600'
+                        : 'text-amber-700'
+                    }`}
+                  >
+                    {myRestaurant.subscriptionStatus.message}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center shadow-sm">
+            <p className="text-sm font-medium text-slate-700">
+              Ready to manage bookings?
+            </p>
+            <Link
+              href="/bookings"
+              className="mt-4 inline-flex items-center rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500"
+            >
+              Open Bookings
+            </Link>
+          </div>
         </div>
       )}
     </div>

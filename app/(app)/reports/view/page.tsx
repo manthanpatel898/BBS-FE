@@ -7,13 +7,21 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { useAuth } from '@/components/auth/auth-provider';
 import {
   fetchAdvancePaymentsReport,
+  fetchEventPlannerReport,
+  fetchItemSalesReport,
   fetchOrders,
   fetchSettings,
 } from '@/lib/auth/api';
-import { AdvancePaymentReportRow, Order, SettingOption } from '@/lib/auth/types';
+import {
+  AdvancePaymentReportRow,
+  EventPlannerReportRow,
+  ItemSalesReportRow,
+  Order,
+  SettingOption,
+} from '@/lib/auth/types';
 
 type DownloadFormat = 'csv' | 'xlsx';
-type ReportType = 'booking' | 'advance' | 'cancelled';
+type ReportType = 'booking' | 'advance' | 'cancelled' | 'itemSales' | 'eventPlanner';
 type BookingFieldKey =
   | 'eventDate'
   | 'inquiryDate'
@@ -59,6 +67,18 @@ type BookingFilters = {
 type CancelledFilters = {
   from: string;
   to: string;
+  search: string;
+};
+
+type ItemSalesFilters = {
+  from: string;
+  to: string;
+};
+
+type EventPlannerFilters = {
+  from: string;
+  to: string;
+  plannerName: string;
   search: string;
 };
 
@@ -133,6 +153,18 @@ const REPORT_CARDS: Array<{
     title: 'Cancel Booking Report',
     description: 'Export cancelled booking history with reason, advance paid, totals, and inquiry details.',
     eyebrow: 'Cancellations',
+  },
+  {
+    type: 'itemSales',
+    title: 'Item Sales Report',
+    description: 'See item-wise sales for confirmed bookings by date range, sorted from highest selling to lowest.',
+    eyebrow: 'Sales',
+  },
+  {
+    type: 'eventPlanner',
+    title: 'Event Planner Report',
+    description: 'Review which confirmed bookings were assigned to which event planner and export the planner-wise schedule by date.',
+    eyebrow: 'Planning',
   },
 ];
 
@@ -397,6 +429,57 @@ const advanceColumns: ColumnDef<AdvancePaymentReportRow>[] = [
   { key: 'remark', label: 'Remarks', render: (row) => row.remark || '-' },
 ];
 
+const itemSalesColumns: ColumnDef<ItemSalesReportRow>[] = [
+  {
+    key: 'itemName',
+    label: 'Item',
+    render: (row) => row.itemName,
+    exportValue: (row) => row.itemName,
+  },
+  {
+    key: 'timesSold',
+    label: 'Times Sold',
+    render: (row) => row.timesSold.toLocaleString('en-IN'),
+    exportValue: (row) => row.timesSold,
+    total: (row) => row.timesSold,
+  },
+  {
+    key: 'subitems',
+    label: 'Selected Subitems',
+    render: (row) => row.subitems.join(', ') || '-',
+    exportValue: (row) => row.subitems.join(', '),
+  },
+];
+
+const eventPlannerColumns: ColumnDef<EventPlannerReportRow>[] = [
+  {
+    key: 'assignedAt',
+    label: 'Assigned Date',
+    render: (row) => formatCsvDateTime(row.assignedAt),
+    exportValue: (row) => formatCsvDateTime(row.assignedAt),
+  },
+  { key: 'plannerName', label: 'Event Planner', render: (row) => row.plannerName },
+  { key: 'orderId', label: 'Booking Id', render: (row) => row.orderId },
+  { key: 'customerName', label: 'Customer', render: (row) => row.customerName },
+  { key: 'customerPhone', label: 'Phone', render: (row) => row.customerPhone || '-' },
+  { key: 'eventType', label: 'Function', render: (row) => row.eventType || '-' },
+  {
+    key: 'functionDate',
+    label: 'Function Date',
+    render: (row) => formatCsvDate(row.functionDate),
+    exportValue: (row) => formatCsvDate(row.functionDate),
+  },
+  {
+    key: 'pax',
+    label: 'Guests',
+    render: (row) => (row.pax ? row.pax.toLocaleString('en-IN') : '-'),
+    exportValue: (row) => row.pax ?? '',
+  },
+  { key: 'serviceSlot', label: 'Service Slot', render: (row) => row.serviceSlot || '-' },
+  { key: 'hallDetails', label: 'Hall Details', render: (row) => row.hallDetails || '-' },
+  { key: 'assignedByName', label: 'Assigned By', render: (row) => row.assignedByName || '-' },
+];
+
 function FieldSelector<T extends string>({
   title,
   description,
@@ -554,6 +637,7 @@ export default function ReportViewPage() {
   const { accessToken, user } = useAuth();
   const [error, setError] = useState('');
   const [paymentModes, setPaymentModes] = useState<string[]>([]);
+  const [eventPlannerOptions, setEventPlannerOptions] = useState<string[]>([]);
   const [activeLoading, setActiveLoading] = useState(false);
   const [activeDownloading, setActiveDownloading] = useState(false);
   const [bookingFilters, setBookingFilters] = useState<BookingFilters>({
@@ -572,9 +656,21 @@ export default function ReportViewPage() {
     to: toDateInputValue(new Date()),
     search: '',
   });
+  const [itemSalesFilters, setItemSalesFilters] = useState<ItemSalesFilters>({
+    from: toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+    to: toDateInputValue(new Date()),
+  });
+  const [eventPlannerFilters, setEventPlannerFilters] = useState<EventPlannerFilters>({
+    from: toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+    to: toDateInputValue(new Date()),
+    plannerName: '',
+    search: '',
+  });
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('csv');
   const [advanceDownloadFormat, setAdvanceDownloadFormat] = useState<DownloadFormat>('csv');
   const [cancelledDownloadFormat, setCancelledDownloadFormat] = useState<DownloadFormat>('csv');
+  const [itemSalesDownloadFormat, setItemSalesDownloadFormat] = useState<DownloadFormat>('csv');
+  const [eventPlannerDownloadFormat, setEventPlannerDownloadFormat] = useState<DownloadFormat>('csv');
   const [bookingFieldsCollapsed, setBookingFieldsCollapsed] = useState(true);
   const [cancelledFieldsCollapsed, setCancelledFieldsCollapsed] = useState(true);
   const [bookingSelectedFields, setBookingSelectedFields] = useState<BookingFieldKey[]>(() =>
@@ -586,9 +682,15 @@ export default function ReportViewPage() {
   const [bookingRows, setBookingRows] = useState<Order[]>([]);
   const [advanceRows, setAdvanceRows] = useState<AdvancePaymentReportRow[]>([]);
   const [cancelledRows, setCancelledRows] = useState<Order[]>([]);
+  const [itemSalesRows, setItemSalesRows] = useState<ItemSalesReportRow[]>([]);
+  const [eventPlannerRows, setEventPlannerRows] = useState<EventPlannerReportRow[]>([]);
   const reportParam = searchParams.get('type');
   const activeReport: ReportType =
-    reportParam === 'advance' || reportParam === 'cancelled' || reportParam === 'booking'
+    reportParam === 'advance' ||
+    reportParam === 'cancelled' ||
+    reportParam === 'booking' ||
+    reportParam === 'itemSales' ||
+    reportParam === 'eventPlanner'
       ? reportParam
       : 'booking';
   const activeCard = REPORT_CARDS.find((card) => card.type === activeReport) ?? REPORT_CARDS[0];
@@ -598,9 +700,11 @@ export default function ReportViewPage() {
     fetchSettings(accessToken)
       .then((settings) => {
         setPaymentModes(settings.paymentOptions.map((option: SettingOption) => option.label));
+        setEventPlannerOptions(settings.eventPlanners.map((option: SettingOption) => option.label));
       })
       .catch(() => {
         setPaymentModes([]);
+        setEventPlannerOptions([]);
       });
   }, [accessToken, user?.role]);
 
@@ -644,6 +748,12 @@ export default function ReportViewPage() {
         status: filters.status,
         from: filters.from,
         to: filters.to,
+        ...(filters.status === 'CONFIRMED'
+          ? {
+              sortBy: 'confirmedAt',
+              sortDirection: 'asc' as const,
+            }
+          : {}),
       });
       allOrders.push(...response.items);
       totalPages = response.pagination.totalPages;
@@ -672,6 +782,22 @@ export default function ReportViewPage() {
         if (!accessToken) throw new Error('Missing session token.');
         const rows = await fetchAdvancePaymentsReport(accessToken, advanceFilters);
         setAdvanceRows(rows);
+        return;
+      }
+
+      if (activeReport === 'itemSales') {
+        validateDateRange(itemSalesFilters.from, itemSalesFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows = await fetchItemSalesReport(accessToken, itemSalesFilters);
+        setItemSalesRows(rows);
+        return;
+      }
+
+      if (activeReport === 'eventPlanner') {
+        validateDateRange(eventPlannerFilters.from, eventPlannerFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows = await fetchEventPlannerReport(accessToken, eventPlannerFilters);
+        setEventPlannerRows(rows);
         return;
       }
 
@@ -731,6 +857,48 @@ export default function ReportViewPage() {
           ),
           `advance-payments-report-${advanceFilters.from}-to-${advanceFilters.to}`,
           advanceDownloadFormat,
+        );
+        return;
+      }
+
+      if (activeReport === 'itemSales') {
+        validateDateRange(itemSalesFilters.from, itemSalesFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows =
+          itemSalesRows.length > 0
+            ? itemSalesRows
+            : await fetchItemSalesReport(accessToken, itemSalesFilters);
+        setItemSalesRows(rows);
+        await downloadTable(
+          itemSalesColumns.map((column) => column.label),
+          rows.map((row) =>
+            itemSalesColumns.map((column) =>
+              column.exportValue ? column.exportValue(row) : column.render(row),
+            ),
+          ),
+          `item-sales-report-${itemSalesFilters.from}-to-${itemSalesFilters.to}`,
+          itemSalesDownloadFormat,
+        );
+        return;
+      }
+
+      if (activeReport === 'eventPlanner') {
+        validateDateRange(eventPlannerFilters.from, eventPlannerFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows =
+          eventPlannerRows.length > 0
+            ? eventPlannerRows
+            : await fetchEventPlannerReport(accessToken, eventPlannerFilters);
+        setEventPlannerRows(rows);
+        await downloadTable(
+          eventPlannerColumns.map((column) => column.label),
+          rows.map((row) =>
+            eventPlannerColumns.map((column) =>
+              column.exportValue ? column.exportValue(row) : column.render(row),
+            ),
+          ),
+          `event-planner-report-${eventPlannerFilters.from}-to-${eventPlannerFilters.to}`,
+          eventPlannerDownloadFormat,
         );
         return;
       }
@@ -1074,6 +1242,172 @@ export default function ReportViewPage() {
             />
           </div>
         ) : null}
+
+        {activeReport === 'itemSales' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Item Sales Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Select confirmed dates to see item-wise sales from highest selling to lowest.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Start Date</span>
+                <input
+                  type="date"
+                  value={itemSalesFilters.from}
+                  onChange={(event) =>
+                    setItemSalesFilters((current) => ({ ...current, from: event.target.value }))
+                  }
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">End Date</span>
+                <input
+                  type="date"
+                  value={itemSalesFilters.to}
+                  onChange={(event) =>
+                    setItemSalesFilters((current) => ({ ...current, to: event.target.value }))
+                  }
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select
+                  value={itemSalesDownloadFormat}
+                  onChange={(event) =>
+                    setItemSalesDownloadFormat(event.target.value as DownloadFormat)
+                  }
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={activeLoading}
+                  onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton
+                  type="button"
+                  disabled={activeDownloading}
+                  onClick={() => void handleDownloadReport()}
+                  isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {activeReport === 'eventPlanner' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Event Planner Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Review planner-wise confirmed booking assignments by assignment date, planner, or customer search.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_220px_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Start Date</span>
+                <input
+                  type="date"
+                  value={eventPlannerFilters.from}
+                  onChange={(event) =>
+                    setEventPlannerFilters((current) => ({ ...current, from: event.target.value }))
+                  }
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">End Date</span>
+                <input
+                  type="date"
+                  value={eventPlannerFilters.to}
+                  onChange={(event) =>
+                    setEventPlannerFilters((current) => ({ ...current, to: event.target.value }))
+                  }
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Event Planner</span>
+                <select
+                  value={eventPlannerFilters.plannerName}
+                  onChange={(event) =>
+                    setEventPlannerFilters((current) => ({ ...current, plannerName: event.target.value }))
+                  }
+                  className={inputCls}
+                >
+                  <option value="">All planners</option>
+                  {eventPlannerOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Search</span>
+                <input
+                  value={eventPlannerFilters.search}
+                  onChange={(event) =>
+                    setEventPlannerFilters((current) => ({ ...current, search: event.target.value }))
+                  }
+                  placeholder="Booking id, function, customer, or phone"
+                  className={inputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select
+                  value={eventPlannerDownloadFormat}
+                  onChange={(event) =>
+                    setEventPlannerDownloadFormat(event.target.value as DownloadFormat)
+                  }
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={activeLoading}
+                  onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton
+                  type="button"
+                  disabled={activeDownloading}
+                  onClick={() => void handleDownloadReport()}
+                  isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {error ? (
@@ -1111,6 +1445,28 @@ export default function ReportViewPage() {
             rows={cancelledRows}
             columns={cancelledColumns}
             emptyMessage="Generate the cancelled booking report to preview results here."
+          />
+        </div>
+      ) : null}
+
+      {activeReport === 'itemSales' ? (
+        <div className="space-y-4">
+          <SummaryTotals rows={itemSalesRows} columns={itemSalesColumns} />
+          <DataTable
+            rows={itemSalesRows}
+            columns={itemSalesColumns}
+            emptyMessage="Generate the item sales report to preview results here."
+          />
+        </div>
+      ) : null}
+
+      {activeReport === 'eventPlanner' ? (
+        <div className="space-y-4">
+          <SummaryTotals rows={eventPlannerRows} columns={eventPlannerColumns} />
+          <DataTable
+            rows={eventPlannerRows}
+            columns={eventPlannerColumns}
+            emptyMessage="Generate the event planner report to preview results here."
           />
         </div>
       ) : null}

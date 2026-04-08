@@ -613,9 +613,9 @@ export default function FollowupsPage() {
                     {detailOrder.customer.firstName} {detailOrder.customer.lastName}
                   </p>
                   <p className="mt-2 text-slate-700">{detailOrder.customer.phone}</p>
-                  <p className="mt-1 text-slate-500">
-                    {detailOrder.customer.email || 'No email provided'}
-                  </p>
+                  {detailOrder.customer.email ? (
+                    <p className="mt-1 text-slate-500">{detailOrder.customer.email}</p>
+                  ) : null}
                 </InfoCard>
                 <InfoCard label="Inquiry Details">
                   <p className="mt-2 text-lg font-semibold text-slate-900">

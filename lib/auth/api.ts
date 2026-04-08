@@ -8,11 +8,14 @@ import {
   CalendarOrder,
   Category,
   Customer,
+  EventPlannerReportRow,
   HotDate,
+  ItemSalesReportRow,
   Menu,
   Order,
   OrderReports,
   AdvancePaymentReportRow,
+  PaginatedAuditLogs,
   OrderStats,
   PaymentMode,
   OrderStatus,
@@ -118,6 +121,34 @@ export async function fetchRestaurants(
 
 export async function fetchRestaurantById(accessToken: string, restaurantId: string) {
   return authorizedRequest<Restaurant>(`/restaurants/${restaurantId}`, accessToken);
+}
+
+export async function fetchAuditLogs(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search?: string;
+    module?: string;
+    operation?: 'create' | 'read' | 'update' | 'delete' | '';
+    restaurantId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search?.trim()) query.set('search', params.search.trim());
+  if (params.module?.trim()) query.set('module', params.module.trim());
+  if (params.operation) query.set('operation', params.operation);
+  if (params.restaurantId?.trim()) query.set('restaurantId', params.restaurantId.trim());
+  if (params.dateFrom?.trim()) query.set('dateFrom', params.dateFrom.trim());
+  if (params.dateTo?.trim()) query.set('dateTo', params.dateTo.trim());
+
+  return authorizedRequest<PaginatedAuditLogs>(`/audit-logs?${query.toString()}`, accessToken);
 }
 
 export async function fetchMyRestaurant(accessToken: string) {
@@ -404,6 +435,8 @@ export async function fetchOrders(
     inquiryFrom?: string;
     inquiryTo?: string;
     hasAdvancePayments?: boolean;
+    sortBy?: string;
+    sortDirection?: 'asc' | 'desc';
   },
 ) {
   const query = new URLSearchParams({
@@ -445,6 +478,14 @@ export async function fetchOrders(
 
   if (params.hasAdvancePayments) {
     query.set('hasAdvancePayments', 'true');
+  }
+
+  if (params.sortBy?.trim()) {
+    query.set('sortBy', params.sortBy.trim());
+  }
+
+  if (params.sortDirection?.trim()) {
+    query.set('sortDirection', params.sortDirection.trim());
   }
 
   return authorizedRequest<PaginatedOrders>(`/orders?${query.toString()}`, accessToken);
@@ -775,6 +816,52 @@ export async function fetchAdvancePaymentsReport(
   );
 }
 
+export async function fetchItemSalesReport(
+  accessToken: string,
+  params: {
+    from?: string;
+    to?: string;
+  },
+) {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      searchParams.set(key, value);
+    }
+  }
+
+  const query = searchParams.toString();
+  return authorizedRequest<ItemSalesReportRow[]>(
+    `/orders/item-sales-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export async function fetchEventPlannerReport(
+  accessToken: string,
+  params: {
+    from?: string;
+    to?: string;
+    plannerName?: string;
+    search?: string;
+  },
+) {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      searchParams.set(key, value);
+    }
+  }
+
+  const query = searchParams.toString();
+  return authorizedRequest<EventPlannerReportRow[]>(
+    `/orders/event-planner-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
 export async function fetchSettings(accessToken: string) {
   return authorizedRequest<AppSettings>('/settings', accessToken);
 }
@@ -805,6 +892,13 @@ export async function deletePaymentOption(accessToken: string, optionId: string)
 
 export async function createEventOption(accessToken: string, label: string) {
   return authorizedRequest<AppSettings>('/settings/event-options', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export async function createEventPlanner(accessToken: string, label: string) {
+  return authorizedRequest<AppSettings>('/settings/event-planners', accessToken, {
     method: 'POST',
     body: JSON.stringify({ label }),
   });
@@ -844,6 +938,34 @@ export async function updateHallBookingInformationVisibility(
   });
 }
 
+export async function hideHallDetailCombination(
+  accessToken: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(
+    '/settings/hall-detail-combinations/hide',
+    accessToken,
+    {
+      method: 'POST',
+      body: JSON.stringify({ label }),
+    },
+  );
+}
+
+export async function restoreHallDetailCombination(
+  accessToken: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(
+    '/settings/hall-detail-combinations/restore',
+    accessToken,
+    {
+      method: 'POST',
+      body: JSON.stringify({ label }),
+    },
+  );
+}
+
 export async function updateEventOption(
   accessToken: string,
   optionId: string,
@@ -855,8 +977,25 @@ export async function updateEventOption(
   });
 }
 
+export async function updateEventPlanner(
+  accessToken: string,
+  optionId: string,
+  label: string,
+) {
+  return authorizedRequest<AppSettings>(`/settings/event-planners/${optionId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
 export async function deleteEventOption(accessToken: string, optionId: string) {
   return authorizedRequest<AppSettings>(`/settings/event-options/${optionId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function deleteEventPlanner(accessToken: string, optionId: string) {
+  return authorizedRequest<AppSettings>(`/settings/event-planners/${optionId}`, accessToken, {
     method: 'DELETE',
   });
 }
@@ -909,6 +1048,17 @@ export async function updateBanquetRule(
 export async function deleteBanquetRule(accessToken: string, optionId: string) {
   return authorizedRequest<AppSettings>(`/settings/banquet-rules/${optionId}`, accessToken, {
     method: 'DELETE',
+  });
+}
+
+export async function assignEventPlanner(
+  accessToken: string,
+  orderId: string,
+  plannerName: string,
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/event-planner`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({ plannerName }),
   });
 }
 

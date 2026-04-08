@@ -172,6 +172,15 @@ function IconTicket() {
   );
 }
 
+function IconShieldList() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v6c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V6l7-3z" />
+      <path d="M9 10h6M9 13h6M9 16h4" />
+    </svg>
+  );
+}
+
 function buildNavItems(
   role: string,
   canAccessCancelledBookings?: boolean,
@@ -181,6 +190,7 @@ function buildNavItems(
     return [
       { type: 'link', href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
       { type: 'link', href: '/restaurants', label: 'Restaurants', icon: <IconBuilding /> },
+      { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
     ];
   }
 
@@ -190,6 +200,7 @@ function buildNavItems(
       { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
       { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
       { type: 'link', href: '/reports', label: 'Reports', icon: <IconReport /> },
+      { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
       {
         type: 'group',
         label: 'Configuration',
@@ -630,26 +641,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   {navItems.map((item) => renderNavItem(item, true))}
                 </div>
               </nav>
-
-              <div className="border-t border-slate-100 p-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void openProfileModal();
-                    setSidebarOpen(false);
-                  }}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                >
-                  Profile
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-medium text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                >
-                  Sign out
-                </button>
-              </div>
             </aside>
           </>
         )}

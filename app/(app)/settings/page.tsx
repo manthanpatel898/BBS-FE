@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CompanyAdminRoute } from '@/components/auth/company-admin-route';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -12,18 +12,23 @@ import {
   createAddonService,
   createBanquetRule,
   createEventOption,
+  createEventPlanner,
   createHallDetail,
   createPaymentOption,
   deleteAddonService,
   deleteBanquetRule,
   deleteEventOption,
+  deleteEventPlanner,
   deleteHallDetail,
   deletePaymentOption,
   fetchMyRestaurant,
   fetchSettings,
+  hideHallDetailCombination,
+  restoreHallDetailCombination,
   updateAddonService,
   updateBanquetRule,
   updateEventOption,
+  updateEventPlanner,
   updateHallDetail,
   updateHallBookingInformationVisibility,
   updateMyRestaurantBranding,
@@ -31,6 +36,7 @@ import {
   uploadLogo,
 } from '@/lib/auth/api';
 import { AppSettings, Restaurant, SettingOption } from '@/lib/auth/types';
+import { buildHallDetailChoices } from '@/lib/hall-detail-combinations';
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
@@ -38,6 +44,7 @@ const inputCls =
 type SettingsTabKey =
   | 'paymentOptions'
   | 'eventOptions'
+  | 'eventPlanners'
   | 'hallDetails'
   | 'banquetRules'
   | 'addonServices'
@@ -245,6 +252,121 @@ function ToggleSettingCard({
   );
 }
 
+function HallDetailCombinationsSection({
+  hallOptions,
+  hiddenCombinations,
+  isSaving,
+  onHide,
+  onRestore,
+}: {
+  hallOptions: SettingOption[];
+  hiddenCombinations: string[];
+  isSaving: boolean;
+  onHide: (label: string) => void;
+  onRestore: (label: string) => void;
+}) {
+  const allCombinations = useMemo(
+    () => buildHallDetailChoices(hallOptions.map((option) => option.label)),
+    [hallOptions],
+  );
+  const hiddenSet = useMemo(
+    () => new Set(hiddenCombinations.map((value) => value.trim().toLowerCase())),
+    [hiddenCombinations],
+  );
+  const activeCombinations = allCombinations.filter(
+    (value) => !hiddenSet.has(value.trim().toLowerCase()),
+  );
+  const hiddenVisibleCombinations = allCombinations.filter((value) =>
+    hiddenSet.has(value.trim().toLowerCase()),
+  );
+
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+          System Generated
+        </p>
+        <h2 className="mt-1 text-xl font-semibold text-slate-900">
+          Hall Combinations
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Review every hall combination generated from your base hall list. Hide any
+          combination to remove it from the inquiry dropdown, then restore it here later
+          if needed.
+        </p>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Visible In Dropdown
+            </p>
+          </div>
+          <div className="divide-y divide-slate-200 bg-white">
+            {activeCombinations.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-slate-500">
+                No visible combinations are available right now.
+              </p>
+            ) : (
+              activeCombinations.map((label) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                >
+                  <p className="text-sm font-medium text-slate-900">{label}</p>
+                  <LoadingButton
+                    type="button"
+                    disabled={isSaving}
+                    isLoading={isSaving}
+                    onClick={() => onHide(label)}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                  >
+                    Hide
+                  </LoadingButton>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Hidden Combinations
+            </p>
+          </div>
+          <div className="divide-y divide-slate-200 bg-white">
+            {hiddenVisibleCombinations.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-slate-500">
+                Hidden combinations will appear here for recreation.
+              </p>
+            ) : (
+              hiddenVisibleCombinations.map((label) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                >
+                  <p className="text-sm font-medium text-slate-900">{label}</p>
+                  <LoadingButton
+                    type="button"
+                    disabled={isSaving}
+                    isLoading={isSaving}
+                    onClick={() => onRestore(label)}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-300 px-4 text-sm font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-60"
+                  >
+                    Recreate
+                  </LoadingButton>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function IconButton({
   label,
   onClick,
@@ -332,6 +454,7 @@ function SettingsTabs({
   const tabs: Array<{ key: SettingsTabKey; label: string }> = [
     { key: 'paymentOptions', label: 'Payment Options' },
     { key: 'eventOptions', label: 'Event Options' },
+    { key: 'eventPlanners', label: 'Event Planners' },
     { key: 'hallDetails', label: 'Hall Details' },
     { key: 'banquetRules', label: 'Banquet Rules' },
     { key: 'addonServices', label: 'Addon Services' },
@@ -373,6 +496,14 @@ function getTabMeta(tab: SettingsTabKey) {
         addPlaceholder: 'Add event option',
         addButtonLabel: 'Add event',
         emptyMessage: 'No event options configured yet.',
+      };
+    case 'eventPlanners':
+      return {
+        title: 'Event Planners',
+        description: 'Manage the event planner names available for confirmed booking assignment.',
+        addPlaceholder: 'Add event planner',
+        addButtonLabel: 'Add planner',
+        emptyMessage: 'No event planners configured yet.',
       };
     case 'hallDetails':
       return {
@@ -423,12 +554,15 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTabKey>('paymentOptions');
   const [paymentValue, setPaymentValue] = useState('');
   const [eventValue, setEventValue] = useState('');
+  const [eventPlannerValue, setEventPlannerValue] = useState('');
   const [hallDetailValue, setHallDetailValue] = useState('');
   const [banquetRuleValue, setBanquetRuleValue] = useState('');
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   const [editingPaymentValue, setEditingPaymentValue] = useState('');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editingEventValue, setEditingEventValue] = useState('');
+  const [editingEventPlannerId, setEditingEventPlannerId] = useState<string | null>(null);
+  const [editingEventPlannerValue, setEditingEventPlannerValue] = useState('');
   const [editingHallDetailId, setEditingHallDetailId] = useState<string | null>(null);
   const [editingHallDetailValue, setEditingHallDetailValue] = useState('');
   const [editingBanquetRuleId, setEditingBanquetRuleId] = useState<string | null>(null);
@@ -445,6 +579,7 @@ export default function SettingsPage() {
     const validTabs: SettingsTabKey[] = [
       'paymentOptions',
       'eventOptions',
+      'eventPlanners',
       'hallDetails',
       'banquetRules',
       'addonServices',
@@ -611,6 +746,23 @@ export default function SettingsPage() {
     setBanquetRuleValue('');
   }
 
+  async function handleEventPlannerAdd() {
+    const token = requireToken();
+    if (!token) return;
+
+    const label = eventPlannerValue.trim();
+    if (!label) {
+      showToast('Event planner name is required.', 'error');
+      return;
+    }
+
+    await mutateSettings(
+      () => createEventPlanner(token, label),
+      'Event planner added successfully.',
+    );
+    setEventPlannerValue('');
+  }
+
   async function handleHallDetailAdd() {
     const token = requireToken();
     if (!token) return;
@@ -699,6 +851,24 @@ export default function SettingsPage() {
     setEditingHallDetailValue('');
   }
 
+  async function handleEventPlannerSave() {
+    const token = requireToken();
+    if (!token || !editingEventPlannerId) return;
+
+    const label = editingEventPlannerValue.trim();
+    if (!label) {
+      showToast('Event planner name is required.', 'error');
+      return;
+    }
+
+    await mutateSettings(
+      () => updateEventPlanner(token, editingEventPlannerId, label),
+      'Event planner updated successfully.',
+    );
+    setEditingEventPlannerId(null);
+    setEditingEventPlannerValue('');
+  }
+
   async function handlePaymentDelete(id: string) {
     const token = requireToken();
     if (!token) return;
@@ -719,6 +889,16 @@ export default function SettingsPage() {
     );
   }
 
+  async function handleEventPlannerDelete(id: string) {
+    const token = requireToken();
+    if (!token) return;
+
+    await mutateSettings(
+      () => deleteEventPlanner(token, id),
+      'Event planner deleted successfully.',
+    );
+  }
+
   async function handleHallDetailDelete(id: string) {
     const token = requireToken();
     if (!token) return;
@@ -736,6 +916,26 @@ export default function SettingsPage() {
     await mutateSettings(
       () => updateHallBookingInformationVisibility(token, enabled),
       `Hall booking information ${enabled ? 'enabled' : 'disabled'} successfully.`,
+    );
+  }
+
+  async function handleHideHallDetailCombination(label: string) {
+    const token = requireToken();
+    if (!token) return;
+
+    await mutateSettings(
+      () => hideHallDetailCombination(token, label),
+      'Hall combination hidden successfully.',
+    );
+  }
+
+  async function handleRestoreHallDetailCombination(label: string) {
+    const token = requireToken();
+    if (!token) return;
+
+    await mutateSettings(
+      () => restoreHallDetailCombination(token, label),
+      'Hall combination recreated successfully.',
     );
   }
 
@@ -966,6 +1166,8 @@ export default function SettingsPage() {
                       ? settings.paymentOptions
                       : activeTab === 'eventOptions'
                         ? settings.eventOptions
+                        : activeTab === 'eventPlanners'
+                          ? settings.eventPlanners
                         : activeTab === 'hallDetails'
                           ? settings.hallDetails
                           : activeTab === 'banquetRules'
@@ -977,6 +1179,8 @@ export default function SettingsPage() {
                       ? paymentValue
                       : activeTab === 'eventOptions'
                         ? eventValue
+                        : activeTab === 'eventPlanners'
+                          ? eventPlannerValue
                         : activeTab === 'hallDetails'
                           ? hallDetailValue
                           : activeTab === 'banquetRules'
@@ -988,6 +1192,8 @@ export default function SettingsPage() {
                       ? editingPaymentId
                       : activeTab === 'eventOptions'
                         ? editingEventId
+                        : activeTab === 'eventPlanners'
+                          ? editingEventPlannerId
                         : activeTab === 'hallDetails'
                           ? editingHallDetailId
                           : activeTab === 'banquetRules'
@@ -999,6 +1205,8 @@ export default function SettingsPage() {
                       ? editingPaymentValue
                       : activeTab === 'eventOptions'
                         ? editingEventValue
+                        : activeTab === 'eventPlanners'
+                          ? editingEventPlannerValue
                         : activeTab === 'hallDetails'
                           ? editingHallDetailValue
                           : activeTab === 'banquetRules'
@@ -1011,6 +1219,8 @@ export default function SettingsPage() {
                       ? setPaymentValue
                       : activeTab === 'eventOptions'
                         ? setEventValue
+                        : activeTab === 'eventPlanners'
+                          ? setEventPlannerValue
                         : activeTab === 'hallDetails'
                           ? setHallDetailValue
                           : activeTab === 'banquetRules'
@@ -1022,6 +1232,8 @@ export default function SettingsPage() {
                       ? () => void handlePaymentAdd()
                       : activeTab === 'eventOptions'
                         ? () => void handleEventAdd()
+                        : activeTab === 'eventPlanners'
+                          ? () => void handleEventPlannerAdd()
                         : activeTab === 'hallDetails'
                           ? () => void handleHallDetailAdd()
                           : activeTab === 'banquetRules'
@@ -1037,6 +1249,11 @@ export default function SettingsPage() {
                     if (activeTab === 'eventOptions') {
                       setEditingEventId(option.id);
                       setEditingEventValue(option.label);
+                      return;
+                    }
+                    if (activeTab === 'eventPlanners') {
+                      setEditingEventPlannerId(option.id);
+                      setEditingEventPlannerValue(option.label);
                       return;
                     }
                     if (activeTab === 'hallDetails') {
@@ -1057,6 +1274,8 @@ export default function SettingsPage() {
                       ? setEditingPaymentValue
                       : activeTab === 'eventOptions'
                         ? setEditingEventValue
+                        : activeTab === 'eventPlanners'
+                          ? setEditingEventPlannerValue
                         : activeTab === 'hallDetails'
                           ? setEditingHallDetailValue
                           : activeTab === 'banquetRules'
@@ -1068,6 +1287,8 @@ export default function SettingsPage() {
                       ? () => void handlePaymentSave()
                       : activeTab === 'eventOptions'
                         ? () => void handleEventSave()
+                        : activeTab === 'eventPlanners'
+                          ? () => void handleEventPlannerSave()
                         : activeTab === 'hallDetails'
                           ? () => void handleHallDetailSave()
                           : activeTab === 'banquetRules'
@@ -1083,6 +1304,11 @@ export default function SettingsPage() {
                     if (activeTab === 'eventOptions') {
                       setEditingEventId(null);
                       setEditingEventValue('');
+                      return;
+                    }
+                    if (activeTab === 'eventPlanners') {
+                      setEditingEventPlannerId(null);
+                      setEditingEventPlannerValue('');
                       return;
                     }
                     if (activeTab === 'hallDetails') {
@@ -1107,6 +1333,10 @@ export default function SettingsPage() {
                       void handleEventDelete(id);
                       return;
                     }
+                    if (activeTab === 'eventPlanners') {
+                      void handleEventPlannerDelete(id);
+                      return;
+                    }
                     if (activeTab === 'hallDetails') {
                       void handleHallDetailDelete(id);
                       return;
@@ -1118,6 +1348,15 @@ export default function SettingsPage() {
                     void handleAddonDelete(id);
                   }}
                 />
+                {activeTab === 'hallDetails' ? (
+                  <HallDetailCombinationsSection
+                    hallOptions={settings.hallDetails}
+                    hiddenCombinations={settings.hiddenHallDetailCombinations ?? []}
+                    isSaving={isSaving}
+                    onHide={(label) => void handleHideHallDetailCombination(label)}
+                    onRestore={(label) => void handleRestoreHallDetailCombination(label)}
+                  />
+                ) : null}
               </div>
             )}
           </div>

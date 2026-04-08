@@ -7,6 +7,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import {
   addAdvancePayment,
   addOrderFollowUp,
+  assignEventPlanner,
   cancelOrder,
   confirmInquiry,
   createOrder,
@@ -31,11 +32,11 @@ import {
   OrderStatus,
   PaymentMode,
 } from '@/lib/auth/types';
+import { filterHiddenHallDetailChoices } from '@/lib/hall-detail-combinations';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
 type ViewMode = 'list' | 'calendar';
-type CalendarScope = 'month' | 'week' | 'day';
 
 type SelectedMenuSection = {
   sectionTitle: string;
@@ -190,31 +191,6 @@ const fallbackEventOptions = [
 const EVENT_OTHER_VALUE = '__other__';
 const ADDON_OTHER_VALUE = '__other__';
 
-function buildHallDetailChoices(hallLabels: string[]) {
-  const normalized = Array.from(
-    new Set(hallLabels.map((label) => label.trim()).filter(Boolean)),
-  );
-
-  const combinationsBySize = new Map<number, string[]>();
-
-  function visit(startIndex: number, path: string[]) {
-    if (path.length > 0) {
-      const current = combinationsBySize.get(path.length) ?? [];
-      current.push(path.join(' + '));
-      combinationsBySize.set(path.length, current);
-    }
-
-    for (let index = startIndex; index < normalized.length; index += 1) {
-      visit(index + 1, [...path, normalized[index]]);
-    }
-  }
-
-  visit(0, []);
-  return Array.from(combinationsBySize.entries())
-    .sort(([sizeA], [sizeB]) => sizeA - sizeB)
-    .flatMap(([, values]) => values);
-}
-
 type MenuSelectionTrackingState = {
   orderId: string;
   startedAt: string;
@@ -229,15 +205,8 @@ export default function BookingsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const todayKey = toDateInputValue(new Date());
-  const [statusFilter, setStatusFilter] = useState('');
-  const [filterDate, setFilterDate] = useState(todayKey);
-  const [calendarScope, setCalendarScope] = useState<CalendarScope>('month');
-  const [isCalendarScopeOpen, setIsCalendarScopeOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     return new Date();
   });
@@ -284,6 +253,8 @@ export default function BookingsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const [selectedEventPlanner, setSelectedEventPlanner] = useState('');
+  const [isAssigningEventPlanner, setIsAssigningEventPlanner] = useState(false);
   const [dayRecordsPopup, setDayRecordsPopup] = useState<{
     dateKey: string;
     orders: CalendarOrder[];
@@ -330,21 +301,21 @@ export default function BookingsPage() {
       try {
         setIsLoading(true);
         setPageError('');
+        const monthRange = getMonthRange(calendarMonth);
         const [ordersResponse, categoriesResponse, settingsResponse] = await Promise.all([
           fetchOrders(token, {
-            page,
-            limit,
+            page: 1,
+            limit: 1000,
             search: '',
-            status: statusFilter,
-            from: filterDate,
-            to: filterDate,
+            status: '',
+            from: monthRange.from,
+            to: monthRange.to,
           }),
           fetchCategories(token, { page: 1, limit: 100, search: '' }),
           fetchSettings(token),
         ]);
 
         setOrders(ordersResponse.items);
-        setTotalPages(ordersResponse.pagination.totalPages);
         setTotalItems(ordersResponse.pagination.total);
         setCategories(categoriesResponse.items);
         setSettings(settingsResponse);
@@ -369,11 +340,12 @@ export default function BookingsPage() {
     void loadData();
   }, [
     accessToken,
-    filterDate,
-    limit,
-    page,
-    statusFilter,
+    calendarMonth,
   ]);
+
+  useEffect(() => {
+    setSelectedEventPlanner(detailOrder?.currentEventPlanner?.plannerName ?? '');
+  }, [detailOrder?.currentEventPlanner?.plannerName]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -381,7 +353,7 @@ export default function BookingsPage() {
     }
 
     const token = accessToken;
-    const monthRange = getCalendarRange(calendarScope, calendarMonth);
+    const monthRange = getMonthRange(calendarMonth);
 
     async function loadCalendar() {
       try {
@@ -402,7 +374,7 @@ export default function BookingsPage() {
     }
 
     void loadCalendar();
-  }, [accessToken, calendarMonth, calendarScope]);
+  }, [accessToken, calendarMonth]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -434,8 +406,12 @@ export default function BookingsPage() {
   const isCustomEventSelected = formState.eventName === EVENT_OTHER_VALUE;
   const hallDetailOptions = settings?.hallDetails.map((option) => option.label) ?? [];
   const generatedHallDetailChoices = useMemo(
-    () => buildHallDetailChoices(hallDetailOptions),
-    [hallDetailOptions],
+    () =>
+      filterHiddenHallDetailChoices(
+        hallDetailOptions,
+        settings?.hiddenHallDetailCombinations ?? [],
+      ),
+    [hallDetailOptions, settings?.hiddenHallDetailCombinations],
   );
   const hallDetailChoices =
     formState.hallDetails && !generatedHallDetailChoices.includes(formState.hallDetails)
@@ -506,22 +482,22 @@ export default function BookingsPage() {
     setSelectedCalendarDay(formatDateKey(calendarMonth));
   }, [calendarMonth]);
 
-  async function reloadOrders(token: string, nextPage: number) {
+  async function reloadOrders(token: string) {
+    const monthRange = getMonthRange(calendarMonth);
     const response = await fetchOrders(token, {
-      page: nextPage,
-      limit,
+      page: 1,
+      limit: 1000,
       search: '',
-      status: statusFilter,
-      from: filterDate,
-      to: filterDate,
+      status: '',
+      from: monthRange.from,
+      to: monthRange.to,
     });
     setOrders(response.items);
-    setTotalPages(response.pagination.totalPages);
     setTotalItems(response.pagination.total);
   }
 
   async function reloadCalendar(token: string) {
-    const response = await fetchCalendarOrders(token, getCalendarRange(calendarScope, calendarMonth));
+    const response = await fetchCalendarOrders(token, getMonthRange(calendarMonth));
     setCalendarOrders(response);
   }
 
@@ -531,8 +507,8 @@ export default function BookingsPage() {
     return response.items;
   }
 
-  async function refreshBookingViews(token: string, nextPage = page) {
-    await Promise.all([reloadOrders(token, nextPage), reloadCalendar(token)]);
+  async function refreshBookingViews(token: string) {
+    await Promise.all([reloadOrders(token), reloadCalendar(token)]);
   }
 
   function resetWizard() {
@@ -693,6 +669,39 @@ export default function BookingsPage() {
       );
     } finally {
       setIsDetailLoading(false);
+    }
+  }
+
+  async function handleAssignEventPlanner() {
+    if (!accessToken || !detailOrder) {
+      return;
+    }
+
+    const plannerName = selectedEventPlanner.trim();
+    if (!plannerName) {
+      setToast({ type: 'error', message: 'Select an event planner first.' });
+      return;
+    }
+
+    try {
+      setIsAssigningEventPlanner(true);
+      const updatedOrder = await assignEventPlanner(accessToken, detailOrder.id, plannerName);
+      setDetailOrder(updatedOrder);
+      setSelectedEventPlanner(updatedOrder.currentEventPlanner?.plannerName ?? plannerName);
+      setOrders((current) =>
+        current.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)),
+      );
+      setToast({ type: 'success', message: 'Event planner assigned successfully.' });
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to assign event planner.',
+      });
+    } finally {
+      setIsAssigningEventPlanner(false);
     }
   }
 
@@ -1024,8 +1033,7 @@ export default function BookingsPage() {
       setEditingOrder(null);
       setFormState(initialFormState);
       setCustomEventName('');
-      setPage(1);
-      await refreshBookingViews(accessToken, 1);
+      await refreshBookingViews(accessToken);
     } catch (requestError) {
       setToast({
         type: 'error',
@@ -1156,7 +1164,7 @@ export default function BookingsPage() {
       });
       resetWizard();
       setToast({ type: 'success', message: 'Booking details saved successfully.' });
-      await refreshBookingViews(accessToken, page);
+      await refreshBookingViews(accessToken);
       if (isDetailOpen) {
         await openOrderDetail(editingOrder.id);
       }
@@ -1194,8 +1202,7 @@ export default function BookingsPage() {
         setFormState(initialFormState);
         setCustomEventName('');
         setToast({ type: 'success', message: 'Booking confirmed successfully.' });
-        setPage(1);
-        await refreshBookingViews(accessToken, 1);
+        await refreshBookingViews(accessToken);
         await openOrderDetail(createdOrder.id, createdOrder);
       } else if (advancePopup?.order) {
         // Convert an existing inquiry to confirmed
@@ -1208,7 +1215,7 @@ export default function BookingsPage() {
         });
         setAdvancePopup(null);
         setToast({ type: 'success', message: 'Inquiry converted to booking successfully.' });
-        await refreshBookingViews(accessToken, page);
+        await refreshBookingViews(accessToken);
         if (isDetailOpen) {
           await openOrderDetail(advancePopup.order.id);
         }
@@ -1243,8 +1250,7 @@ export default function BookingsPage() {
       setFormState(initialFormState);
       setCustomEventName('');
       setToast({ type: 'success', message: 'Inquiry created successfully.' });
-      setPage(1);
-      await refreshBookingViews(accessToken, 1);
+      await refreshBookingViews(accessToken);
     } catch (requestError) {
       setToast({
         type: 'error',
@@ -1273,7 +1279,7 @@ export default function BookingsPage() {
             ? `Order cancelled successfully. Voucher ${updatedOrder.voucher.voucherNumber} generated.`
             : 'Order cancelled successfully.',
       });
-      await refreshBookingViews(accessToken, page);
+      await refreshBookingViews(accessToken);
 
       if (isDetailOpen) {
         await openOrderDetail(orderId);
@@ -1301,7 +1307,7 @@ export default function BookingsPage() {
       await deleteOrder(accessToken, orderId);
       setDeletePopup(null);
       setToast({ type: 'success', message: 'Inquiry deleted successfully.' });
-      await refreshBookingViews(accessToken, page);
+      await refreshBookingViews(accessToken);
       if (isDetailOpen) {
         setIsDetailOpen(false);
         setDetailOrder(null);
@@ -1338,7 +1344,7 @@ export default function BookingsPage() {
       });
       setFollowUpPopup(null);
       setToast({ type: 'success', message: 'Follow up added successfully.' });
-      await refreshBookingViews(accessToken, page);
+      await refreshBookingViews(accessToken);
       if (isDetailOpen) {
         setDetailOrder(updatedOrder);
       }
@@ -1582,7 +1588,7 @@ export default function BookingsPage() {
         notes: order.notes ?? undefined,
       });
       setToast({ type: 'success', message: 'Booking marked as completed.' });
-      await refreshBookingViews(accessToken, page);
+      await refreshBookingViews(accessToken);
       if (isDetailOpen) {
         await openOrderDetail(order.id);
       }
@@ -1634,92 +1640,16 @@ function selectionStatus(order: Order) {
   return (
     <BookingsRoute>
       <section className="space-y-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
               Bookings
             </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">Inquiry and booking flow</h1>
-          </div>
-          <div className="flex items-center justify-between gap-3 sm:justify-end">
-            <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  viewMode === 'list'
-                    ? 'bg-amber-400 text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                List
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('calendar')}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                  viewMode === 'calendar'
-                    ? 'bg-amber-400 text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                Calendar
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => openCreateInquiry()}
-              className={primaryButtonCls}
-            >
-              New inquiry
-            </button>
+            <h1 className="mt-1 text-2xl font-bold text-slate-900">Bookings</h1>
           </div>
         </div>
 
         {toast ? <ToastMessage toast={toast} /> : null}
-
-        {viewMode === 'list' ? (
-          <div className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[220px_220px_auto] md:items-end">
-            <Field label="Status">
-              <select
-                value={statusFilter}
-                onChange={(event) => {
-                  setPage(1);
-                  setStatusFilter(event.target.value);
-                }}
-                className={inputCls}
-              >
-                <option value="">All statuses</option>
-                <option value="INQUIRY">Inquiry</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="CANCELLED">Cancelled</option>
-                <option value="COMPLETED">Completed</option>
-              </select>
-            </Field>
-            <Field label="Function Date">
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(event) => {
-                  const nextDate = event.target.value;
-                  setPage(1);
-                  setFilterDate(nextDate);
-                  if (nextDate) {
-                    const nextCalendarDate = new Date(`${nextDate}T00:00:00`);
-                    setCalendarMonth(nextCalendarDate);
-                    setSelectedCalendarDay(nextDate);
-                  }
-                }}
-                aria-label="Filter function date"
-                className={`${dateTimeInputCls} min-h-12`}
-              />
-            </Field>
-            <div className="text-right">
-              <p className="text-xs text-slate-500">Bookings on selected function date</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{totalItems}</p>
-            </div>
-          </div>
-        ) : null}
 
         {pageError ? (
           <EmptyState
@@ -1729,6 +1659,71 @@ function selectionStatus(order: Order) {
           />
         ) : viewMode === 'list' ? (
           <>
+            <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      List View
+                    </p>
+                    <h2 className="mt-2 text-2xl font-bold text-slate-900">
+                      {formatMonthLabel(calendarMonth)}
+                    </h2>
+                  </div>
+                  <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('list')}
+                      className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-white transition"
+                    >
+                      List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('calendar')}
+                      className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                    >
+                      Calendar
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((current) => shiftMonth(current, -1))}
+                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <IconGlyph icon="previous" />
+                      <span>{formatMonthLabel(shiftMonth(calendarMonth, -1))}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth(new Date())}
+                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                  >
+                    Current month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth((current) => shiftMonth(current, 1))}
+                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <span>{formatMonthLabel(shiftMonth(calendarMonth, 1))}</span>
+                      <IconGlyph icon="next" />
+                    </span>
+                  </button>
+                  <div className="ml-auto rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-right">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Monthly Records
+                    </p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">{totalItems}</p>
+                  </div>
+                </div>
+              </div>
+
             <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
@@ -1750,7 +1745,7 @@ function selectionStatus(order: Order) {
                         <td className="px-5 py-6" colSpan={6}>
                           <EmptyState
                             title="No bookings found"
-                            description="Try a different search, clear the status filter, or create a new inquiry."
+                            description="No bookings are available for this month."
                             compact
                           />
                         </td>
@@ -1821,15 +1816,6 @@ function selectionStatus(order: Order) {
                                 onClick={() => void openOrderDetail(order.id, order)}
                                 icon="view"
                               />
-                              {(order.status === 'INQUIRY' || order.status === 'CONFIRMED') ? (
-                                <button
-                                  type="button"
-                                  onClick={() => openCategoryChooser(order)}
-                                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-                                >
-                                  {order.categorySnapshot ? 'Change Category' : 'Choose category'}
-                                </button>
-                              ) : null}
                               {isCompanyAdmin ? (
                                 <IconActionButton
                                   label="Delete inquiry"
@@ -1884,7 +1870,7 @@ function selectionStatus(order: Order) {
               ) : orders.length === 0 ? (
                 <EmptyState
                   title="No bookings found"
-                  description="Try a different search, clear filters, or create a new inquiry."
+                  description="No bookings are available for this month."
                   compact
                 />
               ) : (
@@ -1949,15 +1935,6 @@ function selectionStatus(order: Order) {
                         icon="view"
                         compact
                       />
-                      {(order.status === 'INQUIRY' || order.status === 'CONFIRMED') ? (
-                        <button
-                          type="button"
-                          onClick={() => openCategoryChooser(order)}
-                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
-                        >
-                          {order.categorySnapshot ? 'Change Category' : 'Choose category'}
-                        </button>
-                      ) : null}
                       {isCompanyAdmin ? (
                         <IconActionButton
                           label="Delete inquiry"
@@ -1995,28 +1972,6 @@ function selectionStatus(order: Order) {
               )}
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <p>
-                <span className="text-slate-500">Page {page} of {totalPages} · {totalItems} total</span>
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((currentPage) => currentPage - 1)}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((currentPage) => currentPage + 1)}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
             </div>
           </>
         ) : (
@@ -2028,50 +1983,35 @@ function selectionStatus(order: Order) {
                   Calendar View
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {formatCalendarHeading(calendarScope, calendarMonth)}
+                  {formatMonthLabel(calendarMonth)}
                 </h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCalendarScopeOpen((current) => !current)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
-                >
-                  <span>View</span>
-                  <span className={`text-slate-400 transition-transform ${isCalendarScopeOpen ? 'rotate-180' : ''}`}>
-                    <IconChevronDown />
-                  </span>
-                </button>
-              </div>
-              {isCalendarScopeOpen ? (
                 <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                  {(['month', 'week', 'day'] as CalendarScope[]).map((scope) => (
-                    <button
-                      key={scope}
-                      type="button"
-                      onClick={() => {
-                        setCalendarScope(scope);
-                        setIsCalendarScopeOpen(false);
-                      }}
-                      className={`rounded-lg px-4 py-2 text-sm font-medium capitalize transition ${
-                        calendarScope === scope
-                          ? 'bg-amber-400 text-white'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {scope}
-                    </button>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    List
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('calendar')}
+                    className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-white transition"
+                  >
+                    Calendar
+                  </button>
                 </div>
-              ) : null}
+              </div>
               <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
                   <button
                     type="button"
-                    onClick={() => setCalendarMonth((current) => shiftCalendarDate(current, calendarScope, -1))}
+                    onClick={() => setCalendarMonth((current) => shiftMonth(current, -1))}
                     className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
                   >
                     <span className="inline-flex items-center gap-2">
                       <IconGlyph icon="previous" />
-                      <span>{formatMonthLabel(shiftCalendarDate(calendarMonth, calendarScope, -1))}</span>
+                      <span>{formatMonthLabel(shiftMonth(calendarMonth, -1))}</span>
                     </span>
                   </button>
                   <button
@@ -2083,11 +2023,11 @@ function selectionStatus(order: Order) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCalendarMonth((current) => shiftCalendarDate(current, calendarScope, 1))}
+                    onClick={() => setCalendarMonth((current) => shiftMonth(current, 1))}
                     className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
                   >
                     <span className="inline-flex items-center gap-2">
-                      <span>{formatMonthLabel(shiftCalendarDate(calendarMonth, calendarScope, 1))}</span>
+                      <span>{formatMonthLabel(shiftMonth(calendarMonth, 1))}</span>
                       <IconGlyph icon="next" />
                     </span>
                   </button>
@@ -2098,7 +2038,6 @@ function selectionStatus(order: Order) {
                 Loading calendar…
               </div>
             ) : (
-              calendarScope === 'month' ? (
                 <div className="space-y-4">
                   {calendarOrders.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
@@ -2129,6 +2068,10 @@ function selectionStatus(order: Order) {
                         { key: 'booked', count: statusCounts.booked, markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
                         { key: 'inquiry', count: statusCounts.inquiry, markerClassName: 'bg-amber-300', textClassName: 'text-slate-800' },
                         { key: 'cancelled', count: statusCounts.cancelled, markerClassName: 'bg-red-300', textClassName: 'text-slate-800' },
+                      ];
+                      const compactStatusRows = [
+                        ...statusRows.filter((statusRow) => statusRow.count > 0),
+                        ...Array.from({ length: 3 - statusRows.filter((statusRow) => statusRow.count > 0).length }, () => null),
                       ];
 
                       return (
@@ -2163,15 +2106,23 @@ function selectionStatus(order: Order) {
                             <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isHighlightedDay ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
                           </div>
                           <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-3 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
-                            {statusRows.map((statusRow, index) => (
+                            {compactStatusRows.map((statusRow, index) => (
                               <div
-                                key={statusRow.key}
-                                className={`flex h-full items-center gap-1.5 ${index > 0 ? `border-t ${isHotDate ? 'border-red-200' : 'border-slate-200'}` : ''}`}
+                                key={statusRow?.key ?? `status-empty-${index}`}
+                                className={`flex h-full items-center gap-1.5 ${
+                                  index > 0 && compactStatusRows.slice(0, index).some(Boolean) && statusRow
+                                    ? `border-t ${isHotDate ? 'border-red-200' : 'border-slate-200'}`
+                                    : ''
+                                }`}
                               >
-                                <span className={`h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 ${statusRow.markerClassName}`} />
-                                <span className={`text-[11px] font-medium tabular-nums sm:text-xs ${statusRow.textClassName}`}>
-                                  {statusRow.count}
-                                </span>
+                                {statusRow ? (
+                                  <>
+                                    <span className={`h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 ${statusRow.markerClassName}`} />
+                                    <span className={`text-[11px] font-medium tabular-nums sm:text-xs ${statusRow.textClassName}`}>
+                                      {statusRow.count}
+                                    </span>
+                                  </>
+                                ) : null}
                               </div>
                             ))}
                           </div>
@@ -2180,84 +2131,6 @@ function selectionStatus(order: Order) {
                     })}
                   </div>
                 </div>
-              ) : (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">
-                {calendarOrders.length === 0 ? (
-                  <div className="xl:col-span-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                    No bookings in this range. You can still browse dates and add a new inquiry.
-                  </div>
-                ) : null}
-                <div className="space-y-3">
-                  {(calendarScope === 'week' ? buildWeekDays(calendarMonth) : [calendarMonth]).map((day) => {
-                    const dayKey = formatDateKey(day);
-                    const dayOrders = ordersByDate.get(dayKey) ?? [];
-                    const isHotDate = hotDateKeys.has(dayKey);
-                    return (
-                      <button
-                        key={dayKey}
-                        type="button"
-                        onClick={() => {
-                          setSelectedCalendarDay(dayKey);
-                          setDayRecordsPopup({ dateKey: dayKey, orders: dayOrders });
-                        }}
-                        className={`w-full rounded-[24px] border p-4 text-left transition ${
-                          isHotDate
-                            ? 'border-red-200 bg-red-50/60 hover:border-red-300'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className={`text-sm font-semibold ${isHotDate ? 'text-red-700' : 'text-slate-900'}`}>{formatDisplayDate(dayKey)}</p>
-                              {isHotDate ? (
-                                <span className="inline-flex items-center gap-0.5 rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-bold text-white">
-                                  🔥 Hot Date
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                          <span className="text-xs font-medium text-slate-500" />
-                        </div>
-                        <div className="mt-3 space-y-2">
-                          <div className={`rounded-2xl border border-dashed px-4 py-4 text-sm ${isHotDate ? 'border-red-200 text-red-600' : 'border-slate-200 text-slate-500'}`}>
-                            {dayOrders.length === 0
-                              ? isHotDate ? 'Hot date — no bookings yet.' : 'No bookings for this day.'
-                              : `${dayOrders.length} booking${dayOrders.length > 1 ? 's' : ''} available. Tap to open the day panel.`}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Day Panel</p>
-                  <h3 className="mt-2 text-xl font-semibold text-slate-900">
-                    {formatDisplayDate(selectedCalendarDay)}
-                  </h3>
-                  {selectedCalendarOrders.length === 0 ? (
-                    <p className="mt-4 text-sm text-slate-500">No bookings for this day.</p>
-                  ) : (
-                    <div className="mt-4 space-y-2">
-                      {selectedCalendarOrders.map((order) => (
-                        <button
-                          key={`day-panel-${order.id}`}
-                          type="button"
-                          onClick={() => void openOrderDetail(order.id)}
-                          className={`w-full rounded-2xl border px-3 py-2 text-left text-xs transition hover:opacity-90 ${statusClasses(
-                            order.status,
-                          )}`}
-                        >
-                          <p className="font-semibold">{order.orderId}</p>
-                          <p className="mt-1">{formatTimeRange(order.startTime, order.endTime)}</p>
-                          <p className="mt-1 truncate opacity-80">{order.customerName}</p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </aside>
-              </div>
-              )
             )}
           </div>
         )}
@@ -3479,17 +3352,13 @@ function selectionStatus(order: Order) {
                                 <div>
                                   <p className="text-sm font-semibold text-slate-900">Hall Slot Status</p>
                                   <p className="mt-1 text-xs text-slate-500">
-                                    Green means booked. Yellow means inquiry pending.
+                                    Only confirmed bookings are shown here.
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3 text-[11px] font-medium text-slate-600">
                                   <span className="inline-flex items-center gap-1.5">
                                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                                     Booked
-                                  </span>
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                                    Inquiry
                                   </span>
                                 </div>
                               </div>
@@ -3521,14 +3390,8 @@ function selectionStatus(order: Order) {
                                           return (
                                             <td key={`${slot}-${hall}`} className="border border-slate-200 bg-white px-3 py-3 text-center">
                                               {status ? (
-                                                <span
-                                                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${
-                                                    status === 'confirmed'
-                                                      ? 'bg-emerald-100 text-emerald-700'
-                                                      : 'bg-amber-100 text-amber-700'
-                                                  }`}
-                                                >
-                                                  {status === 'confirmed' ? '✓' : '!'}
+                                                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                                                  ✓
                                                 </span>
                                               ) : (
                                                 <span className="text-slate-300">-</span>
@@ -3851,6 +3714,54 @@ function selectionStatus(order: Order) {
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                         Actions
                       </p>
+                      {detailOrder.status === 'CONFIRMED' ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex flex-col gap-3">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                                Event Planner
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Attach this confirmed booking to an event planner for planner-wise reporting.
+                              </p>
+                            </div>
+                            <div className="flex flex-col gap-3 sm:flex-row">
+                              <select
+                                value={selectedEventPlanner}
+                                onChange={(event) => setSelectedEventPlanner(event.target.value)}
+                                className={inputCls}
+                              >
+                                <option value="">Select event planner</option>
+                                {(settings?.eventPlanners ?? []).map((planner) => (
+                                  <option key={planner.id} value={planner.label}>
+                                    {planner.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <LoadingButton
+                                type="button"
+                                disabled={
+                                  isAssigningEventPlanner ||
+                                  !selectedEventPlanner.trim() ||
+                                  selectedEventPlanner ===
+                                    (detailOrder.currentEventPlanner?.plannerName ?? '')
+                                }
+                                isLoading={isAssigningEventPlanner}
+                                onClick={() => void handleAssignEventPlanner()}
+                                className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                              >
+                                Assign planner
+                              </LoadingButton>
+                            </div>
+                            {detailOrder.currentEventPlanner ? (
+                              <p className="text-sm text-slate-600">
+                                Current planner: <span className="font-semibold text-slate-900">{detailOrder.currentEventPlanner.plannerName}</span>{' '}
+                                on {formatFollowUpDate(detailOrder.currentEventPlanner.assignedAt)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
                       {detailOrder.cancelReason ? (
                         <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                           Cancel reason: {detailOrder.cancelReason}
@@ -3858,13 +3769,22 @@ function selectionStatus(order: Order) {
                       ) : null}
                       <div className="mt-4 flex flex-wrap gap-3">
                         {detailOrder.status === 'CONFIRMED' ? (
-                          <Link
-                            href={`/print/order?id=${detailOrder.id}`}
-                            target="_blank"
-                            className={ghostButtonCls}
-                          >
-                            Print
-                          </Link>
+                          <>
+                            <Link
+                              href={`/print/order?id=${detailOrder.id}`}
+                              target="_blank"
+                              className={ghostButtonCls}
+                            >
+                              Print
+                            </Link>
+                            <Link
+                              href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
+                              target="_blank"
+                              className={ghostButtonCls}
+                            >
+                              Kitchen Print
+                            </Link>
+                          </>
                         ) : null}
                         {detailOrder.status === 'INQUIRY' ? (
                           <button
@@ -4103,7 +4023,7 @@ function buildDayHallSlotMatrix(orders: CalendarOrder[], hallLabels: string[]) {
   const slotPriority = ['Breakfast', 'Lunch', 'Dinner'];
   const slots = slotPriority;
   const halls = Array.from(new Set(hallLabels.map((hall) => hall.trim()).filter(Boolean)));
-  const cellMap = new Map<string, 'confirmed' | 'inquiry'>();
+  const cellMap = new Map<string, 'confirmed'>();
 
   for (const order of orders) {
     const slot = order.serviceSlot?.trim();
@@ -4111,11 +4031,8 @@ function buildDayHallSlotMatrix(orders: CalendarOrder[], hallLabels: string[]) {
 
     for (const hall of getHallParts(order.hallDetails)) {
       const key = `${hall}::${slot}`;
-      const current = cellMap.get(key);
       if (order.status === 'CONFIRMED' || order.status === 'COMPLETED') {
         cellMap.set(key, 'confirmed');
-      } else if (order.status === 'INQUIRY' && current !== 'confirmed') {
-        cellMap.set(key, 'inquiry');
       }
     }
   }
@@ -4521,19 +4438,6 @@ function formatMonthLabel(value: Date) {
   }).format(value);
 }
 
-function formatCalendarHeading(scope: CalendarScope, value: Date) {
-  if (scope === 'day') {
-    return formatDisplayDate(value);
-  }
-
-  if (scope === 'week') {
-    const weekDays = buildWeekDays(value);
-    return `${formatDisplayDate(weekDays[0])} - ${formatDisplayDate(weekDays[6])}`;
-  }
-
-  return formatMonthLabel(value);
-}
-
 function formatDateKey(value: string | Date) {
   const date = new Date(value);
   const year = date.getFullYear();
@@ -4561,57 +4465,9 @@ function getMonthRange(value: Date) {
   };
 }
 
-function getWeekRange(value: Date) {
-  const days = buildWeekDays(value);
-  return {
-    from: toDateInputValue(days[0]),
-    to: toDateInputValue(days[6]),
-  };
-}
-
-function getDayRange(value: Date) {
-  const day = toDateInputValue(value);
-  return { from: day, to: day };
-}
-
-function getCalendarRange(scope: CalendarScope, value: Date) {
-  if (scope === 'week') {
-    return getWeekRange(value);
-  }
-
-  if (scope === 'day') {
-    return getDayRange(value);
-  }
-
-  return getMonthRange(value);
-}
-
-function shiftCalendarDate(value: Date, scope: CalendarScope, direction: -1 | 1) {
+function shiftMonth(value: Date, direction: -1 | 1) {
   const next = new Date(value);
-
-  if (scope === 'day') {
-    next.setDate(next.getDate() + direction);
-    return next;
-  }
-
-  if (scope === 'week') {
-    next.setDate(next.getDate() + direction * 7);
-    return next;
-  }
-
   return new Date(next.getFullYear(), next.getMonth() + direction, 1);
-}
-
-function buildWeekDays(value: Date) {
-  const current = new Date(value);
-  const start = new Date(current);
-  start.setDate(current.getDate() - current.getDay());
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(start);
-    day.setDate(start.getDate() + index);
-    return day;
-  });
 }
 
 function buildMonthGrid(month: Date) {
