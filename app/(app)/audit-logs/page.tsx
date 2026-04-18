@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { fetchAuditLogs } from '@/lib/auth/api';
 import { AuditLogItem } from '@/lib/auth/types';
 
@@ -158,6 +159,10 @@ function operationBadge(operation: AuditLogItem['operation']) {
 
 export default function AuditLogsPage() {
   const { accessToken, isReady, user } = useAuth();
+  useAppPageHeader({
+    eyebrow: 'Audit Logs',
+    title: 'Audit Logs',
+  });
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -230,10 +235,6 @@ export default function AuditLogsPage() {
       <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">
-              {user.role === 'super_admin' ? 'Platform Control' : 'Restaurant Activity'}
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">Audit Logs</h1>
             <p className="mt-2 text-sm text-slate-500">
               Review activity history with actor, module, action, and clear before/after values.
             </p>

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { CompanyAdminRoute } from '@/components/auth/company-admin-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
@@ -54,6 +55,10 @@ const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 
 export default function EmployeesPage() {
+  useAppPageHeader({
+    eyebrow: 'Employees',
+    title: 'Employees',
+  });
   const { accessToken, user } = useAuth();
   const { showToast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -222,10 +227,6 @@ export default function EmployeesPage() {
       <section className="space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              Company Admin
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">Employees</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
               Company admins can create and manage employee login access for this restaurant.
             </p>

@@ -2,6 +2,7 @@
 
 import { useMemo, useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { addOrderFollowUp, fetchOrderById, fetchOrders } from '@/lib/auth/api';
 import { Order, OrderFollowUp, OrderStatus } from '@/lib/auth/types';
@@ -184,6 +185,10 @@ type FollowUpPopupState = {
 };
 
 export default function FollowupsPage() {
+  useAppPageHeader({
+    eyebrow: 'Followups',
+    title: 'Followups',
+  });
   const { accessToken } = useAuth();
   const today = new Date();
 
@@ -308,20 +313,12 @@ export default function FollowupsPage() {
 
   return (
     <section className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Followups</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Unconfirmed inquiries by month — click a date to manage follow-ups.
-        </p>
-      </div>
-
       {/* Month navigation */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+          {/* <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
             Follow Ups
-          </p>
+          </p> */}
           <h2 className="mt-2 text-2xl font-bold text-slate-900">{formatMonthLabel(currentMonth)}</h2>
         </div>
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 md:justify-end">

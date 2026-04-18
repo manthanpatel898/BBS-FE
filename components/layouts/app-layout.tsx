@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
 import { fetchMyRestaurant } from '@/lib/auth/api';
@@ -23,6 +23,26 @@ type NavGroupItem = {
 };
 
 type NavItem = NavLinkItem | NavGroupItem;
+
+type AppPageHeader = {
+  eyebrow: string;
+  title: string;
+} | null;
+
+const AppPageHeaderContext = createContext<React.Dispatch<React.SetStateAction<AppPageHeader>> | null>(null);
+
+export function useAppPageHeader(header: AppPageHeader) {
+  const setPageHeader = useContext(AppPageHeaderContext);
+
+  useEffect(() => {
+    if (!setPageHeader || !header) {
+      return;
+    }
+
+    setPageHeader(header);
+    return () => setPageHeader(null);
+  }, [header?.eyebrow, header?.title, setPageHeader]);
+}
 
 function IconGrid() {
   return (
@@ -261,6 +281,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { accessToken, logout, user } = useAuth();
+  const [pageHeader, setPageHeader] = useState<AppPageHeader>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(true);
   const [configOpen, setConfigOpen] = useState(() =>
@@ -477,105 +498,119 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     : 'ZB';
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="sticky top-0 z-40 flex h-16 flex-none items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:px-6">
-        <button
-          type="button"
-          onClick={() => {
-            if (window.innerWidth >= 1024) {
-              setDesktopSidebarCollapsed((current) => !current);
-            } else {
-              setSidebarOpen(true);
-            }
-          }}
-          aria-label="Open navigation"
-          className="mr-3 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-        >
-          <span className="lg:hidden">
-            <IconHamburger />
-          </span>
-          <span className="hidden lg:block">
-            <IconPanelLeft />
-          </span>
-        </button>
-
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
-            <img
-              src={user?.restaurantLogoUrl || '/logo.png'}
-              alt="Banquate Booking System"
-              width={22}
-              height={22}
-              className="h-[22px] w-[22px] object-contain"
-            />
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-sm font-bold leading-none text-slate-900">Banquate Booking System</p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              Powered By Zenovel Technolab
-            </p>
-          </div>
-        </Link>
-
-        <div className="flex-1" />
-
-        <div ref={profileRef} className="relative">
+    <AppPageHeaderContext.Provider value={setPageHeader}>
+      <div className="flex min-h-screen flex-col bg-slate-50">
+        <header className="sticky top-0 z-40 flex h-16 flex-none items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:px-6">
           <button
             type="button"
-            onClick={() => setProfileOpen((v) => !v)}
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition hover:bg-slate-50"
+            onClick={() => {
+              if (window.innerWidth >= 1024) {
+                setDesktopSidebarCollapsed((current) => !current);
+              } else {
+                setSidebarOpen(true);
+              }
+            }}
+            aria-label="Open navigation"
+            className="mr-3 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 text-xs font-bold text-white">
-              {initials}
-            </div>
-            <div className="hidden text-left sm:block">
-              <p className="text-sm font-semibold leading-none text-slate-900">
-                {user ? `${user.firstName} ${user.lastName}` : 'User'}
-              </p>
-              <p className="mt-0.5 text-xs capitalize text-slate-400">
-                {user?.role.replace('_', ' ')}
-              </p>
-            </div>
-            <span className="text-slate-400">
-              <IconChevronDown />
+            <span className="lg:hidden">
+              <IconHamburger />
+            </span>
+            <span className="hidden lg:block">
+              <IconPanelLeft />
             </span>
           </button>
 
-          {profileOpen && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
-              <div className="flex items-center gap-3 pb-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-sm font-bold text-white">
-                  {initials}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">
-                    {user ? `${user.firstName} ${user.lastName}` : 'User'}
-                  </p>
-                  <p className="truncate text-xs capitalize text-slate-400">
-                    {user?.role.replace('_', ' ')}
-                  </p>
-                </div>
-              </div>
-              <div className="border-t border-slate-100 pt-2">
-                <button
-                  type="button"
-                  onClick={() => void openProfileModal()}
-                  className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                >
-                  Profile
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
-                >
-                  Sign out
-                </button>
-              </div>
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50">
+              <img
+                src={user?.restaurantLogoUrl || '/logo.png'}
+                alt="Banquate Booking System"
+                width={22}
+                height={22}
+                className="h-[22px] w-[22px] object-contain"
+              />
             </div>
-          )}
-        </div>
-      </header>
+            <div className="hidden sm:block">
+              <p className="text-sm font-bold leading-none text-slate-900">Banquate Booking System</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+                Powered By Zenovel Technolab
+              </p>
+            </div>
+          </Link>
+
+          {pageHeader ? (
+            <div className="ml-2 min-w-0 flex-1 border-l border-slate-200 pl-3 sm:ml-4 sm:pl-4">
+              {pageHeader.eyebrow && pageHeader.eyebrow !== pageHeader.title ? (
+                <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+                  {pageHeader.eyebrow}
+                </p>
+              ) : null}
+              <h1 className="mt-1 truncate text-sm font-bold leading-none text-slate-900 sm:text-xl">
+                {pageHeader.title}
+              </h1>
+            </div>
+          ) : null}
+
+          {!pageHeader ? <div className="flex-1" /> : null}
+
+          <div ref={profileRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setProfileOpen((v) => !v)}
+              className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition hover:bg-slate-50"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 text-xs font-bold text-white">
+                {initials}
+              </div>
+              <div className="hidden text-left sm:block">
+                <p className="text-sm font-semibold leading-none text-slate-900">
+                  {user ? `${user.firstName} ${user.lastName}` : 'User'}
+                </p>
+                <p className="mt-0.5 text-xs capitalize text-slate-400">
+                  {user?.role.replace('_', ' ')}
+                </p>
+              </div>
+              <span className="text-slate-400">
+                <IconChevronDown />
+              </span>
+            </button>
+
+            {profileOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                <div className="flex items-center gap-3 pb-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-sm font-bold text-white">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {user ? `${user.firstName} ${user.lastName}` : 'User'}
+                    </p>
+                    <p className="truncate text-xs capitalize text-slate-400">
+                      {user?.role.replace('_', ' ')}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t border-slate-100 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => void openProfileModal()}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    Profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </header>
 
       <div className="app-shell-height flex flex-1 overflow-hidden">
         <aside
@@ -760,6 +795,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </CommonModal>
       ) : null}
-    </div>
+      </div>
+    </AppPageHeaderContext.Provider>
   );
 }

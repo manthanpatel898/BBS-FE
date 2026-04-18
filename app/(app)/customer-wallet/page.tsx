@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { CommonModal } from '@/components/ui/common-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
 import {
@@ -683,6 +684,10 @@ function WalletViewModal({
 
 // ── Main Page ───────────────────────────────────────────────────────────────────
 export default function CustomerWalletPage() {
+  useAppPageHeader({
+    eyebrow: 'Customer Wallet',
+    title: 'Customer Wallet',
+  });
   const { accessToken } = useAuth();
   const [items, setItems] = useState<CustomerWalletItem[]>([]);
   const [page, setPage] = useState(1);
@@ -726,10 +731,6 @@ export default function CustomerWalletPage() {
       <section className="space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              Customer Wallet
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">Customer Wallet</h1>
             <p className="mt-1 text-sm text-slate-500">
               Manage advance amounts from cancelled bookings
             </p>

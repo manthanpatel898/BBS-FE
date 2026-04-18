@@ -4,6 +4,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CompanyAdminRoute } from '@/components/auth/company-admin-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { HotDatesManager } from '@/components/settings/hot-dates-manager';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { PageLoader } from '@/components/ui/page-loader';
@@ -541,6 +542,10 @@ function getTabMeta(tab: SettingsTabKey) {
 }
 
 export default function SettingsPage() {
+  useAppPageHeader({
+    eyebrow: 'Settings',
+    title: 'Settings',
+  });
   const router = useRouter();
   const searchParams = useSearchParams();
   const { accessToken, setSession, user } = useAuth();
@@ -1013,10 +1018,6 @@ export default function SettingsPage() {
     <CompanyAdminRoute>
       <section className="space-y-6">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-            Company Admin
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">Settings</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
             Configure the payment, event, and banquet rule options used by your inquiry and booking flows.
           </p>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import {
   addAdvancePayment,
   addOrderFollowUp,
@@ -228,6 +229,10 @@ type MenuSelectionTrackingState = {
 
 export default function BookingsPage() {
   const { accessToken, user } = useAuth();
+  useAppPageHeader({
+    eyebrow: 'Bookings',
+    title: 'Bookings',
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [orders, setOrders] = useState<Order[]>([]);
   const [calendarOrders, setCalendarOrders] = useState<CalendarOrder[]>([]);
@@ -244,6 +249,7 @@ export default function BookingsPage() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
+  const [isCalendarActionsOpen, setIsCalendarActionsOpen] = useState(false);
   const [hotDateKeys, setHotDateKeys] = useState<Set<string>>(new Set());
   const loadedHotDateYear = useRef<number | null>(null);
   const [pageError, setPageError] = useState('');
@@ -1926,15 +1932,6 @@ function selectionStatus(order: Order) {
   return (
     <BookingsRoute>
       <section className="space-y-5">
-        {/* <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              Bookings
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">Bookings</h1>
-          </div>
-        </div> */}
-
         {toast ? <ToastMessage toast={toast} /> : null}
 
         {pageError ? (
@@ -1949,9 +1946,9 @@ function selectionStatus(order: Order) {
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    {/* <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                       List View
-                    </p>
+                    </p> */}
                     <h2 className="mt-2 text-2xl font-bold text-slate-900">
                       {formatMonthLabel(calendarMonth)}
                     </h2>
@@ -2263,60 +2260,65 @@ function selectionStatus(order: Order) {
         ) : (
           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Calendar View
-                </p>
-                <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {formatMonthLabel(calendarMonth)}
-                </h2>
-                </div>
-                <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('list')}
-                    className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-                  >
-                    List
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('calendar')}
-                    className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-white transition"
-                  >
-                    Calendar
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center justify-between gap-3 sm:justify-start">
+                  <div className="min-w-0">
+                    <h2 className="whitespace-nowrap text-lg font-bold leading-none text-slate-900 sm:text-[2rem]">
+                      {formatMonthLabel(calendarMonth)}
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setCalendarMonth((current) => shiftMonth(current, -1))}
-                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                    aria-label="Previous month"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <IconGlyph icon="previous" />
-                      <span>{formatMonthLabel(shiftMonth(calendarMonth, -1))}</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCalendarMonth(new Date())}
-                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
-                  >
-                    Today
+                    <IconGlyph icon="previous" />
                   </button>
                   <button
                     type="button"
                     onClick={() => setCalendarMonth((current) => shiftMonth(current, 1))}
-                    className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
+                    aria-label="Next month"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <span>{formatMonthLabel(shiftMonth(calendarMonth, 1))}</span>
-                      <IconGlyph icon="next" />
-                    </span>
+                    <IconGlyph icon="next" />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCalendarActionsOpen(true)}
+                    aria-label="Open calendar actions"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 shadow-sm transition hover:bg-amber-100 sm:hidden"
+                  >
+                    <IconChevronDown />
+                  </button>
+                  </div>
+                </div>
+                <div className="hidden items-center justify-between gap-2 sm:flex sm:justify-end">
+                  <div className="flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('list')}
+                      className="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:px-5"
+                    >
+                      List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('calendar')}
+                      className="rounded-xl bg-amber-400 px-3 py-2 text-sm font-medium text-white transition sm:px-5"
+                    >
+                      Calendar
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonth(new Date())}
+                    className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 sm:px-5"
+                  >
+                    Today
+                  </button>
+                </div>
               </div>
             </div>
             {isCalendarLoading ? (
@@ -2420,6 +2422,61 @@ function selectionStatus(order: Order) {
             )}
           </div>
         )}
+
+        {viewMode === 'calendar' && isCalendarActionsOpen ? (
+          <>
+            <div
+              className="fixed inset-0 z-[70] bg-slate-900/35 sm:hidden"
+              onClick={() => setIsCalendarActionsOpen(false)}
+            />
+            <div className="fixed inset-x-0 bottom-0 z-[71] rounded-t-[28px] border border-slate-200 bg-white p-5 shadow-[0_-12px_36px_rgba(15,23,42,0.16)] sm:hidden">
+              <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200" />
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('list');
+                    setIsCalendarActionsOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+                    viewMode === 'list'
+                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>List View</span>
+                  {viewMode === 'list' ? <span className="text-xs font-semibold uppercase tracking-wider">Active</span> : null}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('calendar');
+                    setIsCalendarActionsOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+                    viewMode === 'calendar'
+                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Calendar View</span>
+                  {viewMode === 'calendar' ? <span className="text-xs font-semibold uppercase tracking-wider">Active</span> : null}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalendarMonth(new Date());
+                    setIsCalendarActionsOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  <span>Today</span>
+                  <span className="text-xs text-slate-400">{formatMonthLabel(new Date())}</span>
+                </button>
+              </div>
+            </div>
+          </>
+        ) : null}
 
         {isInquiryOpen ? (
           <ModalShell

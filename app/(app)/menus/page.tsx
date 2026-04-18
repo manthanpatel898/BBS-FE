@@ -3,6 +3,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import { ConfigRoute } from '@/components/auth/config-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
@@ -153,6 +154,10 @@ function countSubitems(sections: MenuSection[]) {
 }
 
 export default function MenusPage() {
+  useAppPageHeader({
+    eyebrow: 'Menus',
+    title: 'Menus',
+  });
   const { accessToken, user } = useAuth();
   const [menus, setMenus] = useState<Menu[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -481,10 +486,6 @@ export default function MenusPage() {
       <section className="space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              Configuration
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">Menus</h1>
             <p className="mt-1 text-sm text-slate-500">
               Create item groups like Mocktail or Soups and manage multiple subitems under each one.
             </p>

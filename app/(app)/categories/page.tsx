@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfigRoute } from '@/components/auth/config-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
@@ -152,6 +153,10 @@ function makeRuleKey(menuId: string, sectionTitle: string) {
 }
 
 export default function CategoriesPage() {
+  useAppPageHeader({
+    eyebrow: 'Categories',
+    title: 'Categories',
+  });
   const { accessToken, user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -578,10 +583,6 @@ export default function CategoriesPage() {
       <section className="space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              Configuration
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">Categories</h1>
             <p className="mt-1 text-sm text-slate-500">
               Create booking categories with item-wise visibility and selection limits.
             </p>
