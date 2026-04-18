@@ -6,7 +6,9 @@ import {
   useEffect,
   useState,
 } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { clearSession, readSession, saveSession } from '@/lib/auth/storage';
+import { AUTH_SESSION_EXPIRED_EVENT } from '@/lib/auth/session-events';
 import { AuthSession, AuthUser } from '@/lib/auth/types';
 
 interface AuthContextValue {
@@ -20,6 +22,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
   const [session, setSessionState] = useState<AuthSession | null>(null);
 
@@ -38,6 +42,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearSession();
     setSessionState(null);
   };
+
+  useEffect(() => {
+    function handleSessionExpired() {
+      clearSession();
+      setSessionState(null);
+
+      if (pathname !== '/login') {
+        router.replace('/login');
+      }
+    }
+
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+
+    return () => {
+      window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    };
+  }, [pathname, router]);
 
   return (
     <AuthContext.Provider

@@ -2,26 +2,52 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { useAuth } from '@/components/auth/auth-provider';
 import {
+  fetchAdvanceSummary,
   fetchAdvancePaymentsReport,
   fetchEventPlannerReport,
+  fetchHallOccupancyReport,
   fetchItemSalesReport,
   fetchOrders,
+  fetchPendingPaymentsReport,
+  fetchRepeatCustomersReport,
+  fetchRevenueReport,
   fetchSettings,
+  fetchTreasuryReport,
+  fetchUpcomingEventsReport,
 } from '@/lib/auth/api';
 import {
+  AdvanceSummary,
   AdvancePaymentReportRow,
   EventPlannerReportRow,
+  HallOccupancyReportRow,
   ItemSalesReportRow,
   Order,
+  PendingPaymentReportRow,
+  RepeatCustomerReportRow,
+  RevenueReportRow,
   SettingOption,
+  TreasuryReport,
+  UpcomingEventReportRow,
 } from '@/lib/auth/types';
+import { createExcelBlobFromTable } from '@/lib/excel';
 
 type DownloadFormat = 'csv' | 'xlsx';
-type ReportType = 'booking' | 'advance' | 'cancelled' | 'itemSales' | 'eventPlanner';
+type ReportType =
+  | 'booking'
+  | 'advance'
+  | 'cancelled'
+  | 'itemSales'
+  | 'eventPlanner'
+  | 'pendingPayments'
+  | 'revenue'
+  | 'upcomingEvents'
+  | 'hallOccupancy'
+  | 'repeatCustomers'
+  | 'treasury';
 type BookingFieldKey =
   | 'eventDate'
   | 'inquiryDate'
@@ -82,6 +108,33 @@ type EventPlannerFilters = {
   search: string;
 };
 
+type PendingPaymentsFilters = {
+  from: string;
+  to: string;
+  search: string;
+};
+
+type RevenueFilters = {
+  from: string;
+  to: string;
+  groupBy: 'month' | 'eventType' | 'hall';
+};
+
+type UpcomingEventsFilters = {
+  days: '7' | '15' | '30';
+  search: string;
+};
+
+type HallOccupancyFilters = {
+  from: string;
+  to: string;
+};
+
+type RepeatCustomersFilters = {
+  from: string;
+  to: string;
+};
+
 type ColumnDef<Row> = {
   key: string;
   label: string;
@@ -126,7 +179,7 @@ const CANCELLED_FIELDS: Array<{ key: CancelledFieldKey; label: string }> = [
   { key: 'reason', label: 'Cancel Reason' },
   { key: 'advanceAmount', label: 'Advance Paid' },
   { key: 'grandTotal', label: 'Booking Total' },
-  { key: 'pendingAmount', label: 'Pending Amount' },
+  { key: 'pendingAmount', label: 'Remaining Voucher Balance' },
   { key: 'bookedBy', label: 'Booked By' },
 ];
 
@@ -144,27 +197,63 @@ const REPORT_CARDS: Array<{
   },
   {
     type: 'advance',
-    title: 'Advance Payment Report',
+    title: 'Advance Collections',
     description: 'Track advance collections by payment date, payment type, and customer with instant totals.',
-    eyebrow: 'Collections',
+    eyebrow: 'Financial',
   },
   {
     type: 'cancelled',
-    title: 'Cancel Booking Report',
+    title: 'Cancellation Report',
     description: 'Export cancelled booking history with reason, advance paid, totals, and inquiry details.',
-    eyebrow: 'Cancellations',
+    eyebrow: 'Bookings',
   },
   {
     type: 'itemSales',
     title: 'Item Sales Report',
     description: 'See item-wise sales for confirmed bookings by date range, sorted from highest selling to lowest.',
-    eyebrow: 'Sales',
+    eyebrow: 'Operations',
   },
   {
     type: 'eventPlanner',
     title: 'Event Planner Report',
     description: 'Review which confirmed bookings were assigned to which event planner and export the planner-wise schedule by date.',
-    eyebrow: 'Planning',
+    eyebrow: 'Operations',
+  },
+  {
+    type: 'pendingPayments',
+    title: 'Pending Payments',
+    description: 'All confirmed bookings with an outstanding balance. Filter by event date range or customer search.',
+    eyebrow: 'Financial',
+  },
+  {
+    type: 'revenue',
+    title: 'Revenue Report',
+    description: 'Monthly, event-type, or hall-wise revenue breakdown for confirmed bookings in a date range.',
+    eyebrow: 'Financial',
+  },
+  {
+    type: 'upcomingEvents',
+    title: 'Upcoming Events',
+    description: 'All confirmed events in the next 7, 15, or 30 days with customer, hall, slot, planner, and balance details.',
+    eyebrow: 'Bookings',
+  },
+  {
+    type: 'hallOccupancy',
+    title: 'Hall Occupancy Report',
+    description: 'Booking count, total guests, and revenue for each hall over any selected date range.',
+    eyebrow: 'Operations',
+  },
+  {
+    type: 'repeatCustomers',
+    title: 'Repeat Customers',
+    description: 'Customers with two or more confirmed bookings — total bookings, lifetime revenue, and booking dates.',
+    eyebrow: 'Customers',
+  },
+  {
+    type: 'treasury',
+    title: 'Treasury Ledger',
+    description: 'Full chronological ledger: confirmed advances, cancellations, dine-in usages, payouts, next booking adjustments, and forfeited amounts.',
+    eyebrow: 'Financial',
   },
 ];
 
@@ -174,6 +263,34 @@ function formatCurrency(value: number) {
     currency: 'INR',
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatAmountNumber(value: number) {
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(value);
+}
+
+function InrAmount({
+  value,
+  className = '',
+  symbolClassName = 'mr-px align-baseline text-[10px] font-bold opacity-50',
+}: {
+  value: number;
+  className?: string;
+  symbolClassName?: string;
+}) {
+  const absoluteValue = Math.abs(value);
+
+  return (
+    <span className={className}>
+      {value < 0 ? '-' : ''}
+      <span className={symbolClassName}>₹</span>
+      {formatAmountNumber(absoluteValue)}
+    </span>
+  );
+}
+
+function formatCurrencyCell(value: number) {
+  return <InrAmount value={value} />;
 }
 
 function formatExportAmount(value: number) {
@@ -201,23 +318,45 @@ async function downloadTable(
   rows: Array<Array<string | number | null>>,
   fileName: string,
   format: DownloadFormat,
+  options?: {
+    reportName?: string;
+    dateRange?: string;
+    footerSections?: Array<{
+      title: string;
+      rows: Array<{
+        label: string;
+        value: string | number | null;
+      }>;
+    }>;
+  },
 ) {
   if (format === 'xlsx') {
-    const { utils, write } = await import('xlsx');
-    const worksheet = utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = utils.book_new();
-    utils.book_append_sheet(workbook, worksheet, 'Report');
-    const buffer = write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
-    downloadBlob(
-      new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      }),
-      `${fileName}.xlsx`,
-    );
+    const blob = await createExcelBlobFromTable('Report', headers, rows, {
+      headerInfo: options?.reportName
+        ? {
+            reportName: options.reportName,
+            dateRange: options.dateRange,
+          }
+        : undefined,
+      footerSections: options?.footerSections,
+    });
+    downloadBlob(blob, `${fileName}.xlsx`);
     return;
   }
 
-  const csvContent = [headers, ...rows]
+  const csvRows = [headers, ...rows];
+
+  if (options?.footerSections?.length) {
+    options.footerSections.forEach((section) => {
+      csvRows.push([]);
+      csvRows.push([section.title]);
+      section.rows.forEach((row) => {
+        csvRows.push([row.label, row.value]);
+      });
+    });
+  }
+
+  const csvContent = csvRows
     .map((row) => row.map((value) => escapeCsvValue(value)).join(','))
     .join('\n');
 
@@ -230,6 +369,54 @@ function toDateInputValue(value: Date) {
   const day = String(value.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
+}
+
+function formatReportDateRange(from?: string, to?: string) {
+  if (from && to) {
+    return `Date Range: ${formatCsvDate(from)} to ${formatCsvDate(to)}`;
+  }
+  if (from) {
+    return `Date Range: From ${formatCsvDate(from)}`;
+  }
+  if (to) {
+    return `Date Range: Till ${formatCsvDate(to)}`;
+  }
+  return 'Date Range: All Dates';
+}
+
+function getQuickRange(months: number) {
+  const today = new Date();
+  const from = new Date(today.getFullYear(), today.getMonth() - (months - 1), 1);
+  return {
+    from: toDateInputValue(from),
+    to: toDateInputValue(today),
+  };
+}
+
+function QuickDatePresets({
+  onApply,
+}: {
+  onApply: (range: { from: string; to: string }) => void;
+}) {
+  const presets = [1, 3, 6, 9, 12] as const;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+        Quick Select
+      </span>
+      {presets.map((months) => (
+        <button
+          key={months}
+          type="button"
+          onClick={() => onApply(getQuickRange(months))}
+          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+        >
+          {months}M
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function formatCsvDate(value: string | null) {
@@ -322,7 +509,7 @@ function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | Cancelle
     case 'mobileNo':
       return order.customer.phone;
     case 'eventType':
-      return order.eventType || '-';
+      return order.functionName || order.eventType || '-';
     case 'hallDetails':
       return order.hallDetails || '-';
     case 'packageCategory':
@@ -344,6 +531,10 @@ function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | Cancelle
     default:
       return '-';
   }
+}
+
+function getCancelledPendingAmount(order: Order) {
+  return order.redeemableBalance;
 }
 
 function getBookingExportValue(order: Order, fieldKey: BookingFieldKey | CancelledFieldKey) {
@@ -386,15 +577,21 @@ function getCancelledColumns(selectedFields: CancelledFieldKey[]): ColumnDef<Ord
     key: fieldKey,
     label: CANCELLED_FIELDS.find((field) => field.key === fieldKey)?.label ?? fieldKey,
     isCurrency: ['grandTotal', 'advanceAmount', 'pendingAmount'].includes(fieldKey),
-    render: (order) => getBookingFieldValue(order, fieldKey),
-    exportValue: (order) => getBookingExportValue(order, fieldKey),
+    render: (order) =>
+      fieldKey === 'pendingAmount'
+        ? formatCurrency(getCancelledPendingAmount(order))
+        : getBookingFieldValue(order, fieldKey),
+    exportValue: (order) =>
+      fieldKey === 'pendingAmount'
+        ? formatExportAmount(getCancelledPendingAmount(order))
+        : getBookingExportValue(order, fieldKey),
     total:
       fieldKey === 'grandTotal'
         ? (order) => order.grandTotal
         : fieldKey === 'advanceAmount'
           ? (order) => order.advanceAmount
           : fieldKey === 'pendingAmount'
-            ? (order) => order.pendingAmount
+            ? (order) => getCancelledPendingAmount(order)
             : undefined,
   }));
 }
@@ -480,6 +677,194 @@ const eventPlannerColumns: ColumnDef<EventPlannerReportRow>[] = [
   { key: 'assignedByName', label: 'Assigned By', render: (row) => row.assignedByName || '-' },
 ];
 
+const pendingPaymentsColumns: ColumnDef<PendingPaymentReportRow>[] = [
+  {
+    key: 'functionDate',
+    label: 'Event Date',
+    render: (row) => formatCsvDate(row.functionDate),
+    exportValue: (row) => formatCsvDate(row.functionDate),
+  },
+  { key: 'orderId', label: 'Booking Id', render: (row) => row.orderId },
+  { key: 'customerName', label: 'Customer', render: (row) => row.customerName },
+  { key: 'customerPhone', label: 'Phone', render: (row) => row.customerPhone || '-' },
+  { key: 'eventType', label: 'Function', render: (row) => row.eventType || '-' },
+  { key: 'hallDetails', label: 'Hall', render: (row) => row.hallDetails || '-' },
+  { key: 'serviceSlot', label: 'Slot', render: (row) => row.serviceSlot || '-' },
+  {
+    key: 'pax',
+    label: 'Guests',
+    render: (row) => (row.pax ? row.pax.toLocaleString('en-IN') : '-'),
+    exportValue: (row) => row.pax ?? '',
+  },
+  {
+    key: 'grandTotal',
+    label: 'Grand Total',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.grandTotal),
+    exportValue: (row) => formatExportAmount(row.grandTotal),
+    total: (row) => row.grandTotal,
+  },
+  {
+    key: 'advanceAmount',
+    label: 'Advance Paid',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.advanceAmount),
+    exportValue: (row) => formatExportAmount(row.advanceAmount),
+    total: (row) => row.advanceAmount,
+  },
+  {
+    key: 'pendingAmount',
+    label: 'Pending',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.pendingAmount),
+    exportValue: (row) => formatExportAmount(row.pendingAmount),
+    total: (row) => row.pendingAmount,
+  },
+];
+
+const revenueColumns: ColumnDef<RevenueReportRow>[] = [
+  {
+    key: 'label',
+    label: 'Period / Group',
+    render: (row) =>
+      /^\d{4}-\d{2}$/.test(row.label)
+        ? new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' }).format(
+            new Date(`${row.label}-01T00:00:00`),
+          )
+        : row.label,
+    exportValue: (row) =>
+      /^\d{4}-\d{2}$/.test(row.label)
+        ? new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' }).format(
+            new Date(`${row.label}-01T00:00:00`),
+          )
+        : row.label,
+  },
+  {
+    key: 'bookings',
+    label: 'Bookings',
+    render: (row) => row.bookings.toLocaleString('en-IN'),
+    exportValue: (row) => row.bookings,
+    total: (row) => row.bookings,
+  },
+  {
+    key: 'revenue',
+    label: 'Revenue',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.revenue),
+    exportValue: (row) => formatExportAmount(row.revenue),
+    total: (row) => row.revenue,
+  },
+  {
+    key: 'totalPax',
+    label: 'Total Guests',
+    render: (row) => row.totalPax.toLocaleString('en-IN'),
+    exportValue: (row) => row.totalPax,
+    total: (row) => row.totalPax,
+  },
+  {
+    key: 'avgRevenue',
+    label: 'Avg Revenue / Booking',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.avgRevenue),
+    exportValue: (row) => formatExportAmount(row.avgRevenue),
+  },
+];
+
+const upcomingEventsColumns: ColumnDef<UpcomingEventReportRow>[] = [
+  {
+    key: 'functionDate',
+    label: 'Event Date',
+    render: (row) => formatCsvDate(row.functionDate),
+    exportValue: (row) => formatCsvDate(row.functionDate),
+  },
+  { key: 'orderId', label: 'Booking Id', render: (row) => row.orderId },
+  { key: 'customerName', label: 'Customer', render: (row) => row.customerName },
+  { key: 'customerPhone', label: 'Phone', render: (row) => row.customerPhone || '-' },
+  { key: 'eventType', label: 'Function', render: (row) => row.eventType || '-' },
+  { key: 'hallDetails', label: 'Hall', render: (row) => row.hallDetails || '-' },
+  { key: 'serviceSlot', label: 'Slot', render: (row) => row.serviceSlot || '-' },
+  {
+    key: 'pax',
+    label: 'Guests',
+    render: (row) => (row.pax ? row.pax.toLocaleString('en-IN') : '-'),
+    exportValue: (row) => row.pax ?? '',
+    total: (row) => row.pax ?? 0,
+  },
+  { key: 'plannerName', label: 'Event Planner', render: (row) => row.plannerName || '-' },
+  {
+    key: 'pendingAmount',
+    label: 'Pending Balance',
+    isCurrency: true,
+    render: (row) => (row.pendingAmount > 0 ? formatCurrency(row.pendingAmount) : '—'),
+    exportValue: (row) => formatExportAmount(row.pendingAmount),
+    total: (row) => row.pendingAmount,
+  },
+];
+
+const hallOccupancyColumns: ColumnDef<HallOccupancyReportRow>[] = [
+  { key: 'hall', label: 'Hall', render: (row) => row.hall },
+  {
+    key: 'bookings',
+    label: 'Total Bookings',
+    render: (row) => row.bookings.toLocaleString('en-IN'),
+    exportValue: (row) => row.bookings,
+    total: (row) => row.bookings,
+  },
+  {
+    key: 'revenue',
+    label: 'Revenue',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.revenue),
+    exportValue: (row) => formatExportAmount(row.revenue),
+    total: (row) => row.revenue,
+  },
+  {
+    key: 'totalPax',
+    label: 'Total Guests',
+    render: (row) => row.totalPax.toLocaleString('en-IN'),
+    exportValue: (row) => row.totalPax,
+    total: (row) => row.totalPax,
+  },
+  {
+    key: 'avgPax',
+    label: 'Avg Guests / Booking',
+    render: (row) => Math.round(row.avgPax).toLocaleString('en-IN'),
+    exportValue: (row) => Math.round(row.avgPax),
+  },
+];
+
+const repeatCustomersColumns: ColumnDef<RepeatCustomerReportRow>[] = [
+  { key: 'customerName', label: 'Customer', render: (row) => row.customerName },
+  { key: 'customerPhone', label: 'Phone', render: (row) => row.customerPhone || '-' },
+  {
+    key: 'totalBookings',
+    label: 'Total Bookings',
+    render: (row) => row.totalBookings.toLocaleString('en-IN'),
+    exportValue: (row) => row.totalBookings,
+    total: (row) => row.totalBookings,
+  },
+  {
+    key: 'totalRevenue',
+    label: 'Lifetime Revenue',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.totalRevenue),
+    exportValue: (row) => formatExportAmount(row.totalRevenue),
+    total: (row) => row.totalRevenue,
+  },
+  {
+    key: 'firstBookingDate',
+    label: 'First Booking',
+    render: (row) => formatCsvDate(row.firstBookingDate),
+    exportValue: (row) => formatCsvDate(row.firstBookingDate),
+  },
+  {
+    key: 'lastBookingDate',
+    label: 'Last Booking',
+    render: (row) => formatCsvDate(row.lastBookingDate),
+    exportValue: (row) => formatCsvDate(row.lastBookingDate),
+  },
+];
+
 function FieldSelector<T extends string>({
   title,
   description,
@@ -559,6 +944,7 @@ function SummaryTotals<Row>({
     .map((column) => ({
       key: column.key,
       label: column.label,
+      isCurrency: Boolean(column.isCurrency),
       value: rows.reduce((sum, row) => sum + (column.total ? column.total(row) : 0), 0),
     }))
     .filter((column) => column.value > 0);
@@ -575,7 +961,16 @@ function SummaryTotals<Row>({
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
             Total {item.label}
           </p>
-          <p className="mt-3 text-2xl font-bold text-slate-900">{formatCurrency(item.value)}</p>
+          <p className="mt-3 text-2xl font-bold text-slate-900">
+            {item.isCurrency ? (
+              <InrAmount
+                value={item.value}
+                symbolClassName="mr-0.5 align-[0.2em] text-xs font-bold opacity-50"
+              />
+            ) : (
+              item.value.toLocaleString('en-IN')
+            )}
+          </p>
         </div>
       ))}
     </div>
@@ -613,7 +1008,9 @@ function DataTable<Row>({
                       key={column.key}
                       className={`px-4 py-3 ${column.isCurrency ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
                     >
-                      {column.render(row)}
+                      {column.isCurrency && column.total
+                        ? formatCurrencyCell(column.total(row))
+                        : column.render(row)}
                     </td>
                   ))}
                 </tr>
@@ -671,6 +1068,11 @@ export default function ReportViewPage() {
   const [cancelledDownloadFormat, setCancelledDownloadFormat] = useState<DownloadFormat>('csv');
   const [itemSalesDownloadFormat, setItemSalesDownloadFormat] = useState<DownloadFormat>('csv');
   const [eventPlannerDownloadFormat, setEventPlannerDownloadFormat] = useState<DownloadFormat>('csv');
+  const [pendingPaymentsDownloadFormat, setPendingPaymentsDownloadFormat] = useState<DownloadFormat>('csv');
+  const [revenueDownloadFormat, setRevenueDownloadFormat] = useState<DownloadFormat>('csv');
+  const [upcomingEventsDownloadFormat, setUpcomingEventsDownloadFormat] = useState<DownloadFormat>('csv');
+  const [hallOccupancyDownloadFormat, setHallOccupancyDownloadFormat] = useState<DownloadFormat>('csv');
+  const [repeatCustomersDownloadFormat, setRepeatCustomersDownloadFormat] = useState<DownloadFormat>('csv');
   const [bookingFieldsCollapsed, setBookingFieldsCollapsed] = useState(true);
   const [cancelledFieldsCollapsed, setCancelledFieldsCollapsed] = useState(true);
   const [bookingSelectedFields, setBookingSelectedFields] = useState<BookingFieldKey[]>(() =>
@@ -684,13 +1086,50 @@ export default function ReportViewPage() {
   const [cancelledRows, setCancelledRows] = useState<Order[]>([]);
   const [itemSalesRows, setItemSalesRows] = useState<ItemSalesReportRow[]>([]);
   const [eventPlannerRows, setEventPlannerRows] = useState<EventPlannerReportRow[]>([]);
+  const [pendingPaymentsFilters, setPendingPaymentsFilters] = useState<PendingPaymentsFilters>({
+    from: '',
+    to: '',
+    search: '',
+  });
+  const [revenueFilters, setRevenueFilters] = useState<RevenueFilters>({
+    from: toDateInputValue(new Date(new Date().getFullYear(), 0, 1)),
+    to: toDateInputValue(new Date()),
+    groupBy: 'month',
+  });
+  const [upcomingEventsFilters, setUpcomingEventsFilters] = useState<UpcomingEventsFilters>({
+    days: '30',
+    search: '',
+  });
+  const [hallOccupancyFilters, setHallOccupancyFilters] = useState<HallOccupancyFilters>({
+    from: toDateInputValue(new Date(new Date().getFullYear(), 0, 1)),
+    to: toDateInputValue(new Date()),
+  });
+  const [repeatCustomersFilters, setRepeatCustomersFilters] = useState<RepeatCustomersFilters>({
+    from: '',
+    to: '',
+  });
+  const [pendingPaymentsRows, setPendingPaymentsRows] = useState<PendingPaymentReportRow[]>([]);
+  const [revenueRows, setRevenueRows] = useState<RevenueReportRow[]>([]);
+  const [upcomingEventsRows, setUpcomingEventsRows] = useState<UpcomingEventReportRow[]>([]);
+  const [hallOccupancyRows, setHallOccupancyRows] = useState<HallOccupancyReportRow[]>([]);
+  const [repeatCustomersRows, setRepeatCustomersRows] = useState<RepeatCustomerReportRow[]>([]);
+  const [treasuryReport, setTreasuryReport] = useState<TreasuryReport | null>(null);
+  const [treasuryAdvanceSummary, setTreasuryAdvanceSummary] = useState<AdvanceSummary | null>(null);
+  const [treasuryFilters, setTreasuryFilters] = useState({ from: '', to: '' });
+  const [treasuryDownloadFormat, setTreasuryDownloadFormat] = useState<DownloadFormat>('xlsx');
   const reportParam = searchParams.get('type');
   const activeReport: ReportType =
     reportParam === 'advance' ||
     reportParam === 'cancelled' ||
     reportParam === 'booking' ||
     reportParam === 'itemSales' ||
-    reportParam === 'eventPlanner'
+    reportParam === 'eventPlanner' ||
+    reportParam === 'pendingPayments' ||
+    reportParam === 'revenue' ||
+    reportParam === 'upcomingEvents' ||
+    reportParam === 'hallOccupancy' ||
+    reportParam === 'repeatCustomers' ||
+    reportParam === 'treasury'
       ? reportParam
       : 'booking';
   const activeCard = REPORT_CARDS.find((card) => card.type === activeReport) ?? REPORT_CARDS[0];
@@ -801,6 +1240,54 @@ export default function ReportViewPage() {
         return;
       }
 
+      if (activeReport === 'pendingPayments') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows = await fetchPendingPaymentsReport(accessToken, pendingPaymentsFilters);
+        setPendingPaymentsRows(rows);
+        return;
+      }
+
+      if (activeReport === 'revenue') {
+        validateDateRange(revenueFilters.from, revenueFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows = await fetchRevenueReport(accessToken, revenueFilters);
+        setRevenueRows(rows);
+        return;
+      }
+
+      if (activeReport === 'upcomingEvents') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows = await fetchUpcomingEventsReport(accessToken, upcomingEventsFilters);
+        setUpcomingEventsRows(rows);
+        return;
+      }
+
+      if (activeReport === 'hallOccupancy') {
+        validateDateRange(hallOccupancyFilters.from, hallOccupancyFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows = await fetchHallOccupancyReport(accessToken, hallOccupancyFilters);
+        setHallOccupancyRows(rows);
+        return;
+      }
+
+      if (activeReport === 'repeatCustomers') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows = await fetchRepeatCustomersReport(accessToken, repeatCustomersFilters);
+        setRepeatCustomersRows(rows);
+        return;
+      }
+
+      if (activeReport === 'treasury') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const [report, summary] = await Promise.all([
+          fetchTreasuryReport(accessToken, treasuryFilters),
+          fetchAdvanceSummary(accessToken),
+        ]);
+        setTreasuryReport(report);
+        setTreasuryAdvanceSummary(summary);
+        return;
+      }
+
       if (cancelledSelectedFields.length === 0) {
         throw new Error('Select at least one cancelled booking report field.');
       }
@@ -836,6 +1323,10 @@ export default function ReportViewPage() {
           rows.map((row) => bookingColumns.map((column) => (column.exportValue ? column.exportValue(row) : column.render(row)))),
           `booking-report-${bookingFilters.status.toLowerCase()}-${bookingFilters.from}-to-${bookingFilters.to}`,
           downloadFormat,
+          {
+            reportName: `Booking Report (${bookingFilters.status})`,
+            dateRange: formatReportDateRange(bookingFilters.from, bookingFilters.to),
+          },
         );
         return;
       }
@@ -857,6 +1348,10 @@ export default function ReportViewPage() {
           ),
           `advance-payments-report-${advanceFilters.from}-to-${advanceFilters.to}`,
           advanceDownloadFormat,
+          {
+            reportName: 'Advance Payments Report',
+            dateRange: formatReportDateRange(advanceFilters.from, advanceFilters.to),
+          },
         );
         return;
       }
@@ -878,6 +1373,10 @@ export default function ReportViewPage() {
           ),
           `item-sales-report-${itemSalesFilters.from}-to-${itemSalesFilters.to}`,
           itemSalesDownloadFormat,
+          {
+            reportName: 'Item Sales Report',
+            dateRange: formatReportDateRange(itemSalesFilters.from, itemSalesFilters.to),
+          },
         );
         return;
       }
@@ -899,7 +1398,156 @@ export default function ReportViewPage() {
           ),
           `event-planner-report-${eventPlannerFilters.from}-to-${eventPlannerFilters.to}`,
           eventPlannerDownloadFormat,
+          {
+            reportName: 'Event Planner Report',
+            dateRange: formatReportDateRange(eventPlannerFilters.from, eventPlannerFilters.to),
+          },
         );
+        return;
+      }
+
+      if (activeReport === 'pendingPayments') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows =
+          pendingPaymentsRows.length > 0
+            ? pendingPaymentsRows
+            : await fetchPendingPaymentsReport(accessToken, pendingPaymentsFilters);
+        setPendingPaymentsRows(rows);
+        await downloadTable(
+          pendingPaymentsColumns.map((c) => c.label),
+          rows.map((row) => pendingPaymentsColumns.map((c) => (c.exportValue ? c.exportValue(row) : c.render(row)))),
+          `pending-payments-report`,
+          pendingPaymentsDownloadFormat,
+          {
+            reportName: 'Pending Payments Report',
+            dateRange: formatReportDateRange(pendingPaymentsFilters.from, pendingPaymentsFilters.to),
+          },
+        );
+        return;
+      }
+
+      if (activeReport === 'revenue') {
+        validateDateRange(revenueFilters.from, revenueFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows =
+          revenueRows.length > 0
+            ? revenueRows
+            : await fetchRevenueReport(accessToken, revenueFilters);
+        setRevenueRows(rows);
+        await downloadTable(
+          revenueColumns.map((c) => c.label),
+          rows.map((row) => revenueColumns.map((c) => (c.exportValue ? c.exportValue(row) : c.render(row)))),
+          `revenue-report-${revenueFilters.from}-to-${revenueFilters.to}`,
+          revenueDownloadFormat,
+          {
+            reportName: 'Revenue Report',
+            dateRange: formatReportDateRange(revenueFilters.from, revenueFilters.to),
+          },
+        );
+        return;
+      }
+
+      if (activeReport === 'upcomingEvents') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows =
+          upcomingEventsRows.length > 0
+            ? upcomingEventsRows
+            : await fetchUpcomingEventsReport(accessToken, upcomingEventsFilters);
+        setUpcomingEventsRows(rows);
+        await downloadTable(
+          upcomingEventsColumns.map((c) => c.label),
+          rows.map((row) => upcomingEventsColumns.map((c) => (c.exportValue ? c.exportValue(row) : c.render(row)))),
+          `upcoming-events-${upcomingEventsFilters.days}-days`,
+          upcomingEventsDownloadFormat,
+          {
+            reportName: 'Upcoming Events Report',
+            dateRange: `Window: Next ${upcomingEventsFilters.days} days`,
+          },
+        );
+        return;
+      }
+
+      if (activeReport === 'hallOccupancy') {
+        validateDateRange(hallOccupancyFilters.from, hallOccupancyFilters.to);
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows =
+          hallOccupancyRows.length > 0
+            ? hallOccupancyRows
+            : await fetchHallOccupancyReport(accessToken, hallOccupancyFilters);
+        setHallOccupancyRows(rows);
+        await downloadTable(
+          hallOccupancyColumns.map((c) => c.label),
+          rows.map((row) => hallOccupancyColumns.map((c) => (c.exportValue ? c.exportValue(row) : c.render(row)))),
+          `hall-occupancy-report-${hallOccupancyFilters.from}-to-${hallOccupancyFilters.to}`,
+          hallOccupancyDownloadFormat,
+          {
+            reportName: 'Hall Occupancy Report',
+            dateRange: formatReportDateRange(hallOccupancyFilters.from, hallOccupancyFilters.to),
+          },
+        );
+        return;
+      }
+
+      if (activeReport === 'repeatCustomers') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const rows =
+          repeatCustomersRows.length > 0
+            ? repeatCustomersRows
+            : await fetchRepeatCustomersReport(accessToken, repeatCustomersFilters);
+        setRepeatCustomersRows(rows);
+        await downloadTable(
+          repeatCustomersColumns.map((c) => c.label),
+          rows.map((row) => repeatCustomersColumns.map((c) => (c.exportValue ? c.exportValue(row) : c.render(row)))),
+          `repeat-customers-report`,
+          repeatCustomersDownloadFormat,
+          {
+            reportName: 'Repeat Customers Report',
+            dateRange: formatReportDateRange(repeatCustomersFilters.from, repeatCustomersFilters.to),
+          },
+        );
+        return;
+      }
+
+      if (activeReport === 'treasury') {
+        if (!accessToken) throw new Error('Missing session token.');
+        const [report, summary] = await Promise.all([
+          treasuryReport ? Promise.resolve(treasuryReport) : fetchTreasuryReport(accessToken, treasuryFilters),
+          treasuryAdvanceSummary ? Promise.resolve(treasuryAdvanceSummary) : fetchAdvanceSummary(accessToken),
+        ]);
+        setTreasuryReport(report);
+        setTreasuryAdvanceSummary(summary);
+        const headers = ['Date', 'Type', 'Booking ID', 'Customer', 'Booking Date', 'Cancel Date', 'Phone', 'Amount', 'Mode', 'Note', 'Performed By', 'Running Balance'];
+        const rows = [
+          ...report.entries.map((e) => [
+          formatCsvDateTime(e.createdAt || e.date),
+          e.typeLabel,
+          e.orderId,
+          e.customerName,
+          e.bookingDate ? new Date(e.bookingDate).toLocaleDateString('en-IN') : '',
+          e.cancelDate ? new Date(e.cancelDate).toLocaleDateString('en-IN') : '',
+          e.customerPhone,
+          e.amount,
+          e.mode ?? '',
+          e.note ?? '',
+          e.performedBy ?? '',
+          e.runningBalance,
+          ]),
+        ];
+        await downloadTable(headers, rows, `treasury-ledger-${treasuryFilters.from || 'all'}`, treasuryDownloadFormat, {
+          reportName: 'Treasury Report',
+          dateRange: formatReportDateRange(treasuryFilters.from, treasuryFilters.to),
+          footerSections: [
+            {
+              title: 'Advance Summary',
+              rows: [
+                { label: 'Confirmed Advance', value: summary.confirmedAdvance },
+                { label: 'Cancelled Advance', value: summary.cancelledAdvance },
+                { label: 'Forfeited Advance', value: summary.forfeitedAdvance },
+                { label: 'Total Advance', value: summary.total },
+              ],
+            },
+          ],
+        });
         return;
       }
 
@@ -925,6 +1573,10 @@ export default function ReportViewPage() {
         ),
         `cancelled-bookings-report-${cancelledFilters.from}-to-${cancelledFilters.to}`,
         cancelledDownloadFormat,
+        {
+          reportName: 'Cancellation Report',
+          dateRange: formatReportDateRange(cancelledFilters.from, cancelledFilters.to),
+        },
       );
     } catch (requestError) {
       setError(
@@ -1043,6 +1695,11 @@ export default function ReportViewPage() {
                 </LoadingButton>
               </div>
             </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setBookingFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
             <FieldSelector
               title="Report Fields"
               description="Choose the columns to include in the table and exported report."
@@ -1150,6 +1807,11 @@ export default function ReportViewPage() {
                 </LoadingButton>
               </div>
             </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setAdvanceFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
           </div>
         ) : null}
 
@@ -1230,6 +1892,11 @@ export default function ReportViewPage() {
                 </LoadingButton>
               </div>
             </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setCancelledFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
             <FieldSelector
               title="Report Fields"
               description="Choose the columns to include in the cancelled booking report."
@@ -1309,6 +1976,425 @@ export default function ReportViewPage() {
                 </LoadingButton>
               </div>
             </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setItemSalesFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
+          </div>
+        ) : null}
+
+        {activeReport === 'pendingPayments' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Pending Payments Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Optionally filter by event date range or search a customer. Leave dates empty to see all outstanding dues.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Event From</span>
+                <input
+                  type="date"
+                  value={pendingPaymentsFilters.from}
+                  onChange={(e) => setPendingPaymentsFilters((f) => ({ ...f, from: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Event To</span>
+                <input
+                  type="date"
+                  value={pendingPaymentsFilters.to}
+                  onChange={(e) => setPendingPaymentsFilters((f) => ({ ...f, to: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Search</span>
+                <input
+                  value={pendingPaymentsFilters.search}
+                  onChange={(e) => setPendingPaymentsFilters((f) => ({ ...f, search: e.target.value }))}
+                  placeholder="Name, phone, or booking id"
+                  className={inputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select
+                  value={pendingPaymentsDownloadFormat}
+                  onChange={(e) => setPendingPaymentsDownloadFormat(e.target.value as DownloadFormat)}
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={activeLoading}
+                  onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton
+                  type="button"
+                  disabled={activeDownloading}
+                  onClick={() => void handleDownloadReport()}
+                  isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setPendingPaymentsFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
+          </div>
+        ) : null}
+
+        {activeReport === 'revenue' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Revenue Report Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Choose a date range and how you want to group the revenue — by month, event type, or hall.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_220px_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Start Date</span>
+                <input
+                  type="date"
+                  value={revenueFilters.from}
+                  onChange={(e) => setRevenueFilters((f) => ({ ...f, from: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">End Date</span>
+                <input
+                  type="date"
+                  value={revenueFilters.to}
+                  onChange={(e) => setRevenueFilters((f) => ({ ...f, to: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Group By</span>
+                <select
+                  value={revenueFilters.groupBy}
+                  onChange={(e) => setRevenueFilters((f) => ({ ...f, groupBy: e.target.value as RevenueFilters['groupBy'] }))}
+                  className={inputCls}
+                >
+                  <option value="month">Month</option>
+                  <option value="eventType">Event Type</option>
+                  <option value="hall">Hall</option>
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select
+                  value={revenueDownloadFormat}
+                  onChange={(e) => setRevenueDownloadFormat(e.target.value as DownloadFormat)}
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={activeLoading}
+                  onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton
+                  type="button"
+                  disabled={activeDownloading}
+                  onClick={() => void handleDownloadReport()}
+                  isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setRevenueFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
+          </div>
+        ) : null}
+
+        {activeReport === 'upcomingEvents' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Upcoming Events Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Select how many days ahead to look. Optionally narrow by customer, booking id, or event type.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[200px_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Window</span>
+                <select
+                  value={upcomingEventsFilters.days}
+                  onChange={(e) => setUpcomingEventsFilters((f) => ({ ...f, days: e.target.value as UpcomingEventsFilters['days'] }))}
+                  className={inputCls}
+                >
+                  <option value="7">Next 7 days</option>
+                  <option value="15">Next 15 days</option>
+                  <option value="30">Next 30 days</option>
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Search</span>
+                <input
+                  value={upcomingEventsFilters.search}
+                  onChange={(e) => setUpcomingEventsFilters((f) => ({ ...f, search: e.target.value }))}
+                  placeholder="Name, phone, booking id, or event type"
+                  className={inputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select
+                  value={upcomingEventsDownloadFormat}
+                  onChange={(e) => setUpcomingEventsDownloadFormat(e.target.value as DownloadFormat)}
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={activeLoading}
+                  onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton
+                  type="button"
+                  disabled={activeDownloading}
+                  onClick={() => void handleDownloadReport()}
+                  isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {activeReport === 'hallOccupancy' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Hall Occupancy Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Select a date range to see booking count, guest totals, and revenue broken down by hall.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Start Date</span>
+                <input
+                  type="date"
+                  value={hallOccupancyFilters.from}
+                  onChange={(e) => setHallOccupancyFilters((f) => ({ ...f, from: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">End Date</span>
+                <input
+                  type="date"
+                  value={hallOccupancyFilters.to}
+                  onChange={(e) => setHallOccupancyFilters((f) => ({ ...f, to: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select
+                  value={hallOccupancyDownloadFormat}
+                  onChange={(e) => setHallOccupancyDownloadFormat(e.target.value as DownloadFormat)}
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={activeLoading}
+                  onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton
+                  type="button"
+                  disabled={activeDownloading}
+                  onClick={() => void handleDownloadReport()}
+                  isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setHallOccupancyFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
+          </div>
+        ) : null}
+
+        {activeReport === 'treasury' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Treasury Ledger Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Filter by date range to see all advance transactions — confirmed, cancelled, dine-in, payouts, next booking, and forfeited amounts.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">From Date</span>
+                <input
+                  type="date"
+                  value={treasuryFilters.from}
+                  onChange={(e) => setTreasuryFilters((f) => ({ ...f, from: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">To Date</span>
+                <input
+                  type="date"
+                  value={treasuryFilters.to}
+                  onChange={(e) => setTreasuryFilters((f) => ({ ...f, to: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select value={treasuryDownloadFormat} onChange={(e) => setTreasuryDownloadFormat(e.target.value as DownloadFormat)} className={inputCls}>
+                  <option value="xlsx">Excel</option>
+                  <option value="csv">CSV</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button type="button" disabled={activeLoading} onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60">
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton type="button" disabled={activeDownloading} onClick={() => void handleDownloadReport()} isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60">
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setTreasuryFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
+          </div>
+        ) : null}
+
+        {activeReport === 'repeatCustomers' ? (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Repeat Customers Filters</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Optionally filter by confirmation date range. Leave empty to see all repeat customers ever.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_180px_auto_auto]">
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Confirmed From</span>
+                <input
+                  type="date"
+                  value={repeatCustomersFilters.from}
+                  onChange={(e) => setRepeatCustomersFilters((f) => ({ ...f, from: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Confirmed To</span>
+                <input
+                  type="date"
+                  value={repeatCustomersFilters.to}
+                  onChange={(e) => setRepeatCustomersFilters((f) => ({ ...f, to: e.target.value }))}
+                  className={dateInputCls}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Download As</span>
+                <select
+                  value={repeatCustomersDownloadFormat}
+                  onChange={(e) => setRepeatCustomersDownloadFormat(e.target.value as DownloadFormat)}
+                  className={inputCls}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">Excel</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={activeLoading}
+                  onClick={() => void handleViewReport()}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {activeLoading ? 'Loading…' : 'View report'}
+                </button>
+              </div>
+              <div className="flex items-end">
+                <LoadingButton
+                  type="button"
+                  disabled={activeDownloading}
+                  onClick={() => void handleDownloadReport()}
+                  isLoading={activeDownloading}
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Download report
+                </LoadingButton>
+              </div>
+            </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setRepeatCustomersFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
           </div>
         ) : null}
 
@@ -1406,6 +2492,11 @@ export default function ReportViewPage() {
                 </LoadingButton>
               </div>
             </div>
+            <QuickDatePresets
+              onApply={(range) =>
+                setEventPlannerFilters((current) => ({ ...current, from: range.from, to: range.to }))
+              }
+            />
           </div>
         ) : null}
       </section>
@@ -1468,6 +2559,209 @@ export default function ReportViewPage() {
             columns={eventPlannerColumns}
             emptyMessage="Generate the event planner report to preview results here."
           />
+        </div>
+      ) : null}
+
+      {activeReport === 'pendingPayments' ? (
+        <div className="space-y-4">
+          <SummaryTotals rows={pendingPaymentsRows} columns={pendingPaymentsColumns} />
+          <DataTable
+            rows={pendingPaymentsRows}
+            columns={pendingPaymentsColumns}
+            emptyMessage="Click 'View report' to load bookings with outstanding balances."
+          />
+        </div>
+      ) : null}
+
+      {activeReport === 'revenue' ? (
+        <div className="space-y-4">
+          <SummaryTotals rows={revenueRows} columns={revenueColumns} />
+          <DataTable
+            rows={revenueRows}
+            columns={revenueColumns}
+            emptyMessage="Set a date range and click 'View report' to generate the revenue breakdown."
+          />
+        </div>
+      ) : null}
+
+      {activeReport === 'upcomingEvents' ? (
+        <div className="space-y-4">
+          <SummaryTotals rows={upcomingEventsRows} columns={upcomingEventsColumns} />
+          <DataTable
+            rows={upcomingEventsRows}
+            columns={upcomingEventsColumns}
+            emptyMessage="Click 'View report' to see upcoming confirmed events."
+          />
+        </div>
+      ) : null}
+
+      {activeReport === 'hallOccupancy' ? (
+        <div className="space-y-4">
+          <SummaryTotals rows={hallOccupancyRows} columns={hallOccupancyColumns} />
+          <DataTable
+            rows={hallOccupancyRows}
+            columns={hallOccupancyColumns}
+            emptyMessage="Set a date range and click 'View report' to see hall-wise occupancy."
+          />
+        </div>
+      ) : null}
+
+      {activeReport === 'repeatCustomers' ? (
+        <div className="space-y-4">
+          <SummaryTotals rows={repeatCustomersRows} columns={repeatCustomersColumns} />
+          <DataTable
+            rows={repeatCustomersRows}
+            columns={repeatCustomersColumns}
+            emptyMessage="Click 'View report' to find customers who have booked more than once."
+          />
+        </div>
+      ) : null}
+
+      {activeReport === 'treasury' && treasuryReport ? (
+        <div className="space-y-6">
+          {treasuryAdvanceSummary ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: 'Confirmed Advance', value: treasuryAdvanceSummary.confirmedAdvance, color: 'emerald' },
+                { label: 'Cancelled Advance', value: treasuryAdvanceSummary.cancelledAdvance, color: 'amber' },
+                { label: 'Forfeited Advance', value: treasuryAdvanceSummary.forfeitedAdvance, color: 'red' },
+                { label: 'Total Advance', value: treasuryAdvanceSummary.total, color: 'slate' },
+              ].map((card) => (
+                <div
+                  key={card.label}
+                  className={`rounded-xl border p-4 ${
+                    card.color === 'emerald' ? 'border-emerald-200 bg-emerald-50' :
+                    card.color === 'amber' ? 'border-amber-200 bg-amber-50' :
+                    card.color === 'red' ? 'border-red-200 bg-red-50' :
+                    'border-slate-200 bg-slate-50'
+                  }`}
+                >
+                  <p className="text-xs text-slate-500">{card.label}</p>
+                  <p className={`mt-1 text-lg font-bold ${
+                    card.color === 'emerald' ? 'text-emerald-700' :
+                    card.color === 'amber' ? 'text-amber-700' :
+                    card.color === 'red' ? 'text-red-700' :
+                    'text-slate-700'
+                  }`}>
+                    <InrAmount
+                      value={card.value}
+                      symbolClassName="mr-0.5 align-[0.15em] text-xs font-bold opacity-50"
+                    />
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              { label: 'Total Advance Received', value: treasuryReport.summary.totalAdvanceReceived, color: 'emerald' },
+              { label: 'Dine-In Used', value: treasuryReport.summary.totalDineInUsed, color: 'amber' },
+              { label: 'Payouts', value: treasuryReport.summary.totalPayouts, color: 'blue' },
+              { label: 'Next Booking Applied', value: treasuryReport.summary.totalNextBookingApplied, color: 'violet' },
+              { label: 'Forfeited Advance', value: treasuryReport.summary.totalForfeited, color: 'red' },
+            ].map((card) => (
+              <div key={card.label} className={`rounded-xl border p-4 ${
+                card.color === 'emerald' ? 'border-emerald-200 bg-emerald-50' :
+                card.color === 'amber' ? 'border-amber-200 bg-amber-50' :
+                card.color === 'blue' ? 'border-blue-200 bg-blue-50' :
+                card.color === 'violet' ? 'border-violet-200 bg-violet-50' :
+                'border-red-200 bg-red-50'
+              }`}>
+                <p className="text-xs text-slate-500">{card.label}</p>
+                <p className={`mt-1 text-lg font-bold ${
+                  card.color === 'emerald' ? 'text-emerald-700' :
+                  card.color === 'amber' ? 'text-amber-700' :
+                  card.color === 'blue' ? 'text-blue-700' :
+                  card.color === 'violet' ? 'text-violet-700' :
+                  'text-red-700'
+                }`}>
+                  <InrAmount
+                    value={card.value}
+                    symbolClassName="mr-0.5 align-[0.15em] text-xs font-bold opacity-50"
+                  />
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Full ledger table */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-slate-100 bg-slate-50">
+                  <tr>
+                    {['Date', 'Type', 'Booking ID', 'Customer', 'Mobile Number', 'Booking Date', 'Cancel Date', 'Amount', 'Mode', 'Note', 'Performed By', 'Running Balance'].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {treasuryReport.entries.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="px-4 py-8 text-center text-sm text-slate-400">No entries found for the selected date range.</td>
+                    </tr>
+                  ) : (
+                    treasuryReport.entries.map((entry, idx) => {
+                      const isDebit = ['DINE_IN_USED', 'PAYOUT_PROCESSED', 'NEXT_BOOKING_APPLIED', 'FORFEITED'].includes(entry.type);
+                      const isCredit = entry.type === 'ADVANCE_RECEIVED';
+                      return (
+                        <tr key={idx} className={`hover:bg-slate-50 ${isDebit ? 'bg-red-50/30' : isCredit ? 'bg-emerald-50/30' : ''}`}>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                            {formatCsvDateTime(entry.createdAt || entry.date)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              entry.type === 'ADVANCE_RECEIVED' ? 'bg-emerald-100 text-emerald-700' :
+                              entry.type === 'BOOKING_CANCELLED' ? 'bg-slate-100 text-slate-600' :
+                              entry.type === 'OPTION_SET' ? 'bg-amber-100 text-amber-700' :
+                              entry.type === 'DINE_IN_USED' ? 'bg-orange-100 text-orange-700' :
+                              entry.type === 'PAYOUT_PROCESSED' ? 'bg-blue-100 text-blue-700' :
+                              entry.type === 'NEXT_BOOKING_APPLIED' ? 'bg-violet-100 text-violet-700' :
+                              entry.type === 'FORFEITED' ? 'bg-red-100 text-red-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}>
+                              {entry.typeLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600">{entry.orderId}</td>
+                          <td className="px-4 py-3 text-slate-700">{entry.customerName}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{entry.customerPhone}</td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                            {entry.bookingDate
+                              ? new Date(entry.bookingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                            {entry.cancelDate
+                              ? new Date(entry.cancelDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : '—'}
+                          </td>
+                          <td className={`px-4 py-3 font-semibold ${isDebit ? 'text-red-600' : isCredit ? 'text-emerald-600' : 'text-slate-700'}`}>
+                            {isCredit ? '+' : ''}
+                            <InrAmount value={isDebit ? -entry.amount : entry.amount} />
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">{entry.mode ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-500 max-w-48 truncate">{entry.note ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{entry.performedBy ?? '—'}</td>
+                          <td className={`px-4 py-3 font-bold ${entry.runningBalance >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                            <InrAmount value={entry.runningBalance} />
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {activeReport === 'treasury' && !treasuryReport ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <p className="text-sm text-slate-400">Set a date range and click &apos;View report&apos; to generate the treasury ledger.</p>
         </div>
       ) : null}
     </div>

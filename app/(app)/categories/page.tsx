@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfigRoute } from '@/components/auth/config-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
@@ -8,6 +8,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { RoleBasedRestaurantSelector } from '@/components/ui/role-based-restaurant-selector';
 import {
+  bulkUploadCategories,
   createCategory,
   deleteCategory,
   fetchCategories,
@@ -15,8 +16,9 @@ import {
   fetchRestaurants,
   updateCategory,
 } from '@/lib/auth/api';
-import { Category, CategoryMenuRule, Menu, Restaurant } from '@/lib/auth/types';
+import { BulkUploadError, BulkUploadResult, Category, CategoryMenuRule, Menu, Restaurant } from '@/lib/auth/types';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
+import { createExcelBlobFromRecords } from '@/lib/excel';
 
 type CategoryFormState = {
   name: string;
@@ -34,6 +36,116 @@ const initialFormState: CategoryFormState = {
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
+
+function downloadFile(content: string | Blob, filename: string, mimeType: string) {
+  const blob =
+    content instanceof Blob ? content : new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function generateSampleCSV(): string {
+  return [
+    'name,pricePerPlate,description,menuTitle,itemName,visibleSubitems,selectionLimit',
+    'Silver,599,Basic package,MOCKTAIL,MOCKTAIL,MINT MOJITO|BLUE LAGOON,2',
+    'Silver,599,Basic package,SOUP,SOUP,TOMATO SOUP|MANCHOW SOUP,1',
+    'Gold,899,Popular package,DESSERTS,DESSERTS,GULAB JAMUN|ICE CREAM,2',
+  ].join('\n');
+}
+
+async function generateSampleExcel(): Promise<Blob> {
+  const rows = [
+    {
+      name: 'Silver',
+      pricePerPlate: 599,
+      description: 'Basic package',
+      menuTitle: 'MOCKTAIL',
+      itemName: 'MOCKTAIL',
+      visibleSubitems: 'MINT MOJITO|BLUE LAGOON',
+      selectionLimit: 2,
+    },
+    {
+      name: 'Silver',
+      pricePerPlate: 599,
+      description: 'Basic package',
+      menuTitle: 'SOUP',
+      itemName: 'SOUP',
+      visibleSubitems: 'TOMATO SOUP|MANCHOW SOUP',
+      selectionLimit: 1,
+    },
+    {
+      name: 'Gold',
+      pricePerPlate: 899,
+      description: 'Popular package',
+      menuTitle: 'DESSERTS',
+      itemName: 'DESSERTS',
+      visibleSubitems: 'GULAB JAMUN|ICE CREAM',
+      selectionLimit: 2,
+    },
+  ];
+  return createExcelBlobFromRecords('Categories', rows);
+}
+
+function Spinner() {
+  return (
+    <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
+function UploadResultSummary({ result }: { result: BulkUploadResult }) {
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Upload Result</p>
+      <div className="grid grid-cols-3 gap-3 text-center">
+        {(
+          [
+            { label: 'Total Rows', value: result.total, cls: 'border-slate-200 bg-white text-slate-700' },
+            { label: 'Inserted', value: result.inserted, cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+            { label: 'Skipped', value: result.skipped, cls: 'border-red-200 bg-red-50 text-red-700' },
+          ] as const
+        ).map(({ label, value, cls }) => (
+          <div key={label} className={`rounded-xl border px-3 py-3 ${cls}`}>
+            <p className="text-xl font-bold">{value}</p>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</p>
+          </div>
+        ))}
+      </div>
+      {result.errors.length > 0 ? (
+        <div className="max-h-40 overflow-y-auto rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          <p className="mb-2 font-semibold">Row Errors</p>
+          <ul className="space-y-1">
+            {result.errors.map((err: BulkUploadError) => (
+              <li key={err.row}>
+                Row {err.row}: {err.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type BulkState = {
+  file: File | null;
+  status: 'idle' | 'uploading' | 'done' | 'error';
+  result: BulkUploadResult | null;
+  errorMessage: string;
+};
+
+const initialBulkState: BulkState = {
+  file: null,
+  status: 'idle',
+  result: null,
+  errorMessage: '',
+};
 
 function makeRuleKey(menuId: string, sectionTitle: string) {
   return `${menuId}:${sectionTitle}`;
@@ -62,6 +174,9 @@ export default function CategoriesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isItemPickerOpen, setIsItemPickerOpen] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [bulk, setBulk] = useState<BulkState>(initialBulkState);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
   const effectiveRestaurantId = isSuperAdmin ? selectedRestaurantId : user?.restaurantId ?? '';
@@ -374,6 +489,52 @@ export default function CategoriesPage() {
     }
   }
 
+  function openBulkModal() {
+    setBulk(initialBulkState);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setIsBulkOpen(true);
+  }
+
+  function closeBulkModal() {
+    setIsBulkOpen(false);
+  }
+
+  async function handleBulkUpload(event: { preventDefault(): void }) {
+    event.preventDefault();
+    if (!bulk.file || !accessToken) return;
+
+    setBulk((prev) => ({ ...prev, status: 'uploading', result: null, errorMessage: '' }));
+
+    try {
+      const result = await bulkUploadCategories(
+        accessToken,
+        bulk.file,
+        isSuperAdmin ? effectiveRestaurantId : undefined,
+      );
+      setBulk((prev) => ({ ...prev, status: 'done', result }));
+      if (result.inserted > 0) {
+        await reloadCategories(accessToken, 1);
+        setPage(1);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bulk upload failed.';
+      setBulk((prev) => ({ ...prev, status: 'error', errorMessage: message }));
+    }
+  }
+
+  function handleDownloadSampleCSV() {
+    downloadFile(generateSampleCSV(), 'categories-sample.csv', 'text/csv');
+  }
+
+  async function handleDownloadSampleExcel() {
+    try {
+      const blob = await generateSampleExcel();
+      downloadFile(blob, 'categories-sample.xlsx', blob.type);
+    } catch {
+      // ignore
+    }
+  }
+
   const configuredRuleCount = formState.menuRules.length;
   const configuredVisibleItemsCount = formState.menuRules.reduce(
     (count, rule) => count + rule.allowedItems.length,
@@ -426,6 +587,14 @@ export default function CategoriesPage() {
             </p>
           </div>
           <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+            <button
+              type="button"
+              onClick={openBulkModal}
+              disabled={!canLoad}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Bulk Import
+            </button>
             <button
               type="button"
               onClick={() => setIsFiltersOpen((current) => !current)}
@@ -910,6 +1079,109 @@ export default function CategoriesPage() {
             onCancel={() => setCategoryToDelete(null)}
             onConfirm={() => void handleDelete()}
           />
+        ) : null}
+
+        {isBulkOpen ? (
+          <CommonModal
+            title="Bulk Import Categories"
+            description="Upload a CSV or Excel file to create multiple categories at once."
+            onClose={closeBulkModal}
+            widthClassName="max-w-lg"
+          >
+            <div className="space-y-5">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Sample Files
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Download a sample, fill in your data, then upload.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadSampleCSV}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Download CSV Sample
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadSampleExcel()}
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    Download Excel Sample
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1 rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs text-amber-800">
+                <p><strong>Required columns:</strong> <code>name</code>, <code>pricePerPlate</code></p>
+                <p><strong>For item rules:</strong> <code>itemName</code>, <code>visibleSubitems</code>, <code>selectionLimit</code></p>
+                <p><strong>Optional:</strong> <code>description</code>, <code>menuTitle</code></p>
+                <p className="text-amber-700">Use one row per category item. Separate multiple subitems with <code>|</code>. Add <code>menuTitle</code> when the same item exists in more than one menu.</p>
+              </div>
+
+              <form onSubmit={(event) => void handleBulkUpload(event)} className="space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    File (CSV or Excel)
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    disabled={bulk.status === 'uploading'}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setBulk((prev) => ({
+                        ...prev,
+                        file,
+                        status: 'idle',
+                        result: null,
+                        errorMessage: '',
+                      }));
+                    }}
+                    className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-50 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-amber-700 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                  />
+                </div>
+
+                {bulk.status === 'uploading' ? (
+                  <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <Spinner />
+                    <span className="text-sm font-medium text-amber-700">
+                      Uploading and processing…
+                    </span>
+                  </div>
+                ) : null}
+
+                {bulk.status === 'error' ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {bulk.errorMessage}
+                  </div>
+                ) : null}
+
+                {bulk.result ? <UploadResultSummary result={bulk.result} /> : null}
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={closeBulkModal}
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                  <LoadingButton
+                    type="submit"
+                    disabled={!bulk.file || bulk.status === 'uploading'}
+                    isLoading={bulk.status === 'uploading'}
+                    className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                  >
+                    Upload File
+                  </LoadingButton>
+                </div>
+              </form>
+            </div>
+          </CommonModal>
         ) : null}
 
         {isItemPickerOpen ? (

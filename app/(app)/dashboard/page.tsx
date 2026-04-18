@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchMyRestaurant, fetchRestaurantStats, fetchOrderReports, fetchOrderStats } from '@/lib/auth/api';
-import { RestaurantStats, OrderReports, OrderStats, Restaurant } from '@/lib/auth/types';
+import { fetchAdvanceSummary, fetchMyRestaurant, fetchRestaurantStats, fetchOrderReports, fetchOrderStats } from '@/lib/auth/api';
+import { AdvanceSummary, RestaurantStats, OrderReports, OrderStats, Restaurant } from '@/lib/auth/types';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
 
@@ -72,9 +72,11 @@ function StatCard({ label, value, icon, iconBg, iconColor, delay = '' }: StatCar
 function AdvanceBreakdownCard({
   total,
   items,
+  yearLabel,
 }: {
   total: number;
   items: Array<{ label: string; amount: number; count: number }>;
+  yearLabel: string;
 }) {
   const maxAmount = Math.max(...items.map((item) => item.amount), 1);
 
@@ -88,7 +90,7 @@ function AdvanceBreakdownCard({
             </span>
           </div>
           <p className="mt-4 text-3xl font-bold text-slate-900">{formatCurrency(total)}</p>
-          <p className="mt-1 text-sm font-medium text-slate-500">This Month Advance</p>
+          <p className="mt-1 text-sm font-medium text-slate-500">{yearLabel} Advance</p>
         </div>
       </div>
 
@@ -202,6 +204,15 @@ function CoinIcon() {
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
       <path d="M14.31 8a6 6 0 0 0-4.62 0M9.69 16a6 6 0 0 0 4.62 0M12 8v1m0 6v1" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
     </svg>
   );
 }
@@ -524,18 +535,138 @@ function SuperAdminDashboard({ stats, loading }: { stats: RestaurantStats | null
   );
 }
 
+// ─── Advance Summary Card ─────────────────────────────────────────────────────
+
+function AdvanceSummarySection({
+  summary,
+  yearLabel,
+}: {
+  summary: AdvanceSummary | null;
+  yearLabel: string;
+}) {
+  if (!summary) return null;
+
+  const { confirmedAdvance, cancelledAdvance, forfeitedAdvance, total } = summary;
+  const safeTotal = total || 1;
+
+  const confirmedPct = (confirmedAdvance / safeTotal) * 100;
+  const cancelledPct = (cancelledAdvance / safeTotal) * 100;
+  const forfeitedPct = (forfeitedAdvance / safeTotal) * 100;
+
+  const buckets = [
+    {
+      label: 'Confirmed Advance',
+      value: confirmedAdvance,
+      pct: confirmedPct,
+      bar: 'bg-emerald-500',
+      text: 'text-emerald-700',
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200',
+      dot: 'bg-emerald-500',
+      desc: 'Active confirmed bookings',
+    },
+    {
+      label: 'Cancelled Advance',
+      value: cancelledAdvance,
+      pct: cancelledPct,
+      bar: 'bg-amber-500',
+      text: 'text-amber-700',
+      bg: 'bg-amber-50',
+      border: 'border-amber-200',
+      dot: 'bg-amber-500',
+      desc: 'Unresolved cancelled wallets',
+    },
+    {
+      label: 'Forfeited Advance',
+      value: forfeitedAdvance,
+      pct: forfeitedPct,
+      bar: 'bg-red-500',
+      text: 'text-red-700',
+      bg: 'bg-red-50',
+      border: 'border-red-200',
+      dot: 'bg-red-500',
+      desc: 'Restaurant retained amount',
+    },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Advance Overview</h3>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {yearLabel}: Confirmed Advance + Cancelled Advance = Total Advance
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Total</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(total)}</p>
+        </div>
+      </div>
+
+      {/* Stacked bar */}
+      <div className="mt-5 flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
+        {confirmedAdvance > 0 && (
+          <div
+            className="h-full bg-emerald-500 transition-all"
+            style={{ width: `${confirmedPct}%` }}
+            title={`Confirmed: ${formatCurrency(confirmedAdvance)}`}
+          />
+        )}
+        {cancelledAdvance > 0 && (
+          <div
+            className="h-full bg-amber-500 transition-all"
+            style={{ width: `${cancelledPct}%` }}
+            title={`Cancelled: ${formatCurrency(cancelledAdvance)}`}
+          />
+        )}
+        {forfeitedAdvance > 0 && (
+          <div
+            className="h-full bg-red-500 transition-all"
+            style={{ width: `${forfeitedPct}%` }}
+            title={`Forfeited: ${formatCurrency(forfeitedAdvance)}`}
+          />
+        )}
+      </div>
+
+      {/* 3 cards */}
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {buckets.map((b) => (
+          <div key={b.label} className={`rounded-xl border ${b.border} ${b.bg} p-4`}>
+            <div className="flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${b.dot}`} />
+              <p className="text-xs font-semibold text-slate-600">{b.label}</p>
+            </div>
+            <p className={`mt-2 text-2xl font-bold ${b.text}`}>{formatCurrency(b.value)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {b.pct.toFixed(1)}% of total · {b.desc}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-sm font-medium text-slate-600">
+        {formatCurrency(confirmedAdvance)} + {formatCurrency(cancelledAdvance)} = {formatCurrency(total)}
+      </p>
+    </section>
+  );
+}
+
 // ─── Company Admin Dashboard ──────────────────────────────────────────────────
 
 function CompanyAdminDashboard({
   stats,
   reports,
   restaurant,
+  advanceSummary,
   loading,
+  selectedYear,
 }: {
   stats: OrderStats | null;
   reports: OrderReports | null;
   restaurant: Restaurant | null;
+  advanceSummary: AdvanceSummary | null;
   loading: boolean;
+  selectedYear: number;
 }) {
   if (loading) {
     return (
@@ -558,6 +689,8 @@ function CompanyAdminDashboard({
     );
   }
 
+  const subDaysLeft = restaurant?.endDate ? daysUntil(restaurant.endDate) : null;
+
   return (
     <div className="space-y-6">
       {restaurant?.subscriptionStatus?.message ? (
@@ -568,38 +701,46 @@ function CompanyAdminDashboard({
               : 'border-amber-200 bg-amber-50'
           }`}
         >
-          <div className="flex items-start gap-3">
-            <span
-              className={
-                restaurant.subscriptionStatus.isInGracePeriod
-                  ? 'text-red-600'
-                  : 'text-amber-600'
-              }
-            >
-              <AlertIcon />
-            </span>
-            <div>
-              <p
-                className={`text-sm font-semibold ${
-                  restaurant.subscriptionStatus.isInGracePeriod
-                    ? 'text-red-700'
-                    : 'text-amber-700'
-                }`}
-              >
-                {restaurant.subscriptionStatus.isInGracePeriod
-                  ? 'Subscription Expired'
-                  : 'Subscription Renewal Reminder'}
-              </p>
-              <p
-                className={`mt-1 text-sm ${
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span
+                className={
                   restaurant.subscriptionStatus.isInGracePeriod
                     ? 'text-red-600'
-                    : 'text-amber-700'
-                }`}
+                    : 'text-amber-600'
+                }
               >
-                {restaurant.subscriptionStatus.message}
-              </p>
+                <AlertIcon />
+              </span>
+              <div>
+                <p
+                  className={`text-sm font-semibold ${
+                    restaurant.subscriptionStatus.isInGracePeriod
+                      ? 'text-red-700'
+                      : 'text-amber-700'
+                  }`}
+                >
+                  {restaurant.subscriptionStatus.isInGracePeriod
+                    ? 'Subscription Expired'
+                    : 'Subscription Renewal Reminder'}
+                </p>
+                <p
+                  className={`mt-1 text-sm ${
+                    restaurant.subscriptionStatus.isInGracePeriod
+                      ? 'text-red-600'
+                      : 'text-amber-700'
+                  }`}
+                >
+                  {restaurant.subscriptionStatus.message}
+                </p>
+              </div>
             </div>
+            {subDaysLeft !== null && !restaurant.subscriptionStatus.isInGracePeriod && (
+              <div className="shrink-0 text-right">
+                <p className="text-3xl font-bold text-amber-700">{subDaysLeft}</p>
+                <p className="text-xs font-medium text-amber-600">days left</p>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -643,6 +784,8 @@ function CompanyAdminDashboard({
         />
       </div>
 
+      <AdvanceSummarySection summary={advanceSummary} yearLabel={String(selectedYear)} />
+
       <div className="grid gap-4 xl:grid-cols-12">
         <div className="xl:col-span-6">
           <AdvanceBreakdownCard
@@ -650,11 +793,12 @@ function CompanyAdminDashboard({
             items={stats.monthAdvanceByPaymentMethod.filter(
               (item) => item.amount > 0 || item.count > 0,
             )}
+            yearLabel={String(selectedYear)}
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:col-span-6">
           <StatCard
-            label="This Month Revenue"
+            label={`${selectedYear} Revenue`}
             value={formatCurrency(stats.monthRevenue)}
             icon={<CoinIcon />}
             iconBg="bg-emerald-50"
@@ -708,6 +852,16 @@ function CompanyAdminDashboard({
           iconColor="text-rose-600"
           sub={`${stats.inquiryToConfirmationSampleCount} confirmed bookings`}
         />
+        {subDaysLeft !== null && (
+          <StatCard
+            label="Subscription Days Left"
+            value={subDaysLeft > 0 ? subDaysLeft : 'Expired'}
+            icon={<CalendarIcon />}
+            iconBg={subDaysLeft <= 7 ? 'bg-red-50' : subDaysLeft <= 15 ? 'bg-orange-50' : 'bg-emerald-50'}
+            iconColor={subDaysLeft <= 7 ? 'text-red-500' : subDaysLeft <= 15 ? 'text-orange-500' : 'text-emerald-600'}
+            sub={restaurant?.endDate ? `Expires ${new Date(restaurant.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+          />
+        )}
       </div>
 
       {reports ? (
@@ -746,7 +900,7 @@ function CompanyAdminDashboard({
           <div className="grid gap-6 lg:grid-cols-2">
             <ComparisonChart
               title="Year on Year"
-              subtitle="Current year compared with the previous year."
+              subtitle={`${selectedYear} compared with ${selectedYear - 1}.`}
               current={reports.yearComparison.current}
               previous={reports.yearComparison.previous}
             />
@@ -777,10 +931,13 @@ function CompanyAdminDashboard({
 
 export default function DashboardPage() {
   const { accessToken, user } = useAuth();
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
   const [restaurantStats, setRestaurantStats] = useState<RestaurantStats | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
   const [orderReports, setOrderReports] = useState<OrderReports | null>(null);
   const [myRestaurant, setMyRestaurant] = useState<Restaurant | null>(null);
+  const [advanceSummary, setAdvanceSummary] = useState<AdvanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -792,14 +949,16 @@ export default function DashboardPage() {
           const stats = await fetchRestaurantStats(accessToken);
           setRestaurantStats(stats);
         } else if (user?.role === 'company_admin') {
-          const [stats, reports, restaurant] = await Promise.all([
-            fetchOrderStats(accessToken),
-            fetchOrderReports(accessToken).catch(() => null),
+          const [stats, reports, restaurant, summary] = await Promise.all([
+            fetchOrderStats(accessToken, selectedYear),
+            fetchOrderReports(accessToken, selectedYear).catch(() => null),
             fetchMyRestaurant(accessToken).catch(() => null),
+            fetchAdvanceSummary(accessToken, selectedYear).catch(() => null),
           ]);
           setOrderStats(stats);
           setOrderReports(reports);
           setMyRestaurant(restaurant);
+          setAdvanceSummary(summary);
         } else if (user?.role === 'employee') {
           const restaurant = await fetchMyRestaurant(accessToken).catch(() => null);
           setMyRestaurant(restaurant);
@@ -812,7 +971,7 @@ export default function DashboardPage() {
     };
 
     load();
-  }, [accessToken, user?.role]);
+  }, [accessToken, user?.role, selectedYear]);
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -834,9 +993,24 @@ export default function DashboardPage() {
               {greeting()}, {user?.firstName ?? 'there'} 👋
             </h1>
           </div>
-          <span className="shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold capitalize text-amber-700">
-            {user?.role.replace('_', ' ')}
-          </span>
+          <div className="flex items-center gap-3">
+            {user?.role === 'company_admin' ? (
+              <select
+                value={selectedYear}
+                onChange={(event) => setSelectedYear(Number(event.target.value))}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-amber-400"
+              >
+                {Array.from({ length: 7 }, (_, index) => currentYear - 3 + index).map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <span className="shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold capitalize text-amber-700">
+              {user?.role.replace('_', ' ')}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -845,7 +1019,7 @@ export default function DashboardPage() {
         <SuperAdminDashboard stats={restaurantStats} loading={loading} />
       )}
       {user?.role === 'company_admin' && (
-        <CompanyAdminDashboard stats={orderStats} reports={orderReports} restaurant={myRestaurant} loading={loading} />
+        <CompanyAdminDashboard stats={orderStats} reports={orderReports} restaurant={myRestaurant} advanceSummary={advanceSummary} loading={loading} selectedYear={selectedYear} />
       )}
       {user?.role === 'employee' && (
         <div className="space-y-6">
@@ -857,38 +1031,46 @@ export default function DashboardPage() {
                   : 'border-amber-200 bg-amber-50'
               }`}
             >
-              <div className="flex items-start gap-3">
-                <span
-                  className={
-                    myRestaurant.subscriptionStatus.isInGracePeriod
-                      ? 'text-red-600'
-                      : 'text-amber-600'
-                  }
-                >
-                  <AlertIcon />
-                </span>
-                <div>
-                  <p
-                    className={`text-sm font-semibold ${
-                      myRestaurant.subscriptionStatus.isInGracePeriod
-                        ? 'text-red-700'
-                        : 'text-amber-700'
-                    }`}
-                  >
-                    {myRestaurant.subscriptionStatus.isInGracePeriod
-                      ? 'Subscription Expired'
-                      : 'Subscription Renewal Reminder'}
-                  </p>
-                  <p
-                    className={`mt-1 text-sm ${
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span
+                    className={
                       myRestaurant.subscriptionStatus.isInGracePeriod
                         ? 'text-red-600'
-                        : 'text-amber-700'
-                    }`}
+                        : 'text-amber-600'
+                    }
                   >
-                    {myRestaurant.subscriptionStatus.message}
-                  </p>
+                    <AlertIcon />
+                  </span>
+                  <div>
+                    <p
+                      className={`text-sm font-semibold ${
+                        myRestaurant.subscriptionStatus.isInGracePeriod
+                          ? 'text-red-700'
+                          : 'text-amber-700'
+                      }`}
+                    >
+                      {myRestaurant.subscriptionStatus.isInGracePeriod
+                        ? 'Subscription Expired'
+                        : 'Subscription Renewal Reminder'}
+                    </p>
+                    <p
+                      className={`mt-1 text-sm ${
+                        myRestaurant.subscriptionStatus.isInGracePeriod
+                          ? 'text-red-600'
+                          : 'text-amber-700'
+                      }`}
+                    >
+                      {myRestaurant.subscriptionStatus.message}
+                    </p>
+                  </div>
                 </div>
+                {myRestaurant.endDate && !myRestaurant.subscriptionStatus.isInGracePeriod && (
+                  <div className="shrink-0 text-right">
+                    <p className="text-3xl font-bold text-amber-700">{daysUntil(myRestaurant.endDate)}</p>
+                    <p className="text-xs font-medium text-amber-600">days left</p>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}

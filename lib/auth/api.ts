@@ -9,6 +9,7 @@ import {
   Category,
   Customer,
   EventPlannerReportRow,
+  HallOccupancyReportRow,
   HotDate,
   ItemSalesReportRow,
   Menu,
@@ -24,18 +25,34 @@ import {
   PaginatedMenus,
   PaginatedOrders,
   PaginatedRestaurants,
+  PendingPaymentReportRow,
+  RepeatCustomerReportRow,
   Restaurant,
   RestaurantStats,
+  RevenueReportRow,
+  UpcomingEventReportRow,
+  CancelAdvanceOption,
+  PaginatedCustomerWallet,
+  AdvanceSummary,
+  TreasuryReport,
 } from './types';
+import { notifySessionExpired } from './session-events';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
-async function parseResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as ApiEnvelope<T>;
+async function parseResponse<T>(
+  response: Response,
+  options?: { notifyOnUnauthorized?: boolean },
+): Promise<T> {
+  const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
 
-  if (!response.ok || !payload.success) {
+  if (options?.notifyOnUnauthorized && response.status === 401) {
+    notifySessionExpired();
+  }
+
+  if (!response.ok || !payload?.success) {
     const message =
-      typeof payload.message === 'string'
+      typeof payload?.message === 'string'
         ? payload.message
         : 'Request failed';
     throw new Error(message);
@@ -70,7 +87,7 @@ export async function changePasswordRequest(
     body: JSON.stringify({ currentPassword, newPassword }),
   });
 
-  return parseResponse<AuthSession>(response);
+  return parseResponse<AuthSession>(response, { notifyOnUnauthorized: true });
 }
 
 export async function fetchProfile(accessToken: string) {
@@ -80,7 +97,7 @@ export async function fetchProfile(accessToken: string) {
     },
   });
 
-  return parseResponse<AuthUser>(response);
+  return parseResponse<AuthUser>(response, { notifyOnUnauthorized: true });
 }
 
 async function authorizedRequest<T>(
@@ -97,7 +114,7 @@ async function authorizedRequest<T>(
     },
   });
 
-  return parseResponse<T>(response);
+  return parseResponse<T>(response, { notifyOnUnauthorized: true });
 }
 
 export async function fetchRestaurants(
@@ -384,6 +401,7 @@ export async function fetchMenus(
 export async function createMenu(
   accessToken: string,
   payload: Pick<Menu, 'title' | 'sections'> & {
+    displayOrder?: number;
     categoryId?: string;
     restaurantId?: string;
   },
@@ -398,6 +416,7 @@ export async function updateMenu(
   accessToken: string,
   menuId: string,
   payload: Pick<Menu, 'title' | 'sections'> & {
+    displayOrder?: number;
     categoryId?: string;
   },
 ) {
@@ -647,12 +666,104 @@ export async function confirmInquiry(
 export async function cancelOrder(
   accessToken: string,
   orderId: string,
-  payload?: { reason?: string; generateVoucher?: boolean },
+  payload?: {
+    reason?: string;
+    generateVoucher?: boolean;
+    advanceOption?: CancelAdvanceOption;
+    advanceExpiryDate?: string;
+  },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/cancel`, accessToken, {
     method: 'PATCH',
     body: JSON.stringify(payload ?? {}),
   });
+}
+
+export async function setCancelAdvanceOption(
+  accessToken: string,
+  orderId: string,
+  payload: { option: CancelAdvanceOption; expiryDate?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/cancel-advance-option`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addDineInUsage(
+  accessToken: string,
+  orderId: string,
+  payload: { amount: number; date?: string; note?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/cancel-advance/dine-in-usage`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function processAdvancePayout(
+  accessToken: string,
+  orderId: string,
+  payload: { amount: number; mode: 'CASH' | 'ONLINE'; date?: string; note?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/cancel-advance/payout`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addNextBookingUsage(
+  accessToken: string,
+  orderId: string,
+  payload: { amount: number; date?: string; note?: string },
+) {
+  return authorizedRequest<Order>(`/orders/${orderId}/cancel-advance/next-booking-usage`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchCustomerWallet(
+  accessToken: string,
+  params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  },
+) {
+  const query = new URLSearchParams();
+  if (params.page) query.set('page', String(params.page));
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.search?.trim()) query.set('search', params.search.trim());
+  if (params.status) query.set('status', params.status);
+  if (params.from) query.set('from', params.from);
+  if (params.to) query.set('to', params.to);
+  return authorizedRequest<PaginatedCustomerWallet>(
+    `/orders/customer-wallet?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchAdvanceSummary(accessToken: string, year?: number) {
+  const query = year ? `?year=${year}` : '';
+  return authorizedRequest<AdvanceSummary>(`/orders/advance-summary${query}`, accessToken);
+}
+
+export async function fetchTreasuryReport(
+  accessToken: string,
+  params: { from?: string; to?: string; type?: string },
+) {
+  const query = new URLSearchParams();
+  if (params.from) query.set('from', params.from);
+  if (params.to) query.set('to', params.to);
+  if (params.type) query.set('type', params.type);
+  return authorizedRequest<TreasuryReport>(
+    `/orders/treasury-report?${query.toString()}`,
+    accessToken,
+  );
 }
 
 export async function fetchVouchers(
@@ -784,12 +895,14 @@ export async function fetchRestaurantStats(accessToken: string) {
   return authorizedRequest<RestaurantStats>('/restaurants/stats', accessToken);
 }
 
-export async function fetchOrderStats(accessToken: string) {
-  return authorizedRequest<OrderStats>('/orders/stats', accessToken);
+export async function fetchOrderStats(accessToken: string, year?: number) {
+  const query = year ? `?year=${year}` : '';
+  return authorizedRequest<OrderStats>(`/orders/stats${query}`, accessToken);
 }
 
-export async function fetchOrderReports(accessToken: string) {
-  return authorizedRequest<OrderReports>('/orders/reports', accessToken);
+export async function fetchOrderReports(accessToken: string, year?: number) {
+  const query = year ? `?year=${year}` : '';
+  return authorizedRequest<OrderReports>(`/orders/reports${query}`, accessToken);
 }
 
 export async function fetchAdvancePaymentsReport(
@@ -858,6 +971,81 @@ export async function fetchEventPlannerReport(
   const query = searchParams.toString();
   return authorizedRequest<EventPlannerReportRow[]>(
     `/orders/event-planner-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export async function fetchPendingPaymentsReport(
+  accessToken: string,
+  params: { from?: string; to?: string; search?: string },
+) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) searchParams.set(key, value);
+  }
+  const query = searchParams.toString();
+  return authorizedRequest<PendingPaymentReportRow[]>(
+    `/orders/pending-payments-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export async function fetchRevenueReport(
+  accessToken: string,
+  params: { from?: string; to?: string; groupBy?: string },
+) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) searchParams.set(key, value);
+  }
+  const query = searchParams.toString();
+  return authorizedRequest<RevenueReportRow[]>(
+    `/orders/revenue-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export async function fetchUpcomingEventsReport(
+  accessToken: string,
+  params: { days?: string; search?: string },
+) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) searchParams.set(key, value);
+  }
+  const query = searchParams.toString();
+  return authorizedRequest<UpcomingEventReportRow[]>(
+    `/orders/upcoming-events-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export async function fetchHallOccupancyReport(
+  accessToken: string,
+  params: { from?: string; to?: string },
+) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) searchParams.set(key, value);
+  }
+  const query = searchParams.toString();
+  return authorizedRequest<HallOccupancyReportRow[]>(
+    `/orders/hall-occupancy-report${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export async function fetchRepeatCustomersReport(
+  accessToken: string,
+  params: { from?: string; to?: string },
+) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) searchParams.set(key, value);
+  }
+  const query = searchParams.toString();
+  return authorizedRequest<RepeatCustomerReportRow[]>(
+    `/orders/repeat-customers-report${query ? `?${query}` : ''}`,
     accessToken,
   );
 }
@@ -1112,6 +1300,56 @@ export async function uploadLogo(accessToken: string, file: File): Promise<strin
     throw new Error(message);
   }
   return payload.data.url;
+}
+
+export async function bulkUploadMenus(
+  accessToken: string,
+  file: File,
+  restaurantId?: string,
+) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const query = restaurantId ? `?restaurantId=${encodeURIComponent(restaurantId)}` : '';
+  const response = await fetch(`${API_URL}/menus/bulk${query}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  const payload = (await response.json()) as ApiEnvelope<BulkUploadResult>;
+  if (!response.ok || !payload.success) {
+    const message =
+      typeof payload.message === 'string' ? payload.message : 'Upload failed';
+    throw new Error(message);
+  }
+  return payload.data;
+}
+
+export async function bulkUploadCategories(
+  accessToken: string,
+  file: File,
+  restaurantId?: string,
+) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+  const query = restaurantId ? `?restaurantId=${encodeURIComponent(restaurantId)}` : '';
+  const response = await fetch(`${API_URL}/categories/bulk${query}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  const payload = (await response.json()) as ApiEnvelope<BulkUploadResult>;
+  if (!response.ok || !payload.success) {
+    const message =
+      typeof payload.message === 'string' ? payload.message : 'Upload failed';
+    throw new Error(message);
+  }
+  return payload.data;
 }
 
 export async function bulkUploadHotDates(

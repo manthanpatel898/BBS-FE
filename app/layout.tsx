@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
-import { PwaRegister } from '@/components/pwa-register';
 
 export const metadata: Metadata = {
   title: {
@@ -42,8 +41,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Capture beforeinstallprompt before React hydrates */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault();
+            window.__pwaInstallPrompt = e;
+          });
+        ` }} />
+      </head>
       <body>
-        <PwaRegister />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -171,7 +171,7 @@ function ReportPrintDocument({
           }
         />
 
-        <div className="rounded-[18px] border border-stone-300">
+        <div className="overflow-hidden rounded-[18px] border border-stone-300">
           <div className="border-b border-stone-300 bg-stone-50 px-4 py-3">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-700">
               Busy Month In A Year
@@ -256,7 +256,7 @@ function ComparisonBlock({
   previous: OrderReports['yearComparison']['previous'];
 }) {
   return (
-    <div className="rounded-[18px] border border-stone-300">
+    <div className="overflow-hidden rounded-[18px] border border-stone-300">
       <div className="border-b border-stone-300 bg-stone-50 px-4 py-3">
         <p className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-700">
           {title}
@@ -292,7 +292,7 @@ function PrintTable({
   rows: string[][];
 }) {
   return (
-    <div className="rounded-[18px] border border-stone-300">
+    <div className="overflow-hidden rounded-[18px] border border-stone-300">
       <div className="border-b border-stone-300 bg-stone-50 px-4 py-3">
         <p className="text-sm font-semibold uppercase tracking-[0.28em] text-stone-700">
           {title}

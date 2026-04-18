@@ -13,6 +13,7 @@ import {
   fetchHotDates,
   updateHotDate,
 } from '@/lib/auth/api';
+import { createExcelBlobFromRecords } from '@/lib/excel';
 import { BulkUploadError, BulkUploadResult, HotDate } from '@/lib/auth/types';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -70,19 +71,12 @@ function downloadFile(content: string | Blob, filename: string, mimeType: string
 }
 
 async function generateSampleExcel(year: number): Promise<Blob> {
-  const { utils, write } = await import('xlsx');
   const rows = [
     { date: `${year}-01-26`, description: 'Republic Day' },
     { date: `${year}-08-15`, description: 'Independence Day' },
     { date: `${year}-10-02`, description: 'Gandhi Jayanti' },
   ];
-  const ws = utils.json_to_sheet(rows);
-  const wb = utils.book_new();
-  utils.book_append_sheet(wb, ws, 'HotDates');
-  const buffer = write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
-  return new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
+  return createExcelBlobFromRecords('HotDates', rows);
 }
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {

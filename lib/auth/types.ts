@@ -63,6 +63,7 @@ export interface Restaurant {
   bookingPrefix: string;
   enableCancelledBookings?: boolean;
   enableVoucherFlow?: boolean;
+  enableWhatsappNotifications?: boolean;
   isActive?: boolean;
   subscriptionStatus?: SubscriptionStatus | null;
   notes?: string | null;
@@ -153,6 +154,7 @@ export interface Category {
 export interface CategoryMenuRule {
   menuId: string;
   menuTitle: string;
+  displayOrder?: number;
   sectionTitle: string;
   allowedItems: string[];
   selectionLimit: number;
@@ -180,6 +182,7 @@ export interface Menu {
   categoryId: string;
   categoryName: string;
   title: string;
+  displayOrder: number;
   sections: MenuSection[];
   hotSelling?: boolean;
   isActive?: boolean;
@@ -355,9 +358,117 @@ export interface Order {
     assignedByName: string;
   }>;
   redeemableBalance: number;
+  cancelAdvanceManagement: CancelAdvanceManagement | null;
   bookingTakenBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type CancelAdvanceOption = 'DINE_IN' | 'PAY_BACK' | 'NEXT_BOOKING' | 'NO_PAY_BACK';
+export type CancelAdvanceStatus = 'PENDING_OPTION' | 'ACTIVE' | 'SETTLED' | 'FORFEITED';
+export type ForfeitedReason = 'NO_PAY_BACK' | 'DINE_IN_EXPIRED' | 'NEXT_BOOKING_EXPIRED';
+
+export interface DineInUsage {
+  id: string;
+  amount: number;
+  date: string;
+  note: string | null;
+  acceptedByName: string;
+  remainingAfter: number;
+  createdAt: string;
+}
+
+export interface PayoutEntry {
+  amount: number;
+  date: string;
+  mode: 'CASH' | 'ONLINE';
+  note: string | null;
+  processedByName: string;
+  createdAt: string;
+}
+
+export interface NextBookingUsage {
+  id: string;
+  amount: number;
+  date: string;
+  note: string | null;
+  processedByName: string;
+  remainingAfter: number;
+  createdAt: string;
+}
+
+export interface CancelAdvanceManagement {
+  option: CancelAdvanceOption | null;
+  expiryDate: string | null;
+  status: CancelAdvanceStatus;
+  initialAdvanceAmount: number;
+  remainingBalance: number;
+  dineInUsages: DineInUsage[];
+  payoutEntry: PayoutEntry | null;
+  nextBookingUsages: NextBookingUsage[];
+  forfeitedAmount: number | null;
+  forfeitedAt: string | null;
+  forfeitedReason: ForfeitedReason | null;
+  forfeitedByName: string | null;
+}
+
+export interface CustomerWalletItem {
+  id: string;
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  bookingDate: string;
+  cancelDate: string;
+  eventDate: string | null;
+  cancelReason: string | null;
+  advanceAmount: number;
+  advancePayments: OrderAdvancePayment[];
+  cancelAdvanceManagement: CancelAdvanceManagement | null;
+}
+
+export interface PaginatedCustomerWallet {
+  items: CustomerWalletItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AdvanceSummary {
+  confirmedAdvance: number;
+  cancelledAdvance: number;
+  forfeitedAdvance: number;
+  total: number;
+}
+
+export interface TreasuryLedgerEntry {
+  date: string;
+  createdAt: string;
+  type: string;
+  typeLabel: string;
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  bookingDate?: string | null;
+  cancelDate?: string | null;
+  amount: number;
+  mode?: string;
+  note?: string;
+  performedBy?: string;
+  runningBalance: number;
+}
+
+export interface TreasuryReport {
+  entries: TreasuryLedgerEntry[];
+  summary: {
+    totalAdvanceReceived: number;
+    totalDineInUsed: number;
+    totalPayouts: number;
+    totalNextBookingApplied: number;
+    totalForfeited: number;
+  };
 }
 
 export interface CalendarOrder {
@@ -482,6 +593,61 @@ export interface ItemSalesReportRow {
   itemName: string;
   timesSold: number;
   subitems: string[];
+}
+
+export interface PendingPaymentReportRow {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  eventType: string | null;
+  functionDate: string | null;
+  serviceSlot: string | null;
+  hallDetails: string | null;
+  pax: number | null;
+  grandTotal: number;
+  advanceAmount: number;
+  pendingAmount: number;
+  inquiryDate: string;
+}
+
+export interface RevenueReportRow {
+  label: string;
+  bookings: number;
+  revenue: number;
+  totalPax: number;
+  avgRevenue: number;
+}
+
+export interface UpcomingEventReportRow {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  eventType: string | null;
+  functionDate: string | null;
+  serviceSlot: string | null;
+  hallDetails: string | null;
+  pax: number | null;
+  grandTotal: number;
+  advanceAmount: number;
+  pendingAmount: number;
+  plannerName: string | null;
+}
+
+export interface HallOccupancyReportRow {
+  hall: string;
+  bookings: number;
+  revenue: number;
+  totalPax: number;
+  avgPax: number;
+}
+
+export interface RepeatCustomerReportRow {
+  customerName: string;
+  customerPhone: string;
+  totalBookings: number;
+  totalRevenue: number;
+  lastBookingDate: string | null;
+  firstBookingDate: string | null;
 }
 
 export interface HotDate {

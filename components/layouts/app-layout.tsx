@@ -162,6 +162,16 @@ function IconReceipt() {
   );
 }
 
+function IconWallet() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M16 12h.01" strokeWidth={2.5} />
+      <path d="M2 10h20" />
+    </svg>
+  );
+}
+
 function IconTicket() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -199,8 +209,17 @@ function buildNavItems(
       { type: 'link', href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
       { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
       { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
+      ...(canAccessCancelledBookings
+        ? [
+            {
+              type: 'link' as const,
+              href: '/customer-wallet',
+              label: 'Customer Wallet',
+              icon: <IconWallet />,
+            },
+          ]
+        : []),
       { type: 'link', href: '/reports', label: 'Reports', icon: <IconReport /> },
-      { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
       {
         type: 'group',
         label: 'Configuration',
@@ -210,27 +229,10 @@ function buildNavItems(
           { type: 'link', href: '/menus', label: 'Menus', icon: <IconMenu /> },
           { type: 'link', href: '/employees', label: 'Employees', icon: <IconUsers /> },
           { type: 'link', href: '/settings', label: 'Settings', icon: <IconSettings /> },
+          { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
         ],
       },
     ];
-
-    if (canAccessCancelledBookings) {
-      items.splice(2, 0, {
-        type: 'link',
-        href: '/cancelled-bookings',
-        label: 'Cancel Bookings',
-        icon: <IconReceipt />,
-      });
-    }
-
-    if (canAccessVoucherFlow) {
-      items.splice(canAccessCancelledBookings ? 3 : 2, 0, {
-        type: 'link',
-        href: '/vouchers',
-        label: 'Vouchers',
-        icon: <IconTicket />,
-      });
-    }
 
     return items;
   }
@@ -549,7 +551,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <p className="truncate text-sm font-semibold text-slate-900">
                     {user ? `${user.firstName} ${user.lastName}` : 'User'}
                   </p>
-                  <p className="truncate text-xs text-slate-400">{user?.email}</p>
+                  <p className="truncate text-xs capitalize text-slate-400">
+                    {user?.role.replace('_', ' ')}
+                  </p>
                 </div>
               </div>
               <div className="border-t border-slate-100 pt-2">

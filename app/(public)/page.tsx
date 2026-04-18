@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PwaInstallCta } from '@/components/pwa-install-cta';
 
 /* ─── Data ─────────────────────────────────────────── */
 
@@ -180,6 +181,7 @@ export default function HomePage() {
                   <path fillRule="evenodd" d="M6.194 12.753a.75.75 0 0 0 1.06.053L16.5 4.44v2.81a.75.75 0 0 0 1.5 0v-4.5a.75.75 0 0 0-.75-.75h-4.5a.75.75 0 0 0 0 1.5h2.553l-9.056 8.194a.75.75 0 0 0-.053 1.06Z" clipRule="evenodd" />
                 </svg>
               </Link>
+              <PwaInstallCta className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-6 py-3.5 text-sm font-semibold text-slate-700 shadow-[0_8px_24px_rgba(148,163,184,0.12)] backdrop-blur-sm transition hover:border-slate-300 hover:bg-white sm:px-8" />
             </div>
 
             {/* Trust bullets */}

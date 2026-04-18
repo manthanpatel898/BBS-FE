@@ -26,6 +26,7 @@ import {
 import {
   AppSettings,
   CalendarOrder,
+  CancelAdvanceOption,
   Category,
   Menu,
   Order,
@@ -47,6 +48,11 @@ type SelectedMenu = {
   menuId: string;
   title: string;
   sections: SelectedMenuSection[];
+};
+
+type CustomMenuPopupState = {
+  sectionTitle: string;
+  itemsText: string;
 };
 
 type AddonEntry = {
@@ -89,6 +95,16 @@ type FollowUpPopupState = {
   note: string;
   date: string;
   nextFollowUpDate: string;
+};
+
+type TransferPopupState = {
+  orderId: string;
+  orderName: string;
+  status: OrderStatus;
+  newDate: string;
+  serviceSlot: string;
+  startTime: string;
+  endTime: string;
 };
 
 const initialFormState: BookingFormState = {
@@ -176,6 +192,18 @@ function resolveMenuForRule(
   });
 }
 
+function resolveRuleDisplayOrder(
+  menus: Menu[],
+  menuId: string,
+  menuTitle: string,
+  sectionTitle: string,
+) {
+  return (
+    resolveMenuForRule(menus, menuId, menuTitle, sectionTitle)?.displayOrder ??
+    Number.MAX_SAFE_INTEGER
+  );
+}
+
 const hourOptions = Array.from({ length: 12 }, (_, index) => String(index + 1));
 const minuteOptions = ['00', '15', '30', '45'];
 const fallbackPaymentOptions = ['Cash', 'UPI', 'Card', 'Bank', 'Cheque'];
@@ -190,6 +218,7 @@ const fallbackEventOptions = [
 ];
 const EVENT_OTHER_VALUE = '__other__';
 const ADDON_OTHER_VALUE = '__other__';
+const CUSTOM_MENU_ID = 'custom:manual';
 
 type MenuSelectionTrackingState = {
   orderId: string;
@@ -243,9 +272,15 @@ export default function BookingsPage() {
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('Cash');
   const [advanceRemark, setAdvanceRemark] = useState('');
   const [isAdvanceSubmitting, setIsAdvanceSubmitting] = useState(false);
-  const [cancelPopup, setCancelPopup] = useState<{ order: Order; reason: string; generateVoucher: boolean } | null>(
-    null,
-  );
+  const [cancelPopup, setCancelPopup] = useState<{
+    order: Order;
+    reason: string;
+    advanceOption: CancelAdvanceOption | null;
+    expiryMonths: number | null;
+    expiryCustomDate: string;
+    paybackMode: 'CASH' | 'ONLINE' | null;
+  } | null>(null);
+  const [cancelledOrderId, setCancelledOrderId] = useState<string | null>(null);
   const [isCancelSubmitting, setIsCancelSubmitting] = useState(false);
   const [deletePopup, setDeletePopup] = useState<Order | null>(null);
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
@@ -261,6 +296,8 @@ export default function BookingsPage() {
   } | null>(null);
   const [followUpPopup, setFollowUpPopup] = useState<FollowUpPopupState | null>(null);
   const [isFollowUpSubmitting, setIsFollowUpSubmitting] = useState(false);
+  const [transferPopup, setTransferPopup] = useState<TransferPopupState | null>(null);
+  const [isTransferSubmitting, setIsTransferSubmitting] = useState(false);
   const [paymentPopup, setPaymentPopup] = useState<{ orderId: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentPopupMode, setPaymentPopupMode] = useState<PaymentMode>('Cash');
@@ -270,12 +307,15 @@ export default function BookingsPage() {
     orderId: string;
     paymentId?: string;
   } | null>(null);
+  const [skippedRuleKeys, setSkippedRuleKeys] = useState<string[]>([]);
+  const [ruleSearches, setRuleSearches] = useState<Record<string, string>>({});
   const [addonPopup, setAddonPopup] = useState<{
     menuId: string;
     menuTitle: string;
     sectionTitle: string;
     value: string;
   } | null>(null);
+  const [customMenuPopup, setCustomMenuPopup] = useState<CustomMenuPopupState | null>(null);
   const menuSelectionTrackingRef = useRef<MenuSelectionTrackingState | null>(null);
 
   useEffect(() => {
@@ -431,6 +471,35 @@ export default function BookingsPage() {
     () => new Map(menus.map((menu) => [menu.id, menu])),
     [menus],
   );
+  const orderedCategoryRules = useMemo(
+    () =>
+      [...categoryRules].sort((left, right) => {
+        const leftOrder =
+          left.displayOrder ??
+          resolveRuleDisplayOrder(menus, left.menuId, left.menuTitle, left.sectionTitle);
+        const rightOrder =
+          right.displayOrder ??
+          resolveRuleDisplayOrder(menus, right.menuId, right.menuTitle, right.sectionTitle);
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+
+        const leftMenuTitle = left.menuTitle.trim().toLowerCase();
+        const rightMenuTitle = right.menuTitle.trim().toLowerCase();
+        if (leftMenuTitle !== rightMenuTitle) {
+          return leftMenuTitle.localeCompare(rightMenuTitle);
+        }
+
+        return left.sectionTitle.trim().toLowerCase().localeCompare(
+          right.sectionTitle.trim().toLowerCase(),
+        );
+      }),
+    [categoryRules, menus],
+  );
+  const customMenu = useMemo(
+    () => formState.selectedMenus.find((menu) => menu.menuId === CUSTOM_MENU_ID) ?? null,
+    [formState.selectedMenus],
+  );
 
   const pax = Number(formState.totalPerson) || 0;
   const pricePerPlate = selectedCategory?.pricePerPlate ?? 0;
@@ -514,6 +583,10 @@ export default function BookingsPage() {
   function resetWizard() {
     menuSelectionTrackingRef.current = null;
     setEditingOrder(null);
+    setSkippedRuleKeys([]);
+    setRuleSearches({});
+    setAddonPopup(null);
+    setCustomMenuPopup(null);
     setFormState(initialFormState);
     setCustomEventName('');
     setIsWizardOpen(false);
@@ -640,6 +713,10 @@ export default function BookingsPage() {
       })),
     });
     setCustomEventName(resolvedEventName.customValue);
+    setSkippedRuleKeys([]);
+    setRuleSearches({});
+    setAddonPopup(null);
+    setCustomMenuPopup(null);
     setIsWizardOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
@@ -862,6 +939,122 @@ export default function BookingsPage() {
         .find((selectedMenu) => selectedMenu.menuId === rule.menuId)
         ?.sections.find((section) => section.sectionTitle === rule.sectionTitle)?.items.length ?? 0
     );
+  }
+
+  function makeRuleKey(menuId: string, sectionTitle: string) {
+    return `${menuId}:${sectionTitle}`;
+  }
+
+  function isRuleSkipped(menuId: string, sectionTitle: string) {
+    return skippedRuleKeys.includes(makeRuleKey(menuId, sectionTitle));
+  }
+
+  function removeSectionFromSelectedMenus(menuId: string, sectionTitle: string) {
+    setFormState((current) => ({
+      ...current,
+      selectedMenus: current.selectedMenus
+        .map((menu) => {
+          if (menu.menuId !== menuId) {
+            return menu;
+          }
+
+          return {
+            ...menu,
+            sections: menu.sections.filter((section) => section.sectionTitle !== sectionTitle),
+          };
+        })
+        .filter((menu) => menu.sections.length > 0),
+    }));
+  }
+
+  function toggleRuleSkipped(rule: Category['menuRules'][number]) {
+    const key = makeRuleKey(rule.menuId, rule.sectionTitle);
+    const currentlySkipped = skippedRuleKeys.includes(key);
+
+    if (currentlySkipped) {
+      setSkippedRuleKeys((current) => current.filter((item) => item !== key));
+      return;
+    }
+
+    removeSectionFromSelectedMenus(rule.menuId, rule.sectionTitle);
+    setSkippedRuleKeys((current) => [...current, key]);
+  }
+
+  function parseCustomMenuItems(rawValue: string) {
+    return Array.from(
+      new Set(
+        rawValue
+          .split(/[\n,]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  function addCustomMenuEntry(sectionTitle: string, items: string[]) {
+    const normalizedSectionTitle = sectionTitle.trim();
+    const normalizedItems = Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+
+    if (!normalizedSectionTitle || !normalizedItems.length) {
+      return;
+    }
+
+    setFormState((current) => {
+      const existingCustomMenu = current.selectedMenus.find((menu) => menu.menuId === CUSTOM_MENU_ID);
+
+      if (!existingCustomMenu) {
+        return {
+          ...current,
+          selectedMenus: [
+            ...current.selectedMenus,
+            {
+              menuId: CUSTOM_MENU_ID,
+              title: 'Custom Menu',
+              sections: [{ sectionTitle: normalizedSectionTitle, items: normalizedItems }],
+            },
+          ],
+        };
+      }
+
+      const hasMatchingSection = existingCustomMenu.sections.some(
+        (section) => section.sectionTitle === normalizedSectionTitle,
+      );
+
+      return {
+        ...current,
+        selectedMenus: current.selectedMenus.map((menu) => {
+          if (menu.menuId !== CUSTOM_MENU_ID) {
+            return menu;
+          }
+
+          if (!hasMatchingSection) {
+            return {
+              ...menu,
+              sections: [
+                ...menu.sections,
+                { sectionTitle: normalizedSectionTitle, items: normalizedItems },
+              ],
+            };
+          }
+
+          return {
+            ...menu,
+            sections: menu.sections.map((section) =>
+              section.sectionTitle === normalizedSectionTitle
+                ? {
+                    ...section,
+                    items: Array.from(new Set([...section.items, ...normalizedItems])),
+                  }
+                : section,
+            ),
+          };
+        }),
+      };
+    });
+  }
+
+  function removeCustomMenuSection(sectionTitle: string) {
+    removeSectionFromSelectedMenus(CUSTOM_MENU_ID, sectionTitle);
   }
 
   function openAdvancePopup(mode: 'new' | 'convert', order: Order | null = null) {
@@ -1090,7 +1283,7 @@ export default function BookingsPage() {
       return;
     }
 
-    if (categoryRules.length === 0) {
+    if (orderedCategoryRules.length === 0) {
       setToast({
         type: 'error',
         message: 'This category has no configured menu items. Update the category first.',
@@ -1098,7 +1291,11 @@ export default function BookingsPage() {
       return;
     }
 
-    for (const rule of categoryRules) {
+    for (const rule of orderedCategoryRules) {
+      if (isRuleSkipped(rule.menuId, rule.sectionTitle)) {
+        continue;
+      }
+
       const selectedCount = selectedCountForRule(rule);
 
       if (selectedCount < rule.selectionLimit) {
@@ -1264,33 +1461,47 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleCancel(orderId: string, reason?: string, generateVoucher?: boolean) {
-    if (!accessToken) {
+  async function handleCancel(
+    orderId: string,
+    reason?: string,
+    advanceOption?: CancelAdvanceOption | null,
+    expiryMonths?: number | null,
+    expiryCustomDate?: string,
+    paybackMode?: 'CASH' | 'ONLINE' | null,
+  ) {
+    if (!accessToken) return;
+    const trimmedReason = reason?.trim() ?? '';
+    if (!trimmedReason) {
+      setToast({ type: 'error', message: 'Cancellation reason is required.' });
       return;
+    }
+
+    let advanceExpiryDate: string | undefined;
+    if (advanceOption === 'DINE_IN' || advanceOption === 'NEXT_BOOKING') {
+      if (expiryCustomDate) {
+        advanceExpiryDate = expiryCustomDate;
+      } else if (expiryMonths) {
+        const d = new Date();
+        d.setMonth(d.getMonth() + expiryMonths);
+        advanceExpiryDate = d.toISOString().split('T')[0];
+      }
     }
 
     try {
       setIsCancelSubmitting(true);
-      const updatedOrder = await cancelOrder(accessToken, orderId, { reason, generateVoucher });
-      setToast({
-        type: 'success',
-        message:
-          generateVoucher && updatedOrder.voucher
-            ? `Order cancelled successfully. Voucher ${updatedOrder.voucher.voucherNumber} generated.`
-            : 'Order cancelled successfully.',
+      await cancelOrder(accessToken, orderId, {
+        reason: trimmedReason,
+        advanceOption: advanceOption ?? undefined,
+        advanceExpiryDate,
       });
+      setToast({ type: 'success', message: 'Booking cancelled successfully.' });
+      setCancelledOrderId(orderId);
       await refreshBookingViews(accessToken);
-
-      if (isDetailOpen) {
-        await openOrderDetail(orderId);
-      }
+      if (isDetailOpen) await openOrderDetail(orderId);
     } catch (requestError) {
       setToast({
         type: 'error',
-        message:
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to cancel order.',
+        message: requestError instanceof Error ? requestError.message : 'Unable to cancel order.',
       });
     } finally {
       setIsCancelSubmitting(false);
@@ -1358,6 +1569,81 @@ export default function BookingsPage() {
       });
     } finally {
       setIsFollowUpSubmitting(false);
+    }
+  }
+
+  function openTransferPopup(order: Order) {
+    setTransferPopup({
+      orderId: order.id,
+      orderName: order.functionName || order.orderId,
+      status: order.status,
+      newDate: order.eventDate ? formatDateKey(order.eventDate) : '',
+      serviceSlot: order.serviceSlot ?? '',
+      startTime: order.startTime ?? '',
+      endTime: order.endTime ?? '',
+    });
+  }
+
+  async function handleTransferBooking() {
+    if (!accessToken || !transferPopup) {
+      return;
+    }
+
+    if (!transferPopup.newDate) {
+      setToast({ type: 'error', message: 'New date is required.' });
+      return;
+    }
+
+    if (
+      (transferPopup.startTime || transferPopup.endTime) &&
+      (!transferPopup.startTime || !transferPopup.endTime)
+    ) {
+      setToast({
+        type: 'error',
+        message: 'Start time and end time are both required.',
+      });
+      return;
+    }
+
+    if (
+      transferPopup.startTime &&
+      transferPopup.endTime &&
+      transferPopup.endTime <= transferPopup.startTime
+    ) {
+      setToast({ type: 'error', message: 'End time must be later than start time.' });
+      return;
+    }
+
+    try {
+      setIsTransferSubmitting(true);
+      const updatedOrder = await updateOrder(accessToken, transferPopup.orderId, {
+        eventDate: transferPopup.newDate,
+        serviceSlot: transferPopup.serviceSlot.trim(),
+        startTime: transferPopup.startTime || undefined,
+        endTime: transferPopup.endTime || undefined,
+      });
+      setTransferPopup(null);
+      setToast({
+        type: 'success',
+        message:
+          updatedOrder.status === 'CONFIRMED'
+            ? 'Booking transferred successfully.'
+            : 'Inquiry transferred successfully.',
+      });
+      await refreshBookingViews(accessToken);
+      if (isDetailOpen) {
+        setDetailOrder(updatedOrder);
+      }
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to transfer booking.',
+      });
+    } finally {
+      setIsTransferSubmitting(false);
     }
   }
 
@@ -1521,7 +1807,7 @@ export default function BookingsPage() {
     try {
       const order = await fetchOrderById(accessToken, orderId);
       setDayRecordsPopup(null);
-      setCancelPopup({ order, reason: '', generateVoucher: order.advanceAmount > 0 });
+      setCancelPopup({ order, reason: '', advanceOption: null, expiryMonths: null, expiryCustomDate: '', paybackMode: null });
     } catch (requestError) {
       setToast({
         type: 'error',
@@ -1640,14 +1926,14 @@ function selectionStatus(order: Order) {
   return (
     <BookingsRoute>
       <section className="space-y-5">
-        <div className="flex flex-col gap-4">
+        {/* <div className="flex flex-col gap-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
               Bookings
             </p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">Bookings</h1>
           </div>
-        </div>
+        </div> */}
 
         {toast ? <ToastMessage toast={toast} /> : null}
 
@@ -1838,7 +2124,7 @@ function selectionStatus(order: Order) {
                                 order.status === 'CONFIRMED') ? (
                                 <IconActionButton
                                   label="Cancel booking"
-                                  onClick={() => setCancelPopup({ order, reason: '', generateVoucher: order.advanceAmount > 0 })}
+                                  onClick={() => setCancelPopup({ order, reason: '', advanceOption: null, expiryMonths: null, expiryCustomDate: '', paybackMode: null })}
                                   icon="cancel"
                                   tone="danger"
                                 />
@@ -1957,7 +2243,7 @@ function selectionStatus(order: Order) {
                       (order.status === 'INQUIRY' || order.status === 'CONFIRMED') ? (
                         <IconActionButton
                           label="Cancel booking"
-                          onClick={() => setCancelPopup({ order, reason: '', generateVoucher: order.advanceAmount > 0 })}
+                          onClick={() => setCancelPopup({ order, reason: '', advanceOption: null, expiryMonths: null, expiryCustomDate: '', paybackMode: null })}
                           icon="cancel"
                           tone="danger"
                           compact
@@ -2247,18 +2533,26 @@ function selectionStatus(order: Order) {
                   </div>
                 </Field>
                 <Field label="Function Date">
-                  <input
-                    type="date"
-                    value={formState.functionDate}
-                    min={new Date().toISOString().split('T')[0]}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        functionDate: event.target.value,
+                  <div className="space-y-2">
+                    <input
+                      type="date"
+                      value={formState.functionDate}
+                      min={todayKey}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          functionDate: event.target.value,
                         }))
                       }
-                    className={`${dateTimeInputCls} min-h-12`}
-                  />
+                      disabled={!editingOrder}
+                      className={`${dateTimeInputCls} min-h-12 ${!editingOrder ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                    />
+                    {!editingOrder ? (
+                      <p className="text-xs text-slate-500">
+                        Function date is fixed from the selected calendar day while creating an inquiry.
+                      </p>
+                    ) : null}
+                  </div>
                 </Field>
               </div>
 
@@ -2674,11 +2968,14 @@ function selectionStatus(order: Order) {
                     <select
                       value={formState.categoryId}
                       onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          categoryId: event.target.value,
-                          selectedMenus: [],
-                        }))
+                        {
+                          setSkippedRuleKeys([]);
+                          setFormState((current) => ({
+                            ...current,
+                            categoryId: event.target.value,
+                            selectedMenus: [],
+                          }));
+                        }
                       }
                       className={inputCls}
                     >
@@ -2712,47 +3009,127 @@ function selectionStatus(order: Order) {
 
               <div className="min-h-0 flex-1">
                 <div className="h-full min-h-0 overflow-y-auto overscroll-contain pr-1 pb-3 [touch-action:pan-y]">
-                  {categoryRules.length === 0 ? (
+                  {orderedCategoryRules.length === 0 ? (
                     <EmptyState
                       title="No configured items for this category"
                       description="Edit the category and assign item rules before continuing."
                     />
                   ) : (
-                    categoryRules.map((rule) => (
+                    orderedCategoryRules.map((rule) => {
+                      const skipped = isRuleSkipped(rule.menuId, rule.sectionTitle);
+                      const showSingleLabel =
+                        rule.menuTitle.trim().toLowerCase() ===
+                        rule.sectionTitle.trim().toLowerCase();
+                      const ruleKey = makeRuleKey(rule.menuId, rule.sectionTitle);
+                      const searchValue = ruleSearches[ruleKey] ?? '';
+                      const normalizedSearchValue = searchValue.trim().toLowerCase();
+                      const filteredAllowedItems =
+                        normalizedSearchValue.length >= 3
+                          ? rule.allowedItems.filter((item) =>
+                              item.toLowerCase().includes(normalizedSearchValue),
+                            )
+                          : rule.allowedItems;
+                      const ruleDisplayOrder = resolveRuleDisplayOrder(
+                        menus,
+                        rule.menuId,
+                        rule.menuTitle,
+                        rule.sectionTitle,
+                      );
+                      const resolvedRuleDisplayOrder = rule.displayOrder ?? ruleDisplayOrder;
+
+                      return (
                       <div
                         key={`${rule.menuId}-${rule.sectionTitle}`}
                         className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
-                              {rule.menuTitle}
-                            </p>
-                            <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                            {Number.isFinite(resolvedRuleDisplayOrder) &&
+                            resolvedRuleDisplayOrder !== Number.MAX_SAFE_INTEGER ? (
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Order #{resolvedRuleDisplayOrder}
+                              </p>
+                            ) : null}
+                            {!showSingleLabel ? (
+                              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
+                                {rule.menuTitle}
+                              </p>
+                            ) : null}
+                            <h3 className={`${showSingleLabel ? '' : 'mt-1 '}text-xl font-semibold text-slate-900`}>
                               {rule.sectionTitle}
                             </h3>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                              Choose {rule.selectionLimit}
-                            </span>
+                          <div className="flex flex-wrap items-center justify-end gap-2 sm:max-w-[58%]">
+                            <div className="min-w-[220px] flex-1 sm:max-w-[280px]">
+                              <input
+                                type="text"
+                                value={searchValue}
+                                onChange={(event) =>
+                                  setRuleSearches((current) => ({
+                                    ...current,
+                                    [ruleKey]: event.target.value,
+                                  }))
+                                }
+                                placeholder="Search subitem"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-slate-300"
+                              />
+                            </div>
+                            {skipped ? (
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                                Skipped
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                                Choose {rule.selectionLimit}
+                              </span>
+                            )}
                             <button
                               type="button"
-                              onClick={() =>
-                                setAddonPopup({
-                                  menuId: rule.menuId,
-                                  menuTitle: rule.menuTitle,
-                                  sectionTitle: rule.sectionTitle,
-                                  value: '',
-                                })
-                              }
-                              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                              onClick={() => toggleRuleSkipped(rule)}
+                              className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                                skipped
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                  : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                              }`}
                             >
-                              + Add-on
+                              {skipped ? 'Restore item' : 'Skip for customer'}
                             </button>
+                            {!skipped ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAddonPopup({
+                                    menuId: rule.menuId,
+                                    menuTitle: rule.menuTitle,
+                                    sectionTitle: rule.sectionTitle,
+                                    value: '',
+                                  })
+                                }
+                                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                              >
+                                + Add-on
+                              </button>
+                            ) : null}
                           </div>
                         </div>
+                        {skipped ? (
+                          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                            This item is skipped for this customer, so it will not block saving.
+                          </div>
+                        ) : (
                         <div className="mt-4 grid gap-3">
+                          <>
+                            {normalizedSearchValue.length > 0 && normalizedSearchValue.length < 3 ? (
+                              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                                Enter {3 - normalizedSearchValue.length} more character
+                                {3 - normalizedSearchValue.length === 1 ? '' : 's'} to start searching in this menu.
+                              </div>
+                            ) : null}
+                            {normalizedSearchValue.length >= 3 ? (
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+                                Showing {filteredAllowedItems.length} of {rule.allowedItems.length} subitems.
+                              </div>
+                            ) : null}
                           {(formState.selectedMenus
                             .find((m) => m.menuId === rule.menuId)
                             ?.sections.find((s) => s.sectionTitle === rule.sectionTitle)
@@ -2778,7 +3155,7 @@ function selectionStatus(order: Order) {
                               </button>
                             </div>
                           ))}
-                          {rule.allowedItems.map((item) => {
+                          {filteredAllowedItems.map((item) => {
                             const linkedMenu =
                               menuLookup.get(rule.menuId) ??
                               resolveMenuForRule(
@@ -2846,10 +3223,77 @@ function selectionStatus(order: Order) {
                               </button>
                             );
                           })}
+                          {normalizedSearchValue.length >= 3 && filteredAllowedItems.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                              No subitems match this search.
+                            </div>
+                          ) : null}
+                          </>
                         </div>
+                        )}
                       </div>
-                    ))
+                    );
+                    })
                   )}
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
+                          Manual Entry
+                        </p>
+                        <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                          Custom Menu
+                        </h3>
+                        <p className="mt-2 text-sm text-slate-500">
+                          Add item and subitem manually. Example: item `Pizza`, subitem `Italian Pizza`.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCustomMenuPopup({
+                            sectionTitle: '',
+                            itemsText: '',
+                          })
+                        }
+                        className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                      >
+                        + Add custom menu
+                      </button>
+                    </div>
+                    <div className="mt-4 grid gap-3">
+                      {!customMenu || customMenu.sections.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                          No custom menu added yet.
+                        </div>
+                      ) : (
+                        customMenu.sections.map((section) => (
+                          <div
+                            key={`custom-section-${section.sectionTitle}`}
+                            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {section.sectionTitle}
+                                </p>
+                                <p className="mt-1 text-sm text-slate-600">
+                                  {section.items.join(', ')}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeCustomMenuSection(section.sectionTitle)}
+                                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-4 backdrop-blur">
@@ -2971,73 +3415,195 @@ function selectionStatus(order: Order) {
           <ModalShell
             title={`Cancel ${cancelPopup.order.orderId}`}
             eyebrow="Cancel Booking"
-            onClose={() => setCancelPopup(null)}
-            widthClassName="max-w-md"
+            onClose={() => { setCancelPopup(null); setCancelledOrderId(null); }}
+            widthClassName={cancelPopup.order.advanceAmount > 0 ? 'max-w-2xl' : 'max-w-md'}
           >
-            <p className="mt-4 text-sm text-slate-500">Add a cancellation reason.</p>
-            {cancelPopup.order.advanceAmount > 0 && user?.canAccessVoucherFlow ? (
-              <label className="mt-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={cancelPopup.generateVoucher}
+            <>
+              <p className="mt-4 text-sm text-slate-500">
+                Add the cancellation reason and confirm how the advance should be handled.
+              </p>
+              <div className="mt-4 space-y-2">
+                <label className="text-sm font-semibold text-slate-800">Cancellation Reason</label>
+                <textarea
+                  value={cancelPopup.reason}
                   onChange={(event) =>
                     setCancelPopup((current) =>
-                      current ? { ...current, generateVoucher: event.target.checked } : current,
+                      current ? { ...current, reason: event.target.value } : current,
                     )
                   }
-                  className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                  placeholder="Enter cancellation reason"
+                  className={`${inputCls} min-h-24 resize-none`}
                 />
-                <span>
-                  Generate cancellation voucher for advance amount
-                  <span className="ml-1 font-semibold text-slate-900">
-                    {formatCurrency(cancelPopup.order.advanceAmount)}
-                  </span>
-                </span>
-              </label>
-            ) : cancelPopup.order.advanceAmount > 0 ? (
-              <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                Voucher flow is not enabled for this restaurant.
-              </p>
-            ) : (
-              <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                No advance payment recorded, so voucher generation is not available.
-              </p>
-            )}
-            <textarea
-              value={cancelPopup.reason}
-              onChange={(event) =>
-                setCancelPopup((current) =>
-                  current ? { ...current, reason: event.target.value } : current,
-                )
-              }
-              placeholder="Reason (optional)"
-              className={`${inputCls} mt-4 min-h-24 resize-none`}
-            />
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setCancelPopup(null)}
-                className={ghostButtonCls}
-              >
-                Close
-              </button>
-              <LoadingButton
-                type="button"
-                disabled={isCancelSubmitting}
-                onClick={async () => {
-                  await handleCancel(
-                    cancelPopup.order.id,
-                    cancelPopup.reason,
-                    cancelPopup.generateVoucher,
-                  );
-                  setCancelPopup(null);
-                }}
-                isLoading={isCancelSubmitting}
-                className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
-              >
-                Confirm cancel
-              </LoadingButton>
-            </div>
+              </div>
+
+              {cancelPopup.order.advanceAmount > 0 ? (
+                <>
+                  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Advance amount to manage: <span className="font-semibold">{formatCurrency(cancelPopup.order.advanceAmount)}</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                  {(
+                    [
+                      { value: 'DINE_IN', label: 'Dine In', desc: 'Customer uses advance for dining', color: 'emerald' },
+                      { value: 'PAY_BACK', label: 'Pay Back', desc: 'Refund advance to customer', color: 'blue' },
+                      { value: 'NEXT_BOOKING', label: 'Next Booking', desc: 'Apply to a future booking', color: 'violet' },
+                      { value: 'NO_PAY_BACK', label: 'No Pay Back', desc: 'Amount forfeited immediately', color: 'red' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setCancelPopup((c) => c ? { ...c, advanceOption: opt.value, expiryMonths: null, expiryCustomDate: '', paybackMode: null } : c)}
+                      className={`rounded-xl border-2 p-4 text-left transition ${
+                        cancelPopup.advanceOption === opt.value
+                          ? opt.color === 'emerald' ? 'border-emerald-500 bg-emerald-50'
+                          : opt.color === 'blue' ? 'border-blue-500 bg-blue-50'
+                          : opt.color === 'violet' ? 'border-violet-500 bg-violet-50'
+                          : 'border-red-500 bg-red-50'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <p className={`text-sm font-semibold ${
+                        cancelPopup.advanceOption === opt.value
+                          ? opt.color === 'emerald' ? 'text-emerald-700'
+                          : opt.color === 'blue' ? 'text-blue-700'
+                          : opt.color === 'violet' ? 'text-violet-700'
+                          : 'text-red-700'
+                          : 'text-slate-800'
+                      }`}>{opt.label}</p>
+                      <p className="mt-1 text-xs text-slate-500">{opt.desc}</p>
+                    </button>
+                  ))}
+                  </div>
+                  {(cancelPopup.advanceOption === 'DINE_IN' || cancelPopup.advanceOption === 'NEXT_BOOKING') && (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Valid for (choose expiry)
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {[1, 3, 6, 9, 12].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setCancelPopup((c) => c ? { ...c, expiryMonths: m, expiryCustomDate: '' } : c)}
+                            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                              cancelPopup.expiryMonths === m && !cancelPopup.expiryCustomDate
+                                ? 'border-emerald-500 bg-emerald-100 text-emerald-700'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {m} {m === 1 ? 'Month' : 'Months'}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setCancelPopup((c) => c ? { ...c, expiryMonths: null, expiryCustomDate: c.expiryCustomDate || new Date().toISOString().split('T')[0] } : c)}
+                          className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                            cancelPopup.expiryCustomDate
+                              ? 'border-emerald-500 bg-emerald-100 text-emerald-700'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          Custom Date
+                        </button>
+                      </div>
+                      {!cancelPopup.expiryMonths && (
+                        <input
+                          type="date"
+                          value={cancelPopup.expiryCustomDate}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setCancelPopup((c) => c ? { ...c, expiryCustomDate: e.target.value } : c)}
+                          className={`${inputCls} mt-3`}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {cancelPopup.advanceOption === 'PAY_BACK' && (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Payment Method
+                      </p>
+                      <div className="flex gap-3">
+                        {(['CASH', 'ONLINE'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setCancelPopup((c) => c ? { ...c, paybackMode: mode } : c)}
+                            className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                              cancelPopup.paybackMode === mode
+                                ? 'border-blue-500 bg-blue-100 text-blue-700'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {mode === 'CASH' ? 'Cash' : 'Online'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {cancelPopup.advanceOption === 'NO_PAY_BACK' && (
+                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                      <p className="text-sm text-red-700">
+                        <span className="font-semibold">{formatCurrency(cancelPopup.order.advanceAmount)}</span> will be marked as{' '}
+                        <span className="font-semibold">Forfeited Advance</span> immediately. This cannot be undone.
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : null}
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <button
+                  type="button"
+                  onClick={() => setCancelPopup(null)}
+                  className={ghostButtonCls}
+                >
+                  Close
+                </button>
+                <div className="flex gap-3">
+                  {cancelledOrderId ? (
+                    <Link
+                      href="/customer-wallet"
+                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                      onClick={() => setCancelPopup(null)}
+                    >
+                      View in Customer Wallet →
+                    </Link>
+                  ) : null}
+                  <LoadingButton
+                    type="button"
+                    disabled={
+                      isCancelSubmitting ||
+                      !cancelPopup.reason.trim() ||
+                      (cancelPopup.order.advanceAmount > 0 &&
+                        (!cancelPopup.advanceOption ||
+                          ((cancelPopup.advanceOption === 'DINE_IN' || cancelPopup.advanceOption === 'NEXT_BOOKING') &&
+                            !cancelPopup.expiryMonths && !cancelPopup.expiryCustomDate)))
+                    }
+                    onClick={async () => {
+                      await handleCancel(
+                        cancelPopup.order.id,
+                        cancelPopup.reason,
+                        cancelPopup.order.advanceAmount > 0 ? cancelPopup.advanceOption : undefined,
+                        cancelPopup.expiryMonths,
+                        cancelPopup.expiryCustomDate,
+                        cancelPopup.paybackMode,
+                      );
+                      if (cancelPopup.order.advanceAmount > 0 && cancelPopup.advanceOption) {
+                        setCancelledOrderId(cancelPopup.order.id);
+                      }
+                      setCancelPopup(null);
+                    }}
+                    isLoading={isCancelSubmitting}
+                    className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                  >
+                    Confirm Cancel
+                  </LoadingButton>
+                </div>
+              </div>
+            </>
           </ModalShell>
         ) : null}
 
@@ -3146,6 +3712,100 @@ function selectionStatus(order: Order) {
                   className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
                 >
                   Save follow up
+                </LoadingButton>
+              </div>
+            </div>
+          </ModalShell>
+        ) : null}
+
+        {transferPopup ? (
+          <ModalShell
+            title={`Transfer ${transferPopup.status === 'CONFIRMED' ? 'Booking' : 'Inquiry'}`}
+            eyebrow="Transfer"
+            onClose={() => setTransferPopup(null)}
+            widthClassName="max-w-2xl"
+            zIndexClassName="z-[80]"
+          >
+            <div className="mt-6 space-y-5">
+              <div className="rounded-[26px] border border-slate-200 bg-slate-50 px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Event
+                </p>
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  {transferPopup.orderName}
+                </p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="New Date" required>
+                  <input
+                    type="date"
+                    value={transferPopup.newDate}
+                    onChange={(event) =>
+                      setTransferPopup((current) =>
+                        current ? { ...current, newDate: event.target.value } : current,
+                      )
+                    }
+                    className={`${dateTimeInputCls} min-h-12`}
+                  />
+                </Field>
+                <Field label="Service Slot">
+                  <select
+                    value={transferPopup.serviceSlot}
+                    onChange={(event) =>
+                      setTransferPopup((current) =>
+                        current ? { ...current, serviceSlot: event.target.value } : current,
+                      )
+                    }
+                    className={`${inputCls} min-h-12`}
+                  >
+                    <option value="">Select service slot</option>
+                    <option value="Breakfast">Breakfast</option>
+                    <option value="Lunch">Lunch</option>
+                    <option value="Dinner">Dinner</option>
+                  </select>
+                </Field>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Start Time">
+                  <TimePicker
+                    value={transferPopup.startTime}
+                    onChange={(value) =>
+                      setTransferPopup((current) =>
+                        current ? { ...current, startTime: value } : current,
+                      )
+                    }
+                  />
+                </Field>
+                <Field label="End Time">
+                  <TimePicker
+                    value={transferPopup.endTime}
+                    onChange={(value) =>
+                      setTransferPopup((current) =>
+                        current ? { ...current, endTime: value } : current,
+                      )
+                    }
+                  />
+                </Field>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                This transfers the entire {transferPopup.status === 'CONFIRMED' ? 'booking' : 'inquiry'} to another date. Service slot and timing can also be updated here.
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setTransferPopup(null)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <LoadingButton
+                  type="button"
+                  onClick={() => void handleTransferBooking()}
+                  disabled={isTransferSubmitting}
+                  isLoading={isTransferSubmitting}
+                  className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                >
+                  Transfer
                 </LoadingButton>
               </div>
             </div>
@@ -3281,6 +3941,84 @@ function selectionStatus(order: Order) {
                 className={primaryButtonCls}
               >
                 Add item
+              </button>
+            </div>
+          </ModalShell>
+        ) : null}
+
+        {customMenuPopup ? (
+          <ModalShell
+            title="Add custom menu"
+            eyebrow="Manual Entry"
+            onClose={() => setCustomMenuPopup(null)}
+            widthClassName="max-w-md"
+            zIndexClassName="z-[70]"
+          >
+            <p className="mt-4 text-sm text-slate-500">
+              Add a manual item and its subitem(s). This does not require selection from the configured list.
+            </p>
+            <div className="mt-5 space-y-4">
+              <Field label="Item name">
+                <input
+                  type="text"
+                  value={customMenuPopup.sectionTitle}
+                  onChange={(event) =>
+                    setCustomMenuPopup((current) =>
+                      current
+                        ? { ...current, sectionTitle: event.target.value }
+                        : current,
+                    )
+                  }
+                  placeholder="e.g. Pizza"
+                  className={inputCls}
+                  autoFocus
+                />
+              </Field>
+              <Field label="Subitem name">
+                <textarea
+                  value={customMenuPopup.itemsText}
+                  onChange={(event) =>
+                    setCustomMenuPopup((current) =>
+                      current
+                        ? { ...current, itemsText: event.target.value }
+                        : current,
+                    )
+                  }
+                  placeholder="e.g. Italian Pizza"
+                  className={`${inputCls} min-h-24 resize-none`}
+                />
+              </Field>
+              <p className="text-xs text-slate-500">
+                Use a new line or comma to add multiple subitems.
+              </p>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setCustomMenuPopup(null)}
+                className={ghostButtonCls}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const items = parseCustomMenuItems(customMenuPopup.itemsText);
+
+                  if (!customMenuPopup.sectionTitle.trim() || items.length === 0) {
+                    setToast({
+                      type: 'error',
+                      message: 'Custom item and at least one subitem are required.',
+                    });
+                    return;
+                  }
+
+                  addCustomMenuEntry(customMenuPopup.sectionTitle, items);
+                  setCustomMenuPopup(null);
+                }}
+                className={primaryButtonCls}
+              >
+                Add custom menu
               </button>
             </div>
           </ModalShell>
@@ -3721,9 +4459,6 @@ function selectionStatus(order: Order) {
                               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                                 Event Planner
                               </p>
-                              <p className="mt-1 text-sm text-slate-500">
-                                Attach this confirmed booking to an event planner for planner-wise reporting.
-                              </p>
                             </div>
                             <div className="flex flex-col gap-3 sm:flex-row">
                               <select
@@ -3799,6 +4534,16 @@ function selectionStatus(order: Order) {
                           detailOrder.status === 'CONFIRMED') ? (
                           <button
                             type="button"
+                            onClick={() => openTransferPopup(detailOrder)}
+                            className={ghostButtonCls}
+                          >
+                            Transfer
+                          </button>
+                        ) : null}
+                        {(detailOrder.status === 'INQUIRY' ||
+                          detailOrder.status === 'CONFIRMED') ? (
+                          <button
+                            type="button"
                             onClick={() => {
                               setIsDetailOpen(false);
                               openEditInquiry(detailOrder);
@@ -3828,7 +4573,14 @@ function selectionStatus(order: Order) {
                           type="button"
                           onClick={() => {
                             setIsDetailOpen(false);
-                            setCancelPopup({ order: detailOrder, reason: '', generateVoucher: detailOrder.advanceAmount > 0 });
+                            setCancelPopup({
+                              order: detailOrder,
+                              reason: '',
+                              advanceOption: null,
+                              expiryMonths: null,
+                              expiryCustomDate: '',
+                              paybackMode: null,
+                            });
                           }}
                           className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
                         >

@@ -261,7 +261,7 @@ function PrintDocument({
         />
       </section>
 
-      <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2">
+      <section className="mt-3 overflow-hidden rounded-[14px] border border-stone-300 print:mt-2">
         <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
             Selected Menu Snapshot
@@ -295,7 +295,8 @@ function PrintDocument({
       </section>
 
       <section className="mt-3 print:mt-2">
-        <table className="min-w-full border-collapse rounded-[14px] border border-stone-300 text-[11px] print:text-[10px]">
+        <div className="overflow-hidden rounded-[14px] border border-stone-300">
+        <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
           <thead className="bg-stone-100 text-stone-700">
             <tr>
               <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Date</th>
@@ -331,6 +332,7 @@ function PrintDocument({
             )}
           </tbody>
         </table>
+        </div>
         <div className="mt-2 overflow-hidden rounded-[12px] border border-stone-200">
           <div className="grid grid-cols-2 divide-x divide-stone-200 bg-stone-50">
             <SummaryCell
@@ -361,7 +363,7 @@ function PrintDocument({
             </section>
           </section>
 
-          <section className="mt-3 rounded-[14px] border border-stone-300 print:mt-2 print:break-before-page">
+          <section className="mt-3 overflow-hidden rounded-[14px] border border-stone-300 print:mt-2 print:break-before-page">
             <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
                 Banquet Rules
@@ -404,7 +406,7 @@ function CompactTable({
   compact?: boolean;
 }) {
   return (
-    <section className="rounded-[14px] border border-stone-300">
+    <section className="overflow-hidden rounded-[14px] border border-stone-300">
       <div className="border-b border-stone-300 bg-stone-50 px-3 py-2 print:px-2 print:py-1.5">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
           {title}
