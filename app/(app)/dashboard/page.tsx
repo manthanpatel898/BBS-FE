@@ -546,30 +546,46 @@ function AdvanceSummarySection({
 }) {
   if (!summary) return null;
 
-  const { confirmedAdvance, cancelledAdvance, forfeitedAdvance, total } = summary;
+  const {
+    confirmedAdvance,
+    completedConfirmedAdvance,
+    upcomingConfirmedAdvance,
+    cancelledAdvance,
+    forfeitedAdvance,
+    total,
+  } = summary;
   const safeTotal = total || 1;
 
-  const confirmedPct = (confirmedAdvance / safeTotal) * 100;
+  const completedConfirmedPct = (completedConfirmedAdvance / safeTotal) * 100;
+  const upcomingConfirmedPct = (upcomingConfirmedAdvance / safeTotal) * 100;
   const cancelledPct = (cancelledAdvance / safeTotal) * 100;
-  const forfeitedPct = (forfeitedAdvance / safeTotal) * 100;
+  const forfeitedPct = cancelledAdvance > 0 ? (forfeitedAdvance / cancelledAdvance) * 100 : 0;
 
   const buckets = [
     {
-      label: 'Confirmed Advance',
-      value: confirmedAdvance,
-      pct: confirmedPct,
-      bar: 'bg-emerald-500',
+      label: 'Completed Confirmed',
+      value: completedConfirmedAdvance,
+      pct: completedConfirmedPct,
       text: 'text-emerald-700',
       bg: 'bg-emerald-50',
       border: 'border-emerald-200',
       dot: 'bg-emerald-500',
-      desc: 'Active confirmed bookings',
+      desc: 'Confirmed bookings with party date up to today',
+    },
+    {
+      label: 'Upcoming Confirmed',
+      value: upcomingConfirmedAdvance,
+      pct: upcomingConfirmedPct,
+      text: 'text-blue-700',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
+      dot: 'bg-blue-500',
+      desc: 'Confirmed bookings with future party date',
     },
     {
       label: 'Cancelled Advance',
       value: cancelledAdvance,
       pct: cancelledPct,
-      bar: 'bg-amber-500',
       text: 'text-amber-700',
       bg: 'bg-amber-50',
       border: 'border-amber-200',
@@ -580,12 +596,11 @@ function AdvanceSummarySection({
       label: 'Forfeited Advance',
       value: forfeitedAdvance,
       pct: forfeitedPct,
-      bar: 'bg-red-500',
       text: 'text-red-700',
       bg: 'bg-red-50',
       border: 'border-red-200',
       dot: 'bg-red-500',
-      desc: 'Restaurant retained amount',
+      desc: 'Retained amount from cancelled advance',
     },
   ];
 
@@ -595,7 +610,7 @@ function AdvanceSummarySection({
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Advance Overview</h3>
           <p className="mt-0.5 text-sm text-slate-500">
-            {yearLabel}: Confirmed Advance + Cancelled Advance = Total Advance
+            {yearLabel}: Completed Confirmed + Upcoming Confirmed + Cancelled Advance = Total Advance
           </p>
         </div>
         <div className="text-right">
@@ -606,11 +621,18 @@ function AdvanceSummarySection({
 
       {/* Stacked bar */}
       <div className="mt-5 flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
-        {confirmedAdvance > 0 && (
+        {completedConfirmedAdvance > 0 && (
           <div
             className="h-full bg-emerald-500 transition-all"
-            style={{ width: `${confirmedPct}%` }}
-            title={`Confirmed: ${formatCurrency(confirmedAdvance)}`}
+            style={{ width: `${completedConfirmedPct}%` }}
+            title={`Completed Confirmed: ${formatCurrency(completedConfirmedAdvance)}`}
+          />
+        )}
+        {upcomingConfirmedAdvance > 0 && (
+          <div
+            className="h-full bg-blue-500 transition-all"
+            style={{ width: `${upcomingConfirmedPct}%` }}
+            title={`Upcoming Confirmed: ${formatCurrency(upcomingConfirmedAdvance)}`}
           />
         )}
         {cancelledAdvance > 0 && (
@@ -620,17 +642,10 @@ function AdvanceSummarySection({
             title={`Cancelled: ${formatCurrency(cancelledAdvance)}`}
           />
         )}
-        {forfeitedAdvance > 0 && (
-          <div
-            className="h-full bg-red-500 transition-all"
-            style={{ width: `${forfeitedPct}%` }}
-            title={`Forfeited: ${formatCurrency(forfeitedAdvance)}`}
-          />
-        )}
       </div>
 
-      {/* 3 cards */}
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Summary cards */}
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {buckets.map((b) => (
           <div key={b.label} className={`rounded-xl border ${b.border} ${b.bg} p-4`}>
             <div className="flex items-center gap-2">
@@ -639,13 +654,20 @@ function AdvanceSummarySection({
             </div>
             <p className={`mt-2 text-2xl font-bold ${b.text}`}>{formatCurrency(b.value)}</p>
             <p className="mt-0.5 text-xs text-slate-500">
-              {b.pct.toFixed(1)}% of total · {b.desc}
+              {b.label === 'Forfeited Advance'
+                ? `${b.pct.toFixed(1)}% of cancelled advance`
+                : `${b.pct.toFixed(1)}% of total`}
+              {' · '}
+              {b.desc}
             </p>
           </div>
         ))}
       </div>
       <p className="mt-4 text-sm font-medium text-slate-600">
-        {formatCurrency(confirmedAdvance)} + {formatCurrency(cancelledAdvance)} = {formatCurrency(total)}
+        {formatCurrency(completedConfirmedAdvance)} + {formatCurrency(upcomingConfirmedAdvance)} + {formatCurrency(cancelledAdvance)} = {formatCurrency(total)}
+      </p>
+      <p className="mt-1 text-xs text-slate-500">
+        Combined Confirmed Advance: {formatCurrency(confirmedAdvance)}
       </p>
     </section>
   );

@@ -1,4 +1,5 @@
 import {
+  ActiveTermsAndConditions,
   ApiEnvelope,
   AppSettings,
   Employee,
@@ -77,6 +78,12 @@ export async function changePasswordRequest(
   accessToken: string,
   currentPassword: string,
   newPassword: string,
+  tcVersionId?: string,
+  consentLocation?: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+  },
 ) {
   const response = await fetch(`${API_URL}/auth/change-password`, {
     method: 'POST',
@@ -84,10 +91,25 @@ export async function changePasswordRequest(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ currentPassword, newPassword }),
+    body: JSON.stringify({
+      currentPassword,
+      newPassword,
+      tcVersionId,
+      latitude: consentLocation?.latitude,
+      longitude: consentLocation?.longitude,
+      accuracy: consentLocation?.accuracy,
+    }),
   });
 
   return parseResponse<AuthSession>(response, { notifyOnUnauthorized: true });
+}
+
+export async function fetchActiveTerms(): Promise<ActiveTermsAndConditions> {
+  const response = await fetch(`${API_URL}/terms-and-conditions/active`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return parseResponse<ActiveTermsAndConditions>(response);
 }
 
 export async function fetchProfile(accessToken: string) {

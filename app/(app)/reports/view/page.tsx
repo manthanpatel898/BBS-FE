@@ -1540,7 +1540,9 @@ export default function ReportViewPage() {
             {
               title: 'Advance Summary',
               rows: [
-                { label: 'Confirmed Advance', value: summary.confirmedAdvance },
+                { label: 'Completed Confirmed Advance', value: summary.completedConfirmedAdvance },
+                { label: 'Upcoming Confirmed Advance', value: summary.upcomingConfirmedAdvance },
+                { label: 'Confirmed Advance (Total)', value: summary.confirmedAdvance },
                 { label: 'Cancelled Advance', value: summary.cancelledAdvance },
                 { label: 'Forfeited Advance', value: summary.forfeitedAdvance },
                 { label: 'Total Advance', value: summary.total },
@@ -2620,9 +2622,10 @@ export default function ReportViewPage() {
       {activeReport === 'treasury' && treasuryReport ? (
         <div className="space-y-6">
           {treasuryAdvanceSummary ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[
-                { label: 'Confirmed Advance', value: treasuryAdvanceSummary.confirmedAdvance, color: 'emerald' },
+                { label: 'Completed Confirmed', value: treasuryAdvanceSummary.completedConfirmedAdvance, color: 'emerald' },
+                { label: 'Upcoming Confirmed', value: treasuryAdvanceSummary.upcomingConfirmedAdvance, color: 'blue' },
                 { label: 'Cancelled Advance', value: treasuryAdvanceSummary.cancelledAdvance, color: 'amber' },
                 { label: 'Forfeited Advance', value: treasuryAdvanceSummary.forfeitedAdvance, color: 'red' },
                 { label: 'Total Advance', value: treasuryAdvanceSummary.total, color: 'slate' },
@@ -2631,6 +2634,7 @@ export default function ReportViewPage() {
                   key={card.label}
                   className={`rounded-xl border p-4 ${
                     card.color === 'emerald' ? 'border-emerald-200 bg-emerald-50' :
+                    card.color === 'blue' ? 'border-blue-200 bg-blue-50' :
                     card.color === 'amber' ? 'border-amber-200 bg-amber-50' :
                     card.color === 'red' ? 'border-red-200 bg-red-50' :
                     'border-slate-200 bg-slate-50'
@@ -2639,6 +2643,7 @@ export default function ReportViewPage() {
                   <p className="text-xs text-slate-500">{card.label}</p>
                   <p className={`mt-1 text-lg font-bold ${
                     card.color === 'emerald' ? 'text-emerald-700' :
+                    card.color === 'blue' ? 'text-blue-700' :
                     card.color === 'amber' ? 'text-amber-700' :
                     card.color === 'red' ? 'text-red-700' :
                     'text-slate-700'

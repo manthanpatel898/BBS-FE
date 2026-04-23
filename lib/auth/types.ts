@@ -13,6 +13,10 @@ export interface AuthUser {
   canAccessVoucherFlow?: boolean;
   restaurantLogoUrl?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
+  acceptedTerms?: {
+    version: string;
+    acceptedAt: string;
+  } | null;
   isFirstLogin: boolean;
   isActive: boolean;
 }
@@ -438,6 +442,8 @@ export interface PaginatedCustomerWallet {
 
 export interface AdvanceSummary {
   confirmedAdvance: number;
+  completedConfirmedAdvance: number;
+  upcomingConfirmedAdvance: number;
   cancelledAdvance: number;
   forfeitedAdvance: number;
   total: number;
@@ -658,6 +664,15 @@ export interface HotDate {
   description: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ActiveTermsAndConditions {
+  id: string;
+  version: string;
+  content: string;
+  effectiveDate: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
 }
 
 export interface BulkUploadError {

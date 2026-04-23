@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { loginRequest } from '@/lib/auth/api';
 import { getHomeRouteForUser } from '@/lib/auth/navigation';
@@ -50,6 +50,7 @@ const pointColors = {
 /* ─── Page ────────────────────────────────────────── */
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isReady, setSession, user } = useAuth();
 
   const [identifier, setIdentifier]   = useState('');
@@ -57,6 +58,17 @@ export default function LoginPage() {
   const [showPwd, setShowPwd]         = useState(false);
   const [error, setError]             = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const nextIdentifier =
+      searchParams.get('username')?.trim() ??
+      searchParams.get('identifier')?.trim() ??
+      '';
+
+    if (nextIdentifier) {
+      setIdentifier(nextIdentifier);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!isReady || !user) return;

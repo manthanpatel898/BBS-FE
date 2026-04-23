@@ -7,8 +7,8 @@ export default function AppGroupLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AppLayout>
-      <ProtectedRoute>{children}</ProtectedRoute>
-    </AppLayout>
+    <ProtectedRoute>
+      <AppLayout>{children}</AppLayout>
+    </ProtectedRoute>
   );
 }

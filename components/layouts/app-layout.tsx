@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { TcModal } from '@/components/auth/tc-modal';
 import { CommonModal } from '@/components/ui/common-modal';
-import { fetchMyRestaurant } from '@/lib/auth/api';
-import { Restaurant } from '@/lib/auth/types';
+import { fetchActiveTerms, fetchMyRestaurant, fetchProfile } from '@/lib/auth/api';
+import { ActiveTermsAndConditions, AuthUser, Restaurant } from '@/lib/auth/types';
 
 type NavLinkItem = {
   type: 'link';
@@ -289,7 +290,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   );
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileUser, setProfileUser] = useState<AuthUser | null>(null);
   const [profileRestaurant, setProfileRestaurant] = useState<Restaurant | null>(null);
+  const [profileTerms, setProfileTerms] = useState<ActiveTermsAndConditions | null>(null);
+  const [profileTermsModalOpen, setProfileTermsModalOpen] = useState(false);
   const [sidebarRestaurant, setSidebarRestaurant] = useState<Restaurant | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -300,6 +304,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     user?.canAccessVoucherFlow ??
     ((sidebarRestaurant?.enableCancelledBookings ?? false) &&
       (sidebarRestaurant?.enableVoucherFlow ?? false));
+  const isAdminUser = user?.role === 'super_admin' || user?.role === 'company_admin';
 
   const navItems = useMemo(
     () => buildNavItems(user?.role ?? '', canAccessCancelledBookings, canAccessVoucherFlow),
@@ -380,16 +385,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setProfileOpen(false);
     setProfileModalOpen(true);
     setProfileError('');
+    setProfileUser(user ?? null);
+    setProfileTerms(null);
 
-    if (!accessToken || !user?.restaurantId) {
+    if (!accessToken) {
+      setProfileUser(null);
       setProfileRestaurant(null);
       return;
     }
 
     try {
       setProfileLoading(true);
-      const restaurant = await fetchMyRestaurant(accessToken);
+      const [latestProfile, restaurant, activeTerms] = await Promise.all([
+        fetchProfile(accessToken),
+        user?.restaurantId ? fetchMyRestaurant(accessToken) : Promise.resolve(null),
+        isAdminUser ? fetchActiveTerms().catch(() => null) : Promise.resolve(null),
+      ]);
+      setProfileUser(latestProfile);
       setProfileRestaurant(restaurant);
+      setProfileTerms(activeTerms);
     } catch (error) {
       setProfileError(error instanceof Error ? error.message : 'Unable to load profile details.');
     } finally {
@@ -499,6 +513,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <AppPageHeaderContext.Provider value={setPageHeader}>
+      {profileTermsModalOpen && profileTerms ? (
+        <TcModal tc={profileTerms} onClose={() => setProfileTermsModalOpen(false)} />
+      ) : null}
       <div className="flex min-h-screen flex-col bg-slate-50">
         <header className="sticky top-0 z-40 flex h-16 flex-none items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:px-6">
           <button
@@ -705,27 +722,55 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="text-xs text-slate-500">Name</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {user ? `${user.firstName} ${user.lastName}` : 'Not available'}
+                    {profileUser ? `${profileUser.firstName} ${profileUser.lastName}` : 'Not available'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="text-xs text-slate-500">Role</p>
                   <p className="mt-1 text-sm font-semibold capitalize text-slate-900">
-                    {user?.role.replace('_', ' ') || 'Not available'}
+                    {profileUser?.role.replace('_', ' ') || 'Not available'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="text-xs text-slate-500">Email</p>
                   <p className="mt-1 break-words text-sm font-semibold text-slate-900">
-                    {user?.email || 'Not available'}
+                    {profileUser?.email || 'Not available'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="text-xs text-slate-500">Contact Number</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {user?.contactNo || 'Not available'}
+                    {profileUser?.contactNo || 'Not available'}
                   </p>
                 </div>
+                {isAdminUser ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2">
+                    <p className="text-xs text-slate-500">Accepted Terms &amp; Conditions</p>
+                    {profileUser?.acceptedTerms ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (profileTerms) {
+                              setProfileTermsModalOpen(true);
+                            }
+                          }}
+                          disabled={!profileTerms}
+                          className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {profileUser.acceptedTerms.version}
+                        </button>
+                        <span className="text-xs text-slate-500">
+                          Accepted on {formatDate(profileUser.acceptedTerms.acceptedAt)}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        Not available
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </section>
 
