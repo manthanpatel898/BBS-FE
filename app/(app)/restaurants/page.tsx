@@ -31,6 +31,7 @@ type RestaurantFormState = {
   endDate: string;
   bookingPrefix: string;
   enableCancelledBookings: boolean;
+  enableAdvancedCancelManagement: boolean;
   enableVoucherFlow: boolean;
   enableWhatsappNotifications: boolean;
 };
@@ -47,7 +48,8 @@ const initialFormState: RestaurantFormState = {
   startDate: '',
   endDate: '',
   bookingPrefix: '',
-  enableCancelledBookings: false,
+  enableCancelledBookings: true,
+  enableAdvancedCancelManagement: false,
   enableVoucherFlow: false,
   enableWhatsappNotifications: false,
 };
@@ -174,6 +176,7 @@ export default function RestaurantsPage() {
       endDate: restaurant.endDate.slice(0, 10),
       bookingPrefix: restaurant.bookingPrefix,
       enableCancelledBookings: restaurant.enableCancelledBookings ?? false,
+      enableAdvancedCancelManagement: restaurant.enableAdvancedCancelManagement ?? false,
       enableVoucherFlow: restaurant.enableVoucherFlow ?? false,
       enableWhatsappNotifications: restaurant.enableWhatsappNotifications ?? false,
     });
@@ -753,6 +756,20 @@ export default function RestaurantsPage() {
                       className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
                     />
                     <span>Show Cancel Bookings feature for this restaurant</span>
+                  </label>
+                  <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 md:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={formState.enableAdvancedCancelManagement}
+                      onChange={(e) =>
+                        setFormState((s) => ({
+                          ...s,
+                          enableAdvancedCancelManagement: e.target.checked,
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>Enable advanced cancel management options</span>
                   </label>
                   <label
                     className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm md:col-span-2 ${

@@ -21,6 +21,7 @@ import {
   fetchOrderById,
   fetchOrders,
   fetchSettings,
+  processAdvancePayout,
   updateAdvancePayment,
   updateOrder,
 } from '@/lib/auth/api';
@@ -309,12 +310,14 @@ export default function BookingsPage() {
   const [paymentPopupMode, setPaymentPopupMode] = useState<PaymentMode>('Cash');
   const [paymentRemark, setPaymentRemark] = useState('');
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const [reversingPaymentId, setReversingPaymentId] = useState<string | null>(null);
   const [paymentEditor, setPaymentEditor] = useState<{
     orderId: string;
     paymentId?: string;
   } | null>(null);
   const [skippedRuleKeys, setSkippedRuleKeys] = useState<string[]>([]);
   const [ruleSearches, setRuleSearches] = useState<Record<string, string>>({});
+  const [expandedRuleKeys, setExpandedRuleKeys] = useState<string[]>([]);
   const [addonPopup, setAddonPopup] = useState<{
     menuId: string;
     menuTitle: string;
@@ -447,6 +450,7 @@ export default function BookingsPage() {
     settings?.eventOptions.map((option) => option.label) ?? fallbackEventOptions;
   const defaultPaymentMode = paymentOptions[0] ?? 'Cash';
   const paymentModeChoices = withCurrentOption(paymentOptions, paymentMode);
+  const canUseAdvancedCancelManagement = user?.canUseAdvancedCancelManagement ?? false;
   const popupPaymentModeChoices = withCurrentOption(paymentOptions, paymentPopupMode);
   const eventChoices = [...eventOptions, 'Other'];
   const isCustomEventSelected = formState.eventName === EVENT_OTHER_VALUE;
@@ -591,6 +595,7 @@ export default function BookingsPage() {
     setEditingOrder(null);
     setSkippedRuleKeys([]);
     setRuleSearches({});
+    setExpandedRuleKeys([]);
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setFormState(initialFormState);
@@ -955,6 +960,17 @@ export default function BookingsPage() {
     return skippedRuleKeys.includes(makeRuleKey(menuId, sectionTitle));
   }
 
+  function isRuleExpanded(menuId: string, sectionTitle: string) {
+    return expandedRuleKeys.includes(makeRuleKey(menuId, sectionTitle));
+  }
+
+  function toggleRuleExpanded(menuId: string, sectionTitle: string) {
+    const key = makeRuleKey(menuId, sectionTitle);
+    setExpandedRuleKeys((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+    );
+  }
+
   function removeSectionFromSelectedMenus(menuId: string, sectionTitle: string) {
     setFormState((current) => ({
       ...current,
@@ -1143,7 +1159,7 @@ export default function BookingsPage() {
       return;
     }
 
-    if (formState.startTime && formState.endTime && formState.endTime <= formState.startTime) {
+    if (!isValidTimeRange(formState.startTime, formState.endTime)) {
       setToast({ type: 'error', message: 'End time must be later than start time.' });
       return;
     }
@@ -1284,7 +1300,7 @@ export default function BookingsPage() {
       return;
     }
 
-    if (formState.endTime <= formState.startTime) {
+    if (!isValidTimeRange(formState.startTime, formState.endTime)) {
       setToast({ type: 'error', message: 'End time must be later than start time.' });
       return;
     }
@@ -1477,7 +1493,7 @@ export default function BookingsPage() {
   ) {
     if (!accessToken) return;
     const trimmedReason = reason?.trim() ?? '';
-    if (!trimmedReason) {
+    if (canUseAdvancedCancelManagement && !trimmedReason) {
       setToast({ type: 'error', message: 'Cancellation reason is required.' });
       return;
     }
@@ -1496,8 +1512,8 @@ export default function BookingsPage() {
     try {
       setIsCancelSubmitting(true);
       await cancelOrder(accessToken, orderId, {
-        reason: trimmedReason,
-        advanceOption: advanceOption ?? undefined,
+        reason: trimmedReason || undefined,
+        advanceOption: canUseAdvancedCancelManagement ? advanceOption ?? undefined : undefined,
         advanceExpiryDate,
       });
       setToast({ type: 'success', message: 'Booking cancelled successfully.' });
@@ -1511,6 +1527,73 @@ export default function BookingsPage() {
       });
     } finally {
       setIsCancelSubmitting(false);
+    }
+  }
+
+  async function handleReverseAdvancePayment(order: Order, paymentId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    const payment = order.advancePayments.find((entry) => entry.id === paymentId);
+    const cancelAdvance = order.cancelAdvanceManagement;
+
+    if (!payment || !cancelAdvance) {
+      setToast({ type: 'error', message: 'Advance payment details are not available.' });
+      return;
+    }
+
+    if (cancelAdvance.option !== 'PAY_BACK') {
+      setToast({ type: 'error', message: 'Select Pay Back before reversing advance payments.' });
+      return;
+    }
+
+    if (cancelAdvance.status !== 'ACTIVE') {
+      setToast({ type: 'error', message: 'This pay back wallet is not active.' });
+      return;
+    }
+
+    const reversedForPayment = (cancelAdvance.payoutEntries ?? [])
+      .filter((entry) => entry.sourcePaymentId === payment.id)
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    const reversedForMode = (cancelAdvance.payoutEntries ?? [])
+      .filter((entry) => !entry.sourcePaymentId)
+      .filter((entry) => entry.mode === payment.paymentMode)
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    const reversibleAmount = Math.min(
+      Math.max(payment.amount - reversedForPayment - reversedForMode, 0),
+      cancelAdvance.remainingBalance,
+    );
+
+    if (reversibleAmount <= 0) {
+      setToast({ type: 'error', message: 'This payment method has already been fully reversed.' });
+      return;
+    }
+
+    try {
+      setReversingPaymentId(paymentId);
+      const updatedOrder = await processAdvancePayout(accessToken, order.id, {
+        amount: reversibleAmount,
+        mode: payment.paymentMode,
+        note: `Reverse advance payment ${payment.paymentMode}`,
+        sourcePaymentId: payment.id,
+      });
+      setDetailOrder(updatedOrder);
+      setToast({
+        type: 'success',
+        message: `${formatCurrency(reversibleAmount)} reversed via ${payment.paymentMode}.`,
+      });
+      await refreshBookingViews(accessToken);
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to reverse advance payment.',
+      });
+    } finally {
+      setReversingPaymentId(null);
     }
   }
 
@@ -1611,11 +1694,7 @@ export default function BookingsPage() {
       return;
     }
 
-    if (
-      transferPopup.startTime &&
-      transferPopup.endTime &&
-      transferPopup.endTime <= transferPopup.startTime
-    ) {
+    if (!isValidTimeRange(transferPopup.startTime, transferPopup.endTime)) {
       setToast({ type: 'error', message: 'End time must be later than start time.' });
       return;
     }
@@ -2438,14 +2517,9 @@ function selectionStatus(order: Order) {
                     setViewMode('list');
                     setIsCalendarActionsOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
-                    viewMode === 'list'
-                      ? 'border-amber-200 bg-amber-50 text-amber-700'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   <span>List View</span>
-                  {viewMode === 'list' ? <span className="text-xs font-semibold uppercase tracking-wider">Active</span> : null}
                 </button>
                 <button
                   type="button"
@@ -2453,14 +2527,10 @@ function selectionStatus(order: Order) {
                     setViewMode('calendar');
                     setIsCalendarActionsOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
-                    viewMode === 'calendar'
-                      ? 'border-amber-200 bg-amber-50 text-amber-700'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
+                  className="flex w-full items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm font-medium text-amber-700 transition"
                 >
                   <span>Calendar View</span>
-                  {viewMode === 'calendar' ? <span className="text-xs font-semibold uppercase tracking-wider">Active</span> : null}
+                  <span className="text-xs font-semibold uppercase tracking-wider">Active</span>
                 </button>
                 <button
                   type="button"
@@ -3027,6 +3097,7 @@ function selectionStatus(order: Order) {
                       onChange={(event) =>
                         {
                           setSkippedRuleKeys([]);
+                          setExpandedRuleKeys([]);
                           setFormState((current) => ({
                             ...current,
                             categoryId: event.target.value,
@@ -3093,53 +3164,68 @@ function selectionStatus(order: Order) {
                         rule.sectionTitle,
                       );
                       const resolvedRuleDisplayOrder = rule.displayOrder ?? ruleDisplayOrder;
+                      const expanded = isRuleExpanded(rule.menuId, rule.sectionTitle);
+                      const selectedCount = selectedCountForRule(rule);
 
                       return (
                       <div
                         key={`${rule.menuId}-${rule.sectionTitle}`}
-                        className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                        className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                       >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            {Number.isFinite(resolvedRuleDisplayOrder) &&
-                            resolvedRuleDisplayOrder !== Number.MAX_SAFE_INTEGER ? (
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                Order #{resolvedRuleDisplayOrder}
-                              </p>
-                            ) : null}
-                            {!showSingleLabel ? (
-                              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
-                                {rule.menuTitle}
-                              </p>
-                            ) : null}
-                            <h3 className={`${showSingleLabel ? '' : 'mt-1 '}text-xl font-semibold text-slate-900`}>
-                              {rule.sectionTitle}
-                            </h3>
+                        <button
+                          type="button"
+                          onClick={() => toggleRuleExpanded(rule.menuId, rule.sectionTitle)}
+                          className="flex w-full flex-col gap-3 p-5 text-left transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                              {Number.isFinite(resolvedRuleDisplayOrder) &&
+                              resolvedRuleDisplayOrder !== Number.MAX_SAFE_INTEGER ? (
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Order #{resolvedRuleDisplayOrder}
+                                </p>
+                              ) : null}
+                              {!showSingleLabel ? (
+                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
+                                  {rule.menuTitle}
+                                </p>
+                              ) : null}
+                              <h3 className={`${showSingleLabel ? '' : 'mt-1 '}text-xl font-semibold text-slate-900`}>
+                                {rule.sectionTitle}
+                              </h3>
                           </div>
-                          <div className="flex flex-wrap items-center justify-end gap-2 sm:max-w-[58%]">
-                            <div className="min-w-[220px] flex-1 sm:max-w-[280px]">
-                              <input
-                                type="text"
-                                value={searchValue}
-                                onChange={(event) =>
-                                  setRuleSearches((current) => ({
-                                    ...current,
-                                    [ruleKey]: event.target.value,
-                                  }))
-                                }
-                                placeholder="Search subitem"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-slate-300"
-                              />
-                            </div>
+                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                             {skipped ? (
                               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                                 Skipped
                               </span>
                             ) : (
                               <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                                Choose {rule.selectionLimit}
+                                {selectedCount}/{rule.selectionLimit} selected
                               </span>
                             )}
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                              {expanded ? 'Hide options' : 'Show options'}
+                            </span>
+                          </div>
+                        </button>
+                        {expanded ? (
+                          <div className="border-t border-slate-100 p-5">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-[220px] flex-1 sm:max-w-[320px]">
+                                <input
+                                  type="text"
+                                  value={searchValue}
+                                  onChange={(event) =>
+                                    setRuleSearches((current) => ({
+                                      ...current,
+                                      [ruleKey]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Search subitem"
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-slate-300"
+                                />
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                             <button
                               type="button"
                               onClick={() => toggleRuleSkipped(rule)}
@@ -3167,14 +3253,15 @@ function selectionStatus(order: Order) {
                                 + Add-on
                               </button>
                             ) : null}
-                          </div>
-                        </div>
+                              </div>
+                            </div>
+                            <div className="mt-4">
                         {skipped ? (
-                          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                             This item is skipped for this customer, so it will not block saving.
                           </div>
                         ) : (
-                        <div className="mt-4 grid gap-3">
+                        <div className="grid gap-3">
                           <>
                             {normalizedSearchValue.length > 0 && normalizedSearchValue.length < 3 ? (
                               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
@@ -3288,6 +3375,9 @@ function selectionStatus(order: Order) {
                           </>
                         </div>
                         )}
+                      </div>
+                          </div>
+                        ) : null}
                       </div>
                     );
                     })
@@ -3477,23 +3567,31 @@ function selectionStatus(order: Order) {
           >
             <>
               <p className="mt-4 text-sm text-slate-500">
-                Add the cancellation reason and confirm how the advance should be handled.
+                {canUseAdvancedCancelManagement
+                  ? 'Add the cancellation reason and confirm how the advance should be handled.'
+                  : 'Confirm that you want to cancel this booking. It will be listed in Cancelled Bookings.'}
               </p>
-              <div className="mt-4 space-y-2">
-                <label className="text-sm font-semibold text-slate-800">Cancellation Reason</label>
-                <textarea
-                  value={cancelPopup.reason}
-                  onChange={(event) =>
-                    setCancelPopup((current) =>
-                      current ? { ...current, reason: event.target.value } : current,
-                    )
-                  }
-                  placeholder="Enter cancellation reason"
-                  className={`${inputCls} min-h-24 resize-none`}
-                />
-              </div>
+              {canUseAdvancedCancelManagement ? (
+                <div className="mt-4 space-y-2">
+                  <label className="text-sm font-semibold text-slate-800">Cancellation Reason</label>
+                  <textarea
+                    value={cancelPopup.reason}
+                    onChange={(event) =>
+                      setCancelPopup((current) =>
+                        current ? { ...current, reason: event.target.value } : current,
+                      )
+                    }
+                    placeholder="Enter cancellation reason"
+                    className={`${inputCls} min-h-24 resize-none`}
+                  />
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  This action will move <span className="font-semibold">{cancelPopup.order.orderId}</span> to Cancelled Bookings.
+                </div>
+              )}
 
-              {cancelPopup.order.advanceAmount > 0 ? (
+              {canUseAdvancedCancelManagement && cancelPopup.order.advanceAmount > 0 ? (
                 <>
                   <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     Advance amount to manage: <span className="font-semibold">{formatCurrency(cancelPopup.order.advanceAmount)}</span>
@@ -3579,24 +3677,33 @@ function selectionStatus(order: Order) {
                   {cancelPopup.advanceOption === 'PAY_BACK' && (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Payment Method
+                        Advance Payment Details
                       </p>
-                      <div className="flex gap-3">
-                        {(['CASH', 'ONLINE'] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setCancelPopup((c) => c ? { ...c, paybackMode: mode } : c)}
-                            className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
-                              cancelPopup.paybackMode === mode
-                                ? 'border-blue-500 bg-blue-100 text-blue-700'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                            }`}
-                          >
-                            {mode === 'CASH' ? 'Cash' : 'Online'}
-                          </button>
-                        ))}
+                      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                        <table className="min-w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-slate-500">
+                              <th className="px-3 py-2 font-medium">Date</th>
+                              <th className="px-3 py-2 font-medium">Amount</th>
+                              <th className="px-3 py-2 font-medium">Mode</th>
+                              <th className="px-3 py-2 font-medium">Recorded By</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cancelPopup.order.advancePayments.map((payment) => (
+                              <tr key={payment.id} className="border-b border-slate-100 last:border-b-0">
+                                <td className="px-3 py-2 text-slate-700">{formatFollowUpDate(payment.date)}</td>
+                                <td className="px-3 py-2 font-semibold text-slate-900">{formatCurrency(payment.amount)}</td>
+                                <td className="px-3 py-2 text-slate-700">{payment.paymentMode}</td>
+                                <td className="px-3 py-2 text-slate-700">{payment.recordedByName}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
+                      <p className="mt-3 text-xs text-slate-500">
+                        Pay back entries will be recorded immediately using the original advance payment modes.
+                      </p>
                     </div>
                   )}
 
@@ -3622,19 +3729,20 @@ function selectionStatus(order: Order) {
                 <div className="flex gap-3">
                   {cancelledOrderId ? (
                     <Link
-                      href="/customer-wallet"
+                      href={canUseAdvancedCancelManagement ? '/customer-wallet' : '/cancelled-bookings'}
                       className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
                       onClick={() => setCancelPopup(null)}
                     >
-                      View in Customer Wallet →
+                      {canUseAdvancedCancelManagement ? 'View in Customer Wallet →' : 'View in Cancelled Bookings →'}
                     </Link>
                   ) : null}
                   <LoadingButton
                     type="button"
                     disabled={
                       isCancelSubmitting ||
-                      !cancelPopup.reason.trim() ||
-                      (cancelPopup.order.advanceAmount > 0 &&
+                      (canUseAdvancedCancelManagement && !cancelPopup.reason.trim()) ||
+                      (canUseAdvancedCancelManagement &&
+                        cancelPopup.order.advanceAmount > 0 &&
                         (!cancelPopup.advanceOption ||
                           ((cancelPopup.advanceOption === 'DINE_IN' || cancelPopup.advanceOption === 'NEXT_BOOKING') &&
                             !cancelPopup.expiryMonths && !cancelPopup.expiryCustomDate)))
@@ -4328,6 +4436,20 @@ function selectionStatus(order: Order) {
               <div className="mt-6 space-y-6">
                 {(() => {
                   const menuStatus = selectionStatus(detailOrder);
+                  const payoutEntries = detailOrder.cancelAdvanceManagement?.payoutEntries ?? [];
+                  const reversedByPaymentId = payoutEntries.reduce<Record<string, number>>((accumulator, entry) => {
+                    if (entry.sourcePaymentId) {
+                      accumulator[entry.sourcePaymentId] = (accumulator[entry.sourcePaymentId] ?? 0) + entry.amount;
+                    }
+                    return accumulator;
+                  }, {});
+                  const legacyReversedByMode = payoutEntries.reduce<Record<string, number>>((accumulator, entry) => {
+                    if (entry.sourcePaymentId) {
+                      return accumulator;
+                    }
+                    accumulator[entry.mode] = (accumulator[entry.mode] ?? 0) + entry.amount;
+                    return accumulator;
+                  }, {});
 
                   return (
                     <>
@@ -4620,7 +4742,7 @@ function selectionStatus(order: Order) {
                             }}
                             className={ghostButtonCls}
                           >
-                            {detailOrder.categorySnapshot ? 'Change Category' : 'Choose category'}
+                            {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
                           </button>
                         ) : null}
                       {isCompanyAdmin &&
@@ -4680,6 +4802,9 @@ function selectionStatus(order: Order) {
                               <th className="px-3 py-2 font-medium">Date</th>
                               <th className="px-3 py-2 font-medium">Amount</th>
                               <th className="px-3 py-2 font-medium">Mode</th>
+                              {detailOrder.status === 'CANCELLED' ? (
+                                <th className="px-3 py-2 font-medium">Reversed</th>
+                              ) : null}
                               <th className="px-3 py-2 font-medium">Remarks</th>
                               <th className="px-3 py-2 font-medium">Recorded By</th>
                               {isCompanyAdmin ? (
@@ -4690,14 +4815,37 @@ function selectionStatus(order: Order) {
                           <tbody>
                             {[...detailOrder.advancePayments]
                               .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                              .map((payment) => (
-                                <tr key={payment.id} className="border-b border-amber-100 last:border-b-0">
-                                  <td className="px-3 py-3 text-slate-700">{formatFollowUpDate(payment.date)}</td>
-                                  <td className="px-3 py-3 font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
-                                  <td className="px-3 py-3 text-slate-700">{payment.paymentMode}</td>
-                                  <td className="px-3 py-3 text-slate-700">{payment.remark || '-'}</td>
-                                  <td className="px-3 py-3 text-slate-700">{payment.recordedByName}</td>
-                                  {isCompanyAdmin && detailOrder.status === 'CONFIRMED' ? (
+                              .map((payment) => {
+                                const reversedForPayment = reversedByPaymentId[payment.id] ?? 0;
+                                const legacyReversedForMode = legacyReversedByMode[payment.paymentMode] ?? 0;
+                                const reversedForRow = Math.min(
+                                  payment.amount,
+                                  reversedForPayment + legacyReversedForMode,
+                                );
+                                const reversibleAmount = Math.min(
+                                  Math.max(payment.amount - reversedForRow, 0),
+                                  detailOrder.cancelAdvanceManagement?.remainingBalance ?? 0,
+                                );
+                                const canReverse =
+                                  isCompanyAdmin &&
+                                  detailOrder.status === 'CANCELLED' &&
+                                  detailOrder.cancelAdvanceManagement?.option === 'PAY_BACK' &&
+                                  detailOrder.cancelAdvanceManagement.status === 'ACTIVE' &&
+                                  reversibleAmount > 0;
+
+                                return (
+                                  <tr key={payment.id} className="border-b border-amber-100 last:border-b-0">
+                                    <td className="px-3 py-3 text-slate-700">{formatFollowUpDate(payment.date)}</td>
+                                    <td className="px-3 py-3 font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
+                                    <td className="px-3 py-3 text-slate-700">{payment.paymentMode}</td>
+                                    {detailOrder.status === 'CANCELLED' ? (
+                                      <td className="px-3 py-3 text-slate-700">
+                                        {reversedForRow > 0 ? formatCurrency(reversedForRow) : '-'}
+                                      </td>
+                                    ) : null}
+                                    <td className="px-3 py-3 text-slate-700">{payment.remark || '-'}</td>
+                                    <td className="px-3 py-3 text-slate-700">{payment.recordedByName}</td>
+                                    {isCompanyAdmin && detailOrder.status === 'CONFIRMED' ? (
                                     <td className="px-3 py-3">
                                       <div className="flex justify-end gap-2">
                                         <button
@@ -4727,13 +4875,63 @@ function selectionStatus(order: Order) {
                                         </button>
                                       </div>
                                     </td>
-                                  ) : null}
-                                </tr>
-                              ))}
+                                    ) : isCompanyAdmin ? (
+                                      <td className="px-3 py-3 text-right">
+                                        {canReverse ? (
+                                          <LoadingButton
+                                            type="button"
+                                            disabled={reversingPaymentId === payment.id}
+                                            isLoading={reversingPaymentId === payment.id}
+                                            onClick={() => void handleReverseAdvancePayment(detailOrder, payment.id)}
+                                            className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-50 disabled:opacity-50"
+                                          >
+                                            Reverse {formatCurrency(reversibleAmount)}
+                                          </LoadingButton>
+                                        ) : (
+                                          <span className="text-xs text-slate-400">-</span>
+                                        )}
+                                      </td>
+                                    ) : null}
+                                  </tr>
+                                );
+                              })}
                           </tbody>
                         </table>
                       </div>
                     )}
+                    {detailOrder.status === 'CANCELLED' &&
+                    detailOrder.cancelAdvanceManagement?.option === 'PAY_BACK' &&
+                    payoutEntries.length > 0 ? (
+                      <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                          Pay Back Reversals
+                        </p>
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="min-w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-blue-100 text-blue-700">
+                                <th className="px-3 py-2 font-medium">Date</th>
+                                <th className="px-3 py-2 font-medium">Amount</th>
+                                <th className="px-3 py-2 font-medium">Mode</th>
+                                <th className="px-3 py-2 font-medium">Note</th>
+                                <th className="px-3 py-2 font-medium">Processed By</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {payoutEntries.map((entry, index) => (
+                                <tr key={`${entry.createdAt}-${index}`} className="border-b border-blue-100 last:border-b-0">
+                                  <td className="px-3 py-2 text-slate-700">{formatFollowUpDate(entry.date)}</td>
+                                  <td className="px-3 py-2 font-semibold text-slate-900">{formatCurrency(entry.amount)}</td>
+                                  <td className="px-3 py-2 text-slate-700">{entry.mode}</td>
+                                  <td className="px-3 py-2 text-slate-700">{entry.note || '-'}</td>
+                                  <td className="px-3 py-2 text-slate-700">{entry.processedByName}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="mt-4 flex items-center justify-between border-t border-amber-200 pt-4 text-sm font-semibold text-slate-900">
                       <span>Total Advance Paid</span>
                       <span>{formatCurrency(detailOrder.advanceAmount)}</span>
@@ -5339,6 +5537,14 @@ function formatTimeOptionLabel(value: string) {
   const hour = rawHour % 12 || 12;
 
   return `${String(hour).padStart(2, '0')}:${String(rawMinute).padStart(2, '0')} ${suffix}`;
+}
+
+function isValidTimeRange(startTime?: string | null, endTime?: string | null) {
+  if (!startTime || !endTime) {
+    return true;
+  }
+
+  return startTime !== endTime;
 }
 
 function formatTimeRange(startTime?: string | null, endTime?: string | null) {

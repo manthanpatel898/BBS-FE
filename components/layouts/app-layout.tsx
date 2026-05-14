@@ -183,16 +183,6 @@ function IconReceipt() {
   );
 }
 
-function IconWallet() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="5" width="20" height="14" rx="2" />
-      <path d="M16 12h.01" strokeWidth={2.5} />
-      <path d="M2 10h20" />
-    </svg>
-  );
-}
-
 function IconTicket() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -234,9 +224,9 @@ function buildNavItems(
         ? [
             {
               type: 'link' as const,
-              href: '/customer-wallet',
-              label: 'Customer Wallet',
-              icon: <IconWallet />,
+              href: '/cancelled-bookings',
+              label: 'Cancelled Bookings',
+              icon: <IconCalendar />,
             },
           ]
         : []),
@@ -299,7 +289,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [profileError, setProfileError] = useState('');
   const profileRef = useRef<HTMLDivElement>(null);
   const canAccessCancelledBookings =
-    user?.canAccessCancelledBookings ?? sidebarRestaurant?.enableCancelledBookings ?? false;
+    user?.canAccessCancelledBookings ?? sidebarRestaurant?.enableCancelledBookings ?? true;
   const canAccessVoucherFlow =
     user?.canAccessVoucherFlow ??
     ((sidebarRestaurant?.enableCancelledBookings ?? false) &&

@@ -169,12 +169,12 @@ function WalletViewModal({
         date: new Date().toISOString().split('T')[0],
         note: dineInNote || undefined,
       });
-      setNotice({ type: 'success', message: 'Dine-in usage recorded.' });
+      setNotice({ type: 'success', message: 'Usage recorded.' });
       setDineInAmount(''); setDineInNote('');
       setIsDineInModalOpen(false);
       onUpdated();
     } catch (e) {
-      setNotice({ type: 'error', message: e instanceof Error ? e.message : 'Failed to record dine-in usage.' });
+      setNotice({ type: 'error', message: e instanceof Error ? e.message : 'Failed to record usage.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -248,7 +248,7 @@ function WalletViewModal({
       ...(cam?.dineInUsages ?? []).map((entry, index) => ({
         id: `dinein-${entry.id ?? `${entry.createdAt ?? entry.date}-${entry.amount}-${index}`}`,
         date: entry.date,
-        type: 'Dine-In Used',
+        type: 'Usage',
         amount: entry.amount,
         effect: -entry.amount,
         note: entry.note || '-',
@@ -417,7 +417,7 @@ function WalletViewModal({
                   onClick={() => setIsDineInModalOpen(true)}
                   className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-500"
                 >
-                  Add Dine-In Usage
+                  Add Usage
                 </button>
               ) : null}
             </div>
@@ -490,7 +490,7 @@ function WalletViewModal({
                       </table>
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-400 italic mb-3">No dine-in usages recorded yet.</p>
+                    <p className="text-sm text-slate-400 italic mb-3">No usages recorded yet.</p>
                   )}
                 </>
               )}
@@ -619,14 +619,15 @@ function WalletViewModal({
 
       {isDineInModalOpen && cam?.option === 'DINE_IN' ? (
         <CommonModal
-          title={`Add Dine-In Usage ${item.orderId}`}
-          description="Record a dine-in usage against this customer's available wallet balance."
+          title={`Add Usage ${item.orderId}`}
+          description="Record a usage against this customer's available wallet balance."
           onClose={() => {
             setIsDineInModalOpen(false);
             setDineInAmount('');
             setDineInNote('');
           }}
           widthClassName="max-w-md"
+          zIndexClassName="z-[90]"
         >
           <form onSubmit={handleAddDineIn} className="space-y-4">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -672,7 +673,7 @@ function WalletViewModal({
                 disabled={!dineInAmount || isSubmitting}
                 className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
               >
-                Record Dine-In
+                Record Usage
               </LoadingButton>
             </div>
           </form>

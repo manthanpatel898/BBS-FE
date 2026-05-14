@@ -35,27 +35,46 @@ import {
   CancelAdvanceOption,
   PaginatedCustomerWallet,
   AdvanceSummary,
+  CancelledAdvanceDashboard,
   TreasuryReport,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+function isSessionInvalidatingForbidden(message: string) {
+  const normalizedMessage = message.toLowerCase();
+
+  return (
+    normalizedMessage.includes('account is inactive') ||
+    normalizedMessage.includes('restaurant not found') ||
+    normalizedMessage.includes('restaurant has been deactivated') ||
+    normalizedMessage.includes('restaurant subscription has expired') ||
+    normalizedMessage.includes('subscription has expired')
+  );
+}
+
 async function parseResponse<T>(
   response: Response,
   options?: { notifyOnUnauthorized?: boolean },
 ): Promise<T> {
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+  const message =
+    typeof payload?.message === 'string'
+      ? payload.message
+      : 'Request failed';
 
-  if (options?.notifyOnUnauthorized && response.status === 401) {
-    notifySessionExpired();
+  if (options?.notifyOnUnauthorized) {
+    const shouldExpireSession =
+      response.status === 401 ||
+      (response.status === 403 && isSessionInvalidatingForbidden(message));
+
+    if (shouldExpireSession) {
+      notifySessionExpired();
+    }
   }
 
   if (!response.ok || !payload?.success) {
-    const message =
-      typeof payload?.message === 'string'
-        ? payload.message
-        : 'Request failed';
     throw new Error(message);
   }
 
@@ -715,7 +734,7 @@ export async function setCancelAdvanceOption(
 export async function addDineInUsage(
   accessToken: string,
   orderId: string,
-  payload: { amount: number; date?: string; note?: string },
+  payload: { amount: number; date?: string; note?: string; paymentMode?: string },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/cancel-advance/dine-in-usage`, accessToken, {
     method: 'PATCH',
@@ -723,10 +742,18 @@ export async function addDineInUsage(
   });
 }
 
+export async function addUsage(
+  accessToken: string,
+  orderId: string,
+  payload: { amount: number; date?: string; note?: string; paymentMode?: string },
+) {
+  return addDineInUsage(accessToken, orderId, payload);
+}
+
 export async function processAdvancePayout(
   accessToken: string,
   orderId: string,
-  payload: { amount: number; mode: 'CASH' | 'ONLINE'; date?: string; note?: string },
+  payload: { amount: number; mode: string; date?: string; note?: string; sourcePaymentId?: string },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/cancel-advance/payout`, accessToken, {
     method: 'PATCH',
@@ -772,6 +799,14 @@ export async function fetchCustomerWallet(
 export async function fetchAdvanceSummary(accessToken: string, year?: number) {
   const query = year ? `?year=${year}` : '';
   return authorizedRequest<AdvanceSummary>(`/orders/advance-summary${query}`, accessToken);
+}
+
+export async function fetchCancelledAdvanceDashboard(accessToken: string, year?: number) {
+  const query = year ? `?year=${year}` : '';
+  return authorizedRequest<CancelledAdvanceDashboard>(
+    `/orders/cancelled-advance-dashboard${query}`,
+    accessToken,
+  );
 }
 
 export async function fetchTreasuryReport(
@@ -857,7 +892,7 @@ export async function addAdvancePayment(
 export async function addDiningRedemption(
   accessToken: string,
   orderId: string,
-  payload: { amount: number; date?: string; remark?: string },
+  payload: { amount: number; date?: string; remark?: string; paymentMode?: string },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/dining-redemptions`, accessToken, {
     method: 'PATCH',

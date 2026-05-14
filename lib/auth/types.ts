@@ -10,6 +10,7 @@ export interface AuthUser {
   role: UserRole;
   restaurantId: string | null;
   canAccessCancelledBookings?: boolean;
+  canUseAdvancedCancelManagement?: boolean;
   canAccessVoucherFlow?: boolean;
   restaurantLogoUrl?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
@@ -66,6 +67,7 @@ export interface Restaurant {
   endDate: string;
   bookingPrefix: string;
   enableCancelledBookings?: boolean;
+  enableAdvancedCancelManagement?: boolean;
   enableVoucherFlow?: boolean;
   enableWhatsappNotifications?: boolean;
   isActive?: boolean;
@@ -283,6 +285,7 @@ export interface OrderDiningRedemption {
   amount: number;
   date: string;
   remark: string | null;
+  paymentMode: string | null;
   recordedByName: string;
   createdAt: string;
 }
@@ -385,8 +388,9 @@ export interface DineInUsage {
 export interface PayoutEntry {
   amount: number;
   date: string;
-  mode: 'CASH' | 'ONLINE';
+  mode: string;
   note: string | null;
+  sourcePaymentId: string | null;
   processedByName: string;
   createdAt: string;
 }
@@ -409,6 +413,7 @@ export interface CancelAdvanceManagement {
   remainingBalance: number;
   dineInUsages: DineInUsage[];
   payoutEntry: PayoutEntry | null;
+  payoutEntries: PayoutEntry[];
   nextBookingUsages: NextBookingUsage[];
   forfeitedAmount: number | null;
   forfeitedAt: string | null;
@@ -449,6 +454,34 @@ export interface AdvanceSummary {
   total: number;
 }
 
+export interface CancelledAdvanceDashboardMonth {
+  month: string;
+  cancelledAdvance: number;
+  pendingAmount: number;
+  paidBack: number;
+  dineInUsed: number;
+  nextBookingUsed: number;
+  forfeited: number;
+  bookings: number;
+}
+
+export interface CancelledAdvanceDashboard {
+  year: number;
+  totalCancelledAdvance: number;
+  totalPendingAmount: number;
+  totalPaidBack: number;
+  totalDineInUsed: number;
+  totalNextBookingUsed: number;
+  totalForfeited: number;
+  totalBookings: number;
+  paidBackByMethod: Array<{
+    label: string;
+    amount: number;
+    count: number;
+  }>;
+  monthly: CancelledAdvanceDashboardMonth[];
+}
+
 export interface TreasuryLedgerEntry {
   date: string;
   createdAt: string;
@@ -462,6 +495,7 @@ export interface TreasuryLedgerEntry {
   amount: number;
   mode?: string;
   note?: string;
+  reason?: string;
   performedBy?: string;
   runningBalance: number;
 }
@@ -474,6 +508,8 @@ export interface TreasuryReport {
     totalPayouts: number;
     totalNextBookingApplied: number;
     totalForfeited: number;
+    totalCancelledAdvance?: number;
+    closingBalance?: number;
   };
 }
 
@@ -523,6 +559,12 @@ export interface OrderStats {
   monthRevenue: number;
   monthAdvance: number;
   monthAdvanceByPaymentMethod: Array<{
+    label: string;
+    amount: number;
+    count: number;
+  }>;
+  upcomingConfirmedAdvance?: number;
+  upcomingConfirmedAdvanceByPaymentMethod?: Array<{
     label: string;
     amount: number;
     count: number;

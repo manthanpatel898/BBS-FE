@@ -1,3 +1,5 @@
+import ExcelJS from 'exceljs';
+
 type ExcelFooterSection = {
   title: string;
   rows: Array<{
@@ -10,7 +12,6 @@ export async function createExcelBlobFromRecords(
   sheetName: string,
   rows: Array<Record<string, string | number | null>>,
 ) {
-  const ExcelJS = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(sheetName);
 
@@ -43,7 +44,6 @@ export async function createExcelBlobFromTable(
     footerSections?: ExcelFooterSection[];
   },
 ) {
-  const ExcelJS = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(sheetName);
 

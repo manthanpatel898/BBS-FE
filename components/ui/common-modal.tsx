@@ -6,15 +6,17 @@ export function CommonModal({
   children,
   onClose,
   widthClassName = 'max-w-3xl',
+  zIndexClassName = 'z-50',
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
   onClose: () => void;
   widthClassName?: string;
+  zIndexClassName?: string;
 }) {
   return (
-    <div className="modal-viewport-pad fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-3 backdrop-blur-sm sm:px-4 sm:py-6">
+    <div className={`modal-viewport-pad fixed inset-0 ${zIndexClassName} flex items-center justify-center bg-slate-900/50 px-3 backdrop-blur-sm sm:px-4 sm:py-6`}>
       <div
         className={`modal-panel-height safe-pad-bottom relative w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6 ${widthClassName}`}
       >

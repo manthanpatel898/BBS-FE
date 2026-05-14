@@ -6,7 +6,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { useAuth } from '@/components/auth/auth-provider';
 import {
-  fetchAdvanceSummary,
   fetchAdvancePaymentsReport,
   fetchEventPlannerReport,
   fetchHallOccupancyReport,
@@ -20,7 +19,6 @@ import {
   fetchUpcomingEventsReport,
 } from '@/lib/auth/api';
 import {
-  AdvanceSummary,
   AdvancePaymentReportRow,
   EventPlannerReportRow,
   HallOccupancyReportRow,
@@ -58,6 +56,9 @@ type BookingFieldKey =
   | 'eventType'
   | 'hallDetails'
   | 'packageCategory'
+  | 'defaultPackagePrice'
+  | 'customPackagePrice'
+  | 'finalPackagePrice'
   | 'guests'
   | 'grandTotal'
   | 'advanceAmount'
@@ -148,7 +149,7 @@ const inputCls =
   'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 const dateInputCls = `${inputCls} [color-scheme:light] [--tw-shadow:0_0_0_1000px_white_inset] [-webkit-text-fill-color:#0f172a] [&::-webkit-datetime-edit]:text-slate-900 [&::-webkit-datetime-edit-fields-wrapper]:text-slate-900 [&::-webkit-datetime-edit-text]:text-slate-500 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80`;
 
-const BOOKING_FIELDS_STORAGE_KEY = 'banquate_report_fields_booking_v2';
+const BOOKING_FIELDS_STORAGE_KEY = 'banquate_report_fields_booking_v3';
 const CANCELLED_FIELDS_STORAGE_KEY = 'banquate_report_fields_cancelled_v1';
 
 const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
@@ -161,6 +162,9 @@ const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
   { key: 'eventType', label: 'Event Type' },
   { key: 'hallDetails', label: 'Hall Details' },
   { key: 'packageCategory', label: 'Package Category' },
+  { key: 'defaultPackagePrice', label: 'Default Package Price' },
+  { key: 'customPackagePrice', label: 'Custom Package Price' },
+  { key: 'finalPackagePrice', label: 'Final Package Price' },
   { key: 'guests', label: 'Guests' },
   { key: 'grandTotal', label: 'Grand Total' },
   { key: 'advanceAmount', label: 'Advance Amount' },
@@ -495,6 +499,10 @@ function saveFieldSelection(storageKey: string, fields: string[]) {
 }
 
 function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | CancelledFieldKey) {
+  const defaultPackagePrice = getDefaultPackagePrice(order);
+  const customPackagePrice = getCustomPackagePrice(order);
+  const finalPackagePrice = getFinalPackagePrice(order);
+
   switch (fieldKey) {
     case 'eventDate':
       return formatEventDateWithTime(order);
@@ -514,16 +522,22 @@ function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | Cancelle
       return order.hallDetails || '-';
     case 'packageCategory':
       return order.categorySnapshot
-        ? `${order.categorySnapshot.name} (${formatCurrency(order.pricePerPlate)})`
+        ? `${order.categorySnapshot.name} (${formatCurrency(finalPackagePrice)})`
         : '-';
+    case 'defaultPackagePrice':
+      return defaultPackagePrice > 0 ? formatCurrency(defaultPackagePrice) : '-';
+    case 'customPackagePrice':
+      return customPackagePrice !== null ? formatCurrency(customPackagePrice) : '-';
+    case 'finalPackagePrice':
+      return finalPackagePrice > 0 ? formatCurrency(finalPackagePrice) : '-';
     case 'guests':
       return order.pax ? String(order.pax) : '-';
     case 'grandTotal':
-      return formatCurrency(order.grandTotal);
+      return formatCurrency(getReportGrandTotal(order));
     case 'advanceAmount':
       return formatCurrency(order.advanceAmount);
     case 'pendingAmount':
-      return formatCurrency(order.pendingAmount);
+      return formatCurrency(getReportPendingAmount(order));
     case 'bookedBy':
       return order.bookingTakenBy || '-';
     case 'reason':
@@ -531,6 +545,35 @@ function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | Cancelle
     default:
       return '-';
   }
+}
+
+function getDefaultPackagePrice(order: Order) {
+  return order.categorySnapshot?.pricePerPlate ?? 0;
+}
+
+function getCustomPackagePrice(order: Order) {
+  return order.customPricePerPlate ?? order.inquiryCustomPrice ?? null;
+}
+
+function getFinalPackagePrice(order: Order) {
+  const customPackagePrice = getCustomPackagePrice(order);
+  return customPackagePrice ?? order.pricePerPlate ?? getDefaultPackagePrice(order);
+}
+
+function getReportBaseTotal(order: Order) {
+  return order.pax && order.pax > 0 ? order.pax * getFinalPackagePrice(order) : 0;
+}
+
+function getReportGrandTotal(order: Order) {
+  if (order.grandTotal > 0) return order.grandTotal;
+  return Math.max(
+    getReportBaseTotal(order) + order.extrasTotal - order.discountAmount,
+    0,
+  );
+}
+
+function getReportPendingAmount(order: Order) {
+  return Math.max(getReportGrandTotal(order) - order.advanceAmount, 0);
 }
 
 function getCancelledPendingAmount(order: Order) {
@@ -541,14 +584,20 @@ function getBookingExportValue(order: Order, fieldKey: BookingFieldKey | Cancell
   switch (fieldKey) {
     case 'packageCategory':
       return order.categorySnapshot
-        ? `${order.categorySnapshot.name} (${formatExportAmount(order.pricePerPlate)})`
+        ? `${order.categorySnapshot.name} (${formatExportAmount(getFinalPackagePrice(order))})`
         : '-';
+    case 'defaultPackagePrice':
+      return getDefaultPackagePrice(order) > 0 ? formatExportAmount(getDefaultPackagePrice(order)) : '';
+    case 'customPackagePrice':
+      return getCustomPackagePrice(order) !== null ? formatExportAmount(getCustomPackagePrice(order) ?? 0) : '';
+    case 'finalPackagePrice':
+      return getFinalPackagePrice(order) > 0 ? formatExportAmount(getFinalPackagePrice(order)) : '';
     case 'grandTotal':
-      return formatExportAmount(order.grandTotal);
+      return formatExportAmount(getReportGrandTotal(order));
     case 'advanceAmount':
       return formatExportAmount(order.advanceAmount);
     case 'pendingAmount':
-      return formatExportAmount(order.pendingAmount);
+      return formatExportAmount(getReportPendingAmount(order));
     default:
       return getBookingFieldValue(order, fieldKey);
   }
@@ -558,16 +607,16 @@ function getBookingColumns(selectedFields: BookingFieldKey[]): ColumnDef<Order>[
   return selectedFields.map((fieldKey) => ({
     key: fieldKey,
     label: BOOKING_FIELDS.find((field) => field.key === fieldKey)?.label ?? fieldKey,
-    isCurrency: ['grandTotal', 'advanceAmount', 'pendingAmount'].includes(fieldKey),
+    isCurrency: ['defaultPackagePrice', 'customPackagePrice', 'finalPackagePrice', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(fieldKey),
     render: (order) => getBookingFieldValue(order, fieldKey),
     exportValue: (order) => getBookingExportValue(order, fieldKey),
     total:
       fieldKey === 'grandTotal'
-        ? (order) => order.grandTotal
+        ? (order) => getReportGrandTotal(order)
         : fieldKey === 'advanceAmount'
           ? (order) => order.advanceAmount
           : fieldKey === 'pendingAmount'
-            ? (order) => order.pendingAmount
+            ? (order) => getReportPendingAmount(order)
             : undefined,
   }));
 }
@@ -587,7 +636,7 @@ function getCancelledColumns(selectedFields: CancelledFieldKey[]): ColumnDef<Ord
         : getBookingExportValue(order, fieldKey),
     total:
       fieldKey === 'grandTotal'
-        ? (order) => order.grandTotal
+        ? (order) => getReportGrandTotal(order)
         : fieldKey === 'advanceAmount'
           ? (order) => order.advanceAmount
           : fieldKey === 'pendingAmount'
@@ -1114,7 +1163,6 @@ export default function ReportViewPage() {
   const [hallOccupancyRows, setHallOccupancyRows] = useState<HallOccupancyReportRow[]>([]);
   const [repeatCustomersRows, setRepeatCustomersRows] = useState<RepeatCustomerReportRow[]>([]);
   const [treasuryReport, setTreasuryReport] = useState<TreasuryReport | null>(null);
-  const [treasuryAdvanceSummary, setTreasuryAdvanceSummary] = useState<AdvanceSummary | null>(null);
   const [treasuryFilters, setTreasuryFilters] = useState({ from: '', to: '' });
   const [treasuryDownloadFormat, setTreasuryDownloadFormat] = useState<DownloadFormat>('xlsx');
   const reportParam = searchParams.get('type');
@@ -1279,12 +1327,8 @@ export default function ReportViewPage() {
 
       if (activeReport === 'treasury') {
         if (!accessToken) throw new Error('Missing session token.');
-        const [report, summary] = await Promise.all([
-          fetchTreasuryReport(accessToken, treasuryFilters),
-          fetchAdvanceSummary(accessToken),
-        ]);
+        const report = await fetchTreasuryReport(accessToken, treasuryFilters);
         setTreasuryReport(report);
-        setTreasuryAdvanceSummary(summary);
         return;
       }
 
@@ -1510,13 +1554,9 @@ export default function ReportViewPage() {
 
       if (activeReport === 'treasury') {
         if (!accessToken) throw new Error('Missing session token.');
-        const [report, summary] = await Promise.all([
-          treasuryReport ? Promise.resolve(treasuryReport) : fetchTreasuryReport(accessToken, treasuryFilters),
-          treasuryAdvanceSummary ? Promise.resolve(treasuryAdvanceSummary) : fetchAdvanceSummary(accessToken),
-        ]);
+        const report = treasuryReport ?? await fetchTreasuryReport(accessToken, treasuryFilters);
         setTreasuryReport(report);
-        setTreasuryAdvanceSummary(summary);
-        const headers = ['Date', 'Type', 'Booking ID', 'Customer', 'Booking Date', 'Cancel Date', 'Phone', 'Amount', 'Mode', 'Note', 'Performed By', 'Running Balance'];
+        const headers = ['Date', 'Type', 'Booking ID', 'Customer', 'Booking Date', 'Cancel Date', 'Phone', 'Amount', 'Mode', 'Reason', 'Note', 'Performed By', 'Running Balance'];
         const rows = [
           ...report.entries.map((e) => [
           formatCsvDateTime(e.createdAt || e.date),
@@ -1528,6 +1568,7 @@ export default function ReportViewPage() {
           e.customerPhone,
           e.amount,
           e.mode ?? '',
+          e.reason ?? '',
           e.note ?? '',
           e.performedBy ?? '',
           e.runningBalance,
@@ -1538,14 +1579,24 @@ export default function ReportViewPage() {
           dateRange: formatReportDateRange(treasuryFilters.from, treasuryFilters.to),
           footerSections: [
             {
-              title: 'Advance Summary',
+              title: 'Treasury Summary',
               rows: [
-                { label: 'Completed Confirmed Advance', value: summary.completedConfirmedAdvance },
-                { label: 'Upcoming Confirmed Advance', value: summary.upcomingConfirmedAdvance },
-                { label: 'Confirmed Advance (Total)', value: summary.confirmedAdvance },
-                { label: 'Cancelled Advance', value: summary.cancelledAdvance },
-                { label: 'Forfeited Advance', value: summary.forfeitedAdvance },
-                { label: 'Total Advance', value: summary.total },
+                { label: 'Total Advance Received', value: report.summary.totalAdvanceReceived },
+                {
+                  label: 'Cancelled Advance',
+                  value:
+                    report.summary.totalCancelledAdvance ??
+                    report.entries
+                      .filter((entry) => entry.type === 'BOOKING_CANCELLED')
+                      .reduce((sum, entry) => sum + entry.amount, 0),
+                },
+                { label: 'Paid Back', value: report.summary.totalPayouts },
+                {
+                  label: 'Balance',
+                  value:
+                    report.summary.closingBalance ??
+                    report.summary.totalAdvanceReceived - report.summary.totalPayouts,
+                },
               ],
             },
           ],
@@ -2621,66 +2672,39 @@ export default function ReportViewPage() {
 
       {activeReport === 'treasury' && treasuryReport ? (
         <div className="space-y-6">
-          {treasuryAdvanceSummary ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {[
-                { label: 'Completed Confirmed', value: treasuryAdvanceSummary.completedConfirmedAdvance, color: 'emerald' },
-                { label: 'Upcoming Confirmed', value: treasuryAdvanceSummary.upcomingConfirmedAdvance, color: 'blue' },
-                { label: 'Cancelled Advance', value: treasuryAdvanceSummary.cancelledAdvance, color: 'amber' },
-                { label: 'Forfeited Advance', value: treasuryAdvanceSummary.forfeitedAdvance, color: 'red' },
-                { label: 'Total Advance', value: treasuryAdvanceSummary.total, color: 'slate' },
-              ].map((card) => (
-                <div
-                  key={card.label}
-                  className={`rounded-xl border p-4 ${
-                    card.color === 'emerald' ? 'border-emerald-200 bg-emerald-50' :
-                    card.color === 'blue' ? 'border-blue-200 bg-blue-50' :
-                    card.color === 'amber' ? 'border-amber-200 bg-amber-50' :
-                    card.color === 'red' ? 'border-red-200 bg-red-50' :
-                    'border-slate-200 bg-slate-50'
-                  }`}
-                >
-                  <p className="text-xs text-slate-500">{card.label}</p>
-                  <p className={`mt-1 text-lg font-bold ${
-                    card.color === 'emerald' ? 'text-emerald-700' :
-                    card.color === 'blue' ? 'text-blue-700' :
-                    card.color === 'amber' ? 'text-amber-700' :
-                    card.color === 'red' ? 'text-red-700' :
-                    'text-slate-700'
-                  }`}>
-                    <InrAmount
-                      value={card.value}
-                      symbolClassName="mr-0.5 align-[0.15em] text-xs font-bold opacity-50"
-                    />
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
               { label: 'Total Advance Received', value: treasuryReport.summary.totalAdvanceReceived, color: 'emerald' },
-              { label: 'Dine-In Used', value: treasuryReport.summary.totalDineInUsed, color: 'amber' },
-              { label: 'Payouts', value: treasuryReport.summary.totalPayouts, color: 'blue' },
-              { label: 'Next Booking Applied', value: treasuryReport.summary.totalNextBookingApplied, color: 'violet' },
-              { label: 'Forfeited Advance', value: treasuryReport.summary.totalForfeited, color: 'red' },
+              {
+                label: 'Cancelled Advance',
+                value:
+                  treasuryReport.summary.totalCancelledAdvance ??
+                  treasuryReport.entries
+                    .filter((entry) => entry.type === 'BOOKING_CANCELLED')
+                    .reduce((sum, entry) => sum + entry.amount, 0),
+                color: 'amber',
+              },
+              { label: 'Paid Back', value: treasuryReport.summary.totalPayouts, color: 'blue' },
+              {
+                label: 'Balance',
+                value:
+                  treasuryReport.summary.closingBalance ??
+                  treasuryReport.summary.totalAdvanceReceived - treasuryReport.summary.totalPayouts,
+                color: 'slate',
+              },
             ].map((card) => (
               <div key={card.label} className={`rounded-xl border p-4 ${
                 card.color === 'emerald' ? 'border-emerald-200 bg-emerald-50' :
                 card.color === 'amber' ? 'border-amber-200 bg-amber-50' :
                 card.color === 'blue' ? 'border-blue-200 bg-blue-50' :
-                card.color === 'violet' ? 'border-violet-200 bg-violet-50' :
-                'border-red-200 bg-red-50'
+                'border-slate-200 bg-slate-50'
               }`}>
                 <p className="text-xs text-slate-500">{card.label}</p>
                 <p className={`mt-1 text-lg font-bold ${
                   card.color === 'emerald' ? 'text-emerald-700' :
                   card.color === 'amber' ? 'text-amber-700' :
                   card.color === 'blue' ? 'text-blue-700' :
-                  card.color === 'violet' ? 'text-violet-700' :
-                  'text-red-700'
+                  'text-slate-700'
                 }`}>
                   <InrAmount
                     value={card.value}
@@ -2697,7 +2721,7 @@ export default function ReportViewPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-100 bg-slate-50">
                   <tr>
-                    {['Date', 'Type', 'Booking ID', 'Customer', 'Mobile Number', 'Booking Date', 'Cancel Date', 'Amount', 'Mode', 'Note', 'Performed By', 'Running Balance'].map((h) => (
+                    {['Date', 'Type', 'Booking ID', 'Customer', 'Mobile Number', 'Booking Date', 'Cancel Date', 'Amount', 'Mode', 'Reason', 'Note', 'Performed By', 'Running Balance'].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
                     ))}
                   </tr>
@@ -2705,7 +2729,7 @@ export default function ReportViewPage() {
                 <tbody className="divide-y divide-slate-100">
                   {treasuryReport.entries.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="px-4 py-8 text-center text-sm text-slate-400">No entries found for the selected date range.</td>
+                      <td colSpan={13} className="px-4 py-8 text-center text-sm text-slate-400">No entries found for the selected date range.</td>
                     </tr>
                   ) : (
                     treasuryReport.entries.map((entry, idx) => {
@@ -2748,6 +2772,7 @@ export default function ReportViewPage() {
                             <InrAmount value={isDebit ? -entry.amount : entry.amount} />
                           </td>
                           <td className="px-4 py-3 text-slate-500">{entry.mode ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-500 max-w-56 truncate">{entry.reason ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-500 max-w-48 truncate">{entry.note ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-600">{entry.performedBy ?? '—'}</td>
                           <td className={`px-4 py-3 font-bold ${entry.runningBalance >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>

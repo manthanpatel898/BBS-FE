@@ -3,8 +3,20 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
-import { fetchAdvanceSummary, fetchMyRestaurant, fetchRestaurantStats, fetchOrderReports, fetchOrderStats } from '@/lib/auth/api';
-import { AdvanceSummary, RestaurantStats, OrderReports, OrderStats, Restaurant } from '@/lib/auth/types';
+import {
+  fetchCancelledAdvanceDashboard,
+  fetchMyRestaurant,
+  fetchRestaurantStats,
+  fetchOrderReports,
+  fetchOrderStats,
+} from '@/lib/auth/api';
+import {
+  CancelledAdvanceDashboard,
+  RestaurantStats,
+  OrderReports,
+  OrderStats,
+  Restaurant,
+} from '@/lib/auth/types';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
 
@@ -72,11 +84,13 @@ function StatCard({ label, value, icon, iconBg, iconColor, delay = '' }: StatCar
 function AdvanceBreakdownCard({
   total,
   items,
-  yearLabel,
+  title,
+  subtitle,
 }: {
   total: number;
   items: Array<{ label: string; amount: number; count: number }>;
-  yearLabel: string;
+  title: string;
+  subtitle: string;
 }) {
   const maxAmount = Math.max(...items.map((item) => item.amount), 1);
 
@@ -90,13 +104,14 @@ function AdvanceBreakdownCard({
             </span>
           </div>
           <p className="mt-4 text-3xl font-bold text-slate-900">{formatCurrency(total)}</p>
-          <p className="mt-1 text-sm font-medium text-slate-500">{yearLabel} Advance</p>
+          <p className="mt-1 text-sm font-medium text-slate-500">{title}</p>
+          <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
         </div>
       </div>
 
       <div className="mt-5 space-y-3">
         {items.length === 0 ? (
-          <p className="text-sm text-slate-400">No advance payments recorded this month.</p>
+          <p className="text-sm text-slate-400">No upcoming confirmed advance payments found.</p>
         ) : (
           items.map((item) => (
             <div key={item.label} className="space-y-1.5">
@@ -537,138 +552,171 @@ function SuperAdminDashboard({ stats, loading }: { stats: RestaurantStats | null
 
 // ─── Advance Summary Card ─────────────────────────────────────────────────────
 
-function AdvanceSummarySection({
-  summary,
-  yearLabel,
+function CancelledAdvanceDashboardSection({
+  data,
 }: {
-  summary: AdvanceSummary | null;
-  yearLabel: string;
+  data: CancelledAdvanceDashboard | null;
 }) {
-  if (!summary) return null;
+  if (!data) return null;
 
-  const {
-    confirmedAdvance,
-    completedConfirmedAdvance,
-    upcomingConfirmedAdvance,
-    cancelledAdvance,
-    forfeitedAdvance,
-    total,
-  } = summary;
-  const safeTotal = total || 1;
+  const maxValue = Math.max(
+    ...data.monthly.flatMap((item) => [
+      item.cancelledAdvance,
+      item.pendingAmount,
+      item.paidBack,
+    ]),
+    1,
+  );
 
-  const completedConfirmedPct = (completedConfirmedAdvance / safeTotal) * 100;
-  const upcomingConfirmedPct = (upcomingConfirmedAdvance / safeTotal) * 100;
-  const cancelledPct = (cancelledAdvance / safeTotal) * 100;
-  const forfeitedPct = cancelledAdvance > 0 ? (forfeitedAdvance / cancelledAdvance) * 100 : 0;
+  const pendingPct = data.totalCancelledAdvance > 0
+    ? (data.totalPendingAmount / data.totalCancelledAdvance) * 100
+    : 0;
+  const paidBackPct = data.totalCancelledAdvance > 0
+    ? (data.totalPaidBack / data.totalCancelledAdvance) * 100
+    : 0;
+  const maxMethodAmount = Math.max(
+    ...(data.paidBackByMethod ?? []).map((item) => item.amount),
+    1,
+  );
 
-  const buckets = [
-    {
-      label: 'Completed Confirmed',
-      value: completedConfirmedAdvance,
-      pct: completedConfirmedPct,
-      text: 'text-emerald-700',
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-200',
-      dot: 'bg-emerald-500',
-      desc: 'Confirmed bookings with party date up to today',
-    },
-    {
-      label: 'Upcoming Confirmed',
-      value: upcomingConfirmedAdvance,
-      pct: upcomingConfirmedPct,
-      text: 'text-blue-700',
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      dot: 'bg-blue-500',
-      desc: 'Confirmed bookings with future party date',
-    },
+  const summaryItems = [
     {
       label: 'Cancelled Advance',
-      value: cancelledAdvance,
-      pct: cancelledPct,
-      text: 'text-amber-700',
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
-      dot: 'bg-amber-500',
-      desc: 'Unresolved cancelled wallets',
+      value: data.totalCancelledAdvance,
+      helper: `${data.totalBookings} booking${data.totalBookings === 1 ? '' : 's'}`,
+      color: 'text-slate-900',
+      bg: 'bg-slate-50',
+      border: 'border-slate-200',
     },
     {
-      label: 'Forfeited Advance',
-      value: forfeitedAdvance,
-      pct: forfeitedPct,
-      text: 'text-red-700',
-      bg: 'bg-red-50',
-      border: 'border-red-200',
-      dot: 'bg-red-500',
-      desc: 'Retained amount from cancelled advance',
+      label: 'Pending With Company',
+      value: data.totalPendingAmount,
+      helper: `${pendingPct.toFixed(1)}% still open`,
+      color: 'text-amber-700',
+      bg: 'bg-amber-50',
+      border: 'border-amber-200',
+    },
+    {
+      label: 'Paid Back',
+      value: data.totalPaidBack,
+      helper: `${paidBackPct.toFixed(1)}% resolved`,
+      color: 'text-blue-700',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
     },
   ];
 
   return (
     <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Advance Overview</h3>
+          <h3 className="text-lg font-semibold text-slate-900">Cancelled Advance Dashboard</h3>
           <p className="mt-0.5 text-sm text-slate-500">
-            {yearLabel}: Completed Confirmed + Upcoming Confirmed + Cancelled Advance = Total Advance
+            {data.year}: cancelled booking advance, customer paybacks, and pending balance held by the company.
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Total</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(total)}</p>
-        </div>
+        <Link
+          href="/reports/view"
+          className="inline-flex w-fit items-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-amber-700"
+        >
+          Open Treasury Report
+        </Link>
       </div>
 
-      {/* Stacked bar */}
-      <div className="mt-5 flex h-4 w-full overflow-hidden rounded-full bg-slate-100">
-        {completedConfirmedAdvance > 0 && (
-          <div
-            className="h-full bg-emerald-500 transition-all"
-            style={{ width: `${completedConfirmedPct}%` }}
-            title={`Completed Confirmed: ${formatCurrency(completedConfirmedAdvance)}`}
-          />
-        )}
-        {upcomingConfirmedAdvance > 0 && (
-          <div
-            className="h-full bg-blue-500 transition-all"
-            style={{ width: `${upcomingConfirmedPct}%` }}
-            title={`Upcoming Confirmed: ${formatCurrency(upcomingConfirmedAdvance)}`}
-          />
-        )}
-        {cancelledAdvance > 0 && (
-          <div
-            className="h-full bg-amber-500 transition-all"
-            style={{ width: `${cancelledPct}%` }}
-            title={`Cancelled: ${formatCurrency(cancelledAdvance)}`}
-          />
-        )}
-      </div>
-
-      {/* Summary cards */}
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {buckets.map((b) => (
-          <div key={b.label} className={`rounded-xl border ${b.border} ${b.bg} p-4`}>
-            <div className="flex items-center gap-2">
-              <span className={`h-2.5 w-2.5 rounded-full ${b.dot}`} />
-              <p className="text-xs font-semibold text-slate-600">{b.label}</p>
-            </div>
-            <p className={`mt-2 text-2xl font-bold ${b.text}`}>{formatCurrency(b.value)}</p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {b.label === 'Forfeited Advance'
-                ? `${b.pct.toFixed(1)}% of cancelled advance`
-                : `${b.pct.toFixed(1)}% of total`}
-              {' · '}
-              {b.desc}
-            </p>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {summaryItems.map((item) => (
+          <div key={item.label} className={`rounded-xl border ${item.border} ${item.bg} p-4`}>
+            <p className="text-xs font-semibold text-slate-600">{item.label}</p>
+            <p className={`mt-2 text-2xl font-bold ${item.color}`}>{formatCurrency(item.value)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{item.helper}</p>
           </div>
         ))}
       </div>
-      <p className="mt-4 text-sm font-medium text-slate-600">
-        {formatCurrency(completedConfirmedAdvance)} + {formatCurrency(upcomingConfirmedAdvance)} + {formatCurrency(cancelledAdvance)} = {formatCurrency(total)}
-      </p>
-      <p className="mt-1 text-xs text-slate-500">
-        Combined Confirmed Advance: {formatCurrency(confirmedAdvance)}
-      </p>
+
+      <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h4 className="text-sm font-bold text-slate-900">Paid Back Methods</h4>
+            <p className="mt-0.5 text-xs text-slate-500">How the cancelled advance was settled.</p>
+          </div>
+          <p className="shrink-0 text-sm font-bold text-blue-700">{formatCurrency(data.totalPaidBack)}</p>
+        </div>
+        {(data.paidBackByMethod ?? []).length > 0 ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {data.paidBackByMethod.map((item) => (
+              <div key={item.label} className="rounded-xl bg-white p-3 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
+                    <p className="text-xs text-slate-500">{item.count} entr{item.count === 1 ? 'y' : 'ies'}</p>
+                  </div>
+                  <p className="shrink-0 text-sm font-bold text-blue-700">{formatCurrency(item.amount)}</p>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100">
+                  <div
+                    className="h-full rounded-full bg-blue-500"
+                    style={{ width: `${Math.max((item.amount / maxMethodAmount) * 100, item.amount > 0 ? 8 : 0)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 rounded-xl bg-white px-4 py-3 text-sm text-slate-500">
+            No paid back entries recorded for this year.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50 p-4">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-slate-600">
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-500" />Cancelled</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />Pending</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" />Paid Back</span>
+        </div>
+
+        <div className="mt-5 overflow-x-auto pb-2">
+          <div className="grid min-w-[900px] grid-cols-12 gap-3">
+            {data.monthly.map((item) => {
+              const bars = [
+                { value: item.cancelledAdvance, cls: 'bg-slate-500', label: 'Cancelled' },
+                { value: item.pendingAmount, cls: 'bg-amber-500', label: 'Pending' },
+                { value: item.paidBack, cls: 'bg-blue-500', label: 'Paid Back' },
+              ];
+
+              return (
+              <div key={item.month} className="flex min-w-0 flex-col items-center gap-3">
+                <div className="flex h-56 w-full items-end justify-center gap-1.5 rounded-xl bg-white px-2 py-3">
+                  {bars.map((bar) => (
+                    <div
+                      key={bar.label}
+                      className="group/bar relative flex h-full w-1/3 items-end justify-center"
+                    >
+                      <div
+                        className={`w-full rounded-t-md ${bar.cls} transition-opacity hover:opacity-80`}
+                        style={{
+                          height: `${Math.max((bar.value / maxValue) * 100, bar.value > 0 ? 8 : 0)}%`,
+                        }}
+                        title={`${item.month} ${bar.label}: ${formatCurrency(bar.value)}`}
+                      />
+                      <div className="pointer-events-none absolute left-1/2 top-2 z-20 hidden min-w-max -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-center shadow-lg group-hover/bar:block">
+                        <p className="text-[11px] font-semibold text-slate-500">{item.month} · {bar.label}</p>
+                        <p className="mt-0.5 text-xs font-bold text-slate-900">{formatCurrency(bar.value)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="w-full text-center">
+                  <p className="text-sm font-bold text-slate-900">{item.month}</p>
+                  <p className="text-xs text-slate-500">{item.bookings} booking{item.bookings === 1 ? '' : 's'}</p>
+                  <p className="mt-1 text-xs font-semibold text-amber-700">{formatCurrency(item.pendingAmount)}</p>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -679,14 +727,14 @@ function CompanyAdminDashboard({
   stats,
   reports,
   restaurant,
-  advanceSummary,
+  cancelledAdvanceDashboard,
   loading,
   selectedYear,
 }: {
   stats: OrderStats | null;
   reports: OrderReports | null;
   restaurant: Restaurant | null;
-  advanceSummary: AdvanceSummary | null;
+  cancelledAdvanceDashboard: CancelledAdvanceDashboard | null;
   loading: boolean;
   selectedYear: number;
 }) {
@@ -712,6 +760,11 @@ function CompanyAdminDashboard({
   }
 
   const subDaysLeft = restaurant?.endDate ? daysUntil(restaurant.endDate) : null;
+  const upcomingConfirmedAdvanceByPaymentMethod =
+    stats.upcomingConfirmedAdvanceByPaymentMethod ?? [];
+  const upcomingConfirmedAdvance =
+    stats.upcomingConfirmedAdvance ??
+    upcomingConfirmedAdvanceByPaymentMethod.reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <div className="space-y-6">
@@ -806,19 +859,19 @@ function CompanyAdminDashboard({
         />
       </div>
 
-      <AdvanceSummarySection summary={advanceSummary} yearLabel={String(selectedYear)} />
+      <AdvanceBreakdownCard
+        total={upcomingConfirmedAdvance}
+        items={upcomingConfirmedAdvanceByPaymentMethod.filter(
+          (item) => item.amount > 0 || item.count > 0,
+        )}
+        title="Upcoming Confirmed Advance"
+        subtitle="Future confirmed bookings by payment mode"
+      />
+
+      <CancelledAdvanceDashboardSection data={cancelledAdvanceDashboard} />
 
       <div className="grid gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-6">
-          <AdvanceBreakdownCard
-            total={stats.monthAdvance}
-            items={stats.monthAdvanceByPaymentMethod.filter(
-              (item) => item.amount > 0 || item.count > 0,
-            )}
-            yearLabel={String(selectedYear)}
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:col-span-6">
+        <div className="grid gap-4 sm:grid-cols-2 xl:col-span-12 xl:grid-cols-3">
           <StatCard
             label={`${selectedYear} Revenue`}
             value={formatCurrency(stats.monthRevenue)}
@@ -959,7 +1012,8 @@ export default function DashboardPage() {
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
   const [orderReports, setOrderReports] = useState<OrderReports | null>(null);
   const [myRestaurant, setMyRestaurant] = useState<Restaurant | null>(null);
-  const [advanceSummary, setAdvanceSummary] = useState<AdvanceSummary | null>(null);
+  const [cancelledAdvanceDashboard, setCancelledAdvanceDashboard] =
+    useState<CancelledAdvanceDashboard | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -971,16 +1025,16 @@ export default function DashboardPage() {
           const stats = await fetchRestaurantStats(accessToken);
           setRestaurantStats(stats);
         } else if (user?.role === 'company_admin') {
-          const [stats, reports, restaurant, summary] = await Promise.all([
+          const [stats, reports, restaurant, cancelledDashboard] = await Promise.all([
             fetchOrderStats(accessToken, selectedYear),
             fetchOrderReports(accessToken, selectedYear).catch(() => null),
             fetchMyRestaurant(accessToken).catch(() => null),
-            fetchAdvanceSummary(accessToken, selectedYear).catch(() => null),
+            fetchCancelledAdvanceDashboard(accessToken, selectedYear).catch(() => null),
           ]);
           setOrderStats(stats);
           setOrderReports(reports);
           setMyRestaurant(restaurant);
-          setAdvanceSummary(summary);
+          setCancelledAdvanceDashboard(cancelledDashboard);
         } else if (user?.role === 'employee') {
           const restaurant = await fetchMyRestaurant(accessToken).catch(() => null);
           setMyRestaurant(restaurant);
@@ -1029,9 +1083,6 @@ export default function DashboardPage() {
                 ))}
               </select>
             ) : null}
-            <span className="shrink-0 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold capitalize text-amber-700">
-              {user?.role.replace('_', ' ')}
-            </span>
           </div>
         </div>
       </div>
@@ -1041,7 +1092,14 @@ export default function DashboardPage() {
         <SuperAdminDashboard stats={restaurantStats} loading={loading} />
       )}
       {user?.role === 'company_admin' && (
-        <CompanyAdminDashboard stats={orderStats} reports={orderReports} restaurant={myRestaurant} advanceSummary={advanceSummary} loading={loading} selectedYear={selectedYear} />
+        <CompanyAdminDashboard
+          stats={orderStats}
+          reports={orderReports}
+          restaurant={myRestaurant}
+          cancelledAdvanceDashboard={cancelledAdvanceDashboard}
+          loading={loading}
+          selectedYear={selectedYear}
+        />
       )}
       {user?.role === 'employee' && (
         <div className="space-y-6">

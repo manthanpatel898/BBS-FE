@@ -10,6 +10,7 @@ import {
   downloadVoucherFile,
   fetchOrderById,
   fetchOrders,
+  fetchSettings,
 } from '@/lib/auth/api';
 import { Order } from '@/lib/auth/types';
 
@@ -34,12 +35,14 @@ export default function CancelledBookingsPage() {
   const [redemptionAmount, setRedemptionAmount] = useState('');
   const [redemptionDate, setRedemptionDate] = useState(toDateInputValue(new Date()));
   const [redemptionRemark, setRedemptionRemark] = useState('');
+  const [redemptionPaymentMode, setRedemptionPaymentMode] = useState('');
+  const [paymentOptions, setPaymentOptions] = useState<string[]>([]);
   const [isSubmittingRedemption, setIsSubmittingRedemption] = useState(false);
   const [downloadingVoucherId, setDownloadingVoucherId] = useState<string | null>(null);
   const [openingOrderId, setOpeningOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!accessToken || !user?.canAccessCancelledBookings) {
+    if (!accessToken) {
       setIsLoading(false);
       return;
     }
@@ -54,7 +57,6 @@ export default function CancelledBookingsPage() {
           limit: 10,
           search,
           status: 'CANCELLED',
-          hasAdvancePayments: true,
         });
         setOrders(response.items);
         setTotalPages(response.pagination.totalPages);
@@ -70,7 +72,21 @@ export default function CancelledBookingsPage() {
     }
 
     void load();
-  }, [accessToken, page, search, user?.canAccessCancelledBookings]);
+  }, [accessToken, page, search]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    fetchSettings(accessToken)
+      .then((settings) => {
+        const options = settings.paymentOptions.map((option) => option.label);
+        setPaymentOptions(options);
+        setRedemptionPaymentMode((current) => current || options[0] || '');
+      })
+      .catch(() => {
+        setPaymentOptions(['Cash', 'UPI', 'Card', 'Bank', 'Cheque']);
+        setRedemptionPaymentMode((current) => current || 'Cash');
+      });
+  }, [accessToken]);
 
   const ledgerRows = useMemo(() => {
     if (!detailOrder) return [];
@@ -89,10 +105,10 @@ export default function CancelledBookingsPage() {
       ...detailOrder.diningRedemptions.map((entry) => ({
         id: `redemption-${entry.id}`,
         date: entry.date,
-        type: 'Dining Used',
+        type: 'Usage',
         amount: entry.amount,
         effect: -entry.amount,
-        note: entry.remark || '-',
+        note: `${entry.paymentMode || 'Usage'}${entry.remark ? ` • ${entry.remark}` : ''}`,
         recordedByName: entry.recordedByName,
         createdAt: entry.createdAt,
       })),
@@ -105,16 +121,6 @@ export default function CancelledBookingsPage() {
     });
   }, [detailOrder]);
 
-  if (!user?.canAccessCancelledBookings) {
-    return (
-      <BookingsRoute>
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-600 shadow-sm">
-          Cancelled bookings feature is not enabled for this restaurant.
-        </div>
-      </BookingsRoute>
-    );
-  }
-
   return (
     <BookingsRoute>
       <section className="space-y-5">
@@ -125,7 +131,7 @@ export default function CancelledBookingsPage() {
             </p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">Cancel Bookings</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Track cancelled confirmed bookings with advance received and manage dining deductions.
+              Track cancelled bookings, advance details, and usage history.
             </p>
           </div>
           <form
@@ -189,7 +195,7 @@ export default function CancelledBookingsPage() {
                 ) : orders.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-8 text-center text-slate-500">
-                      No cancelled bookings with advance found.
+                      No cancelled bookings found.
                     </td>
                   </tr>
                 ) : (
@@ -279,7 +285,7 @@ export default function CancelledBookingsPage() {
         {isDetailOpen ? (
           <CommonModal
             title={detailOrder ? `Cancelled Booking ${detailOrder.orderId}` : 'Cancelled Booking'}
-            description="Booking, customer, advance payment, and dining deduction summary."
+            description="Booking, customer, advance payment, and usage summary."
             onClose={() => setIsDetailOpen(false)}
             widthClassName="max-w-5xl"
           >
@@ -302,7 +308,7 @@ export default function CancelledBookingsPage() {
                     <InfoLine label="PAX" value={detailOrder.pax ? String(detailOrder.pax) : '-'} />
                     <InfoLine label="Advance Paid" value={formatCurrency(detailOrder.advanceAmount)} />
                     <InfoLine label="Voucher Number" value={detailOrder.voucher?.voucherNumber || '-'} />
-                    <InfoLine label="Dining Used" value={formatCurrency(totalDiningUsed(detailOrder))} />
+                    <InfoLine label="Usage Amount" value={formatCurrency(totalDiningUsed(detailOrder))} />
                     <InfoLine label="Remaining Balance" value={formatCurrency(detailOrder.redeemableBalance)} />
                   </InfoCard>
                 </div>
@@ -345,7 +351,7 @@ export default function CancelledBookingsPage() {
 
                   {user?.role === 'company_admin' ? (
                     <form
-                      className="mt-4 grid gap-4 md:grid-cols-[180px_180px_minmax(0,1fr)_auto]"
+                      className="mt-4 grid gap-4 md:grid-cols-[160px_170px_180px_minmax(0,1fr)_auto]"
                       onSubmit={(event) => void handleAddDiningDeduction(event)}
                     >
                       <input
@@ -354,7 +360,7 @@ export default function CancelledBookingsPage() {
                         step="0.01"
                         value={redemptionAmount}
                         onChange={(event) => setRedemptionAmount(event.target.value)}
-                        placeholder="Dining bill amount"
+                        placeholder="Usage amount"
                         className={inputCls}
                       />
                       <input
@@ -363,6 +369,17 @@ export default function CancelledBookingsPage() {
                         onChange={(event) => setRedemptionDate(event.target.value)}
                         className={inputCls}
                       />
+                      <select
+                        value={redemptionPaymentMode}
+                        onChange={(event) => setRedemptionPaymentMode(event.target.value)}
+                        className={inputCls}
+                      >
+                        {paymentOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
                       <input
                         value={redemptionRemark}
                         onChange={(event) => setRedemptionRemark(event.target.value)}
@@ -375,7 +392,7 @@ export default function CancelledBookingsPage() {
                         isLoading={isSubmittingRedemption}
                         className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
                       >
-                        Deduct
+                        Add Usage
                       </LoadingButton>
                     </form>
                   ) : null}
@@ -484,7 +501,7 @@ export default function CancelledBookingsPage() {
 
     const amount = Number(redemptionAmount);
     if (!amount || amount < 1) {
-      setNotice({ type: 'error', message: 'Enter a valid dining bill amount.' });
+      setNotice({ type: 'error', message: 'Enter a valid usage amount.' });
       return;
     }
 
@@ -494,16 +511,17 @@ export default function CancelledBookingsPage() {
         amount,
         date: redemptionDate || undefined,
         remark: redemptionRemark.trim() || undefined,
+        paymentMode: redemptionPaymentMode || undefined,
       });
       setDetailOrder(updated);
       setOrders((current) => current.map((order) => (order.id === updated.id ? updated : order)));
       setRedemptionAmount('');
       setRedemptionRemark('');
-      setNotice({ type: 'success', message: 'Dining deduction recorded successfully.' });
+      setNotice({ type: 'success', message: 'Usage recorded successfully.' });
     } catch (error) {
       setNotice({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Unable to record dining deduction.',
+        message: error instanceof Error ? error.message : 'Unable to record usage.',
       });
     } finally {
       setIsSubmittingRedemption(false);
