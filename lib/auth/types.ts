@@ -349,6 +349,7 @@ export interface Order {
   referenceBy: string | null;
   additionalInformation: string | null;
   cancelReason: string | null;
+  cancelDate?: string | null;
   voucher: OrderVoucher | null;
   menuSelectionSessions?: MenuSelectionSession[];
   followUps: OrderFollowUp[];
@@ -479,6 +480,11 @@ export interface CancelledAdvanceDashboard {
     amount: number;
     count: number;
   }>;
+  pendingByMethod: Array<{
+    label: string;
+    amount: number;
+    count: number;
+  }>;
   monthly: CancelledAdvanceDashboardMonth[];
 }
 
@@ -497,6 +503,8 @@ export interface TreasuryLedgerEntry {
   note?: string;
   reason?: string;
   performedBy?: string;
+  direction?: 'CREDIT' | 'DEBIT' | 'INFO';
+  balanceImpact?: number;
   runningBalance: number;
 }
 
@@ -506,10 +514,19 @@ export interface TreasuryReport {
     totalAdvanceReceived: number;
     totalDineInUsed: number;
     totalPayouts: number;
+    totalPaidBack?: number;
     totalNextBookingApplied: number;
     totalForfeited: number;
+    totalCancelledBookings?: number;
     totalCancelledAdvance?: number;
+    totalCancelledAdvanceCollected?: number;
     closingBalance?: number;
+    balanceByMode?: Array<{
+      mode: string;
+      received: number;
+      paidBack: number;
+      balance: number;
+    }>;
   };
 }
 
@@ -621,6 +638,12 @@ export interface AdvancePaymentReportRow {
   paymentDate: string;
   recordedByName: string;
   remark: string | null;
+  status?: string;
+  cancelDate?: string | null;
+  cancelReason?: string | null;
+  paidBackAmount?: number;
+  remainingAdvance?: number;
+  cancellationNote?: string | null;
 }
 
 export interface EventPlannerReportRow {

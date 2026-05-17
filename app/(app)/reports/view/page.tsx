@@ -65,6 +65,7 @@ type BookingFieldKey =
   | 'pendingAmount'
   | 'bookedBy';
 type CancelledFieldKey =
+  | 'cancelDate'
   | 'inquiryDate'
   | 'customerName'
   | 'mobileNo'
@@ -150,7 +151,7 @@ const inputCls =
 const dateInputCls = `${inputCls} [color-scheme:light] [--tw-shadow:0_0_0_1000px_white_inset] [-webkit-text-fill-color:#0f172a] [&::-webkit-datetime-edit]:text-slate-900 [&::-webkit-datetime-edit-fields-wrapper]:text-slate-900 [&::-webkit-datetime-edit-text]:text-slate-500 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80`;
 
 const BOOKING_FIELDS_STORAGE_KEY = 'banquate_report_fields_booking_v3';
-const CANCELLED_FIELDS_STORAGE_KEY = 'banquate_report_fields_cancelled_v1';
+const CANCELLED_FIELDS_STORAGE_KEY = 'banquate_report_fields_cancelled_v2';
 
 const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
   { key: 'eventDate', label: 'Function Date' },
@@ -173,6 +174,7 @@ const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
 ];
 
 const CANCELLED_FIELDS: Array<{ key: CancelledFieldKey; label: string }> = [
+  { key: 'cancelDate', label: 'Cancellation Date' },
   { key: 'inquiryDate', label: 'Inquiry Date' },
   { key: 'customerName', label: 'Customer Name' },
   { key: 'mobileNo', label: 'Mobile No' },
@@ -510,6 +512,8 @@ function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | Cancelle
       return formatCsvDateTime(order.inquiryDate);
     case 'confirmedAt':
       return formatCsvDateTime(order.confirmedAt);
+    case 'cancelDate':
+      return formatCsvDateTime(order.cancelDate ?? null);
     case 'serviceSlot':
       return order.serviceSlot || '-';
     case 'customerName':
@@ -671,6 +675,28 @@ const advanceColumns: ColumnDef<AdvancePaymentReportRow>[] = [
     render: (row) => formatCsvDate(row.functionDate),
     exportValue: (row) => formatCsvDate(row.functionDate),
   },
+  { key: 'status', label: 'Booking Status', render: (row) => row.status || '-' },
+  {
+    key: 'cancelDate',
+    label: 'Cancel Date',
+    render: (row) => formatCsvDate(row.cancelDate ?? null),
+    exportValue: (row) => formatCsvDate(row.cancelDate ?? null),
+  },
+  {
+    key: 'paidBackAmount',
+    label: 'Paid Back / Used',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.paidBackAmount ?? 0),
+    exportValue: (row) => formatExportAmount(row.paidBackAmount ?? 0),
+  },
+  {
+    key: 'remainingAdvance',
+    label: 'Advance In Hand',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.remainingAdvance ?? row.amount),
+    exportValue: (row) => formatExportAmount(row.remainingAdvance ?? row.amount),
+  },
+  { key: 'cancellationNote', label: 'Cancellation Advance Status', render: (row) => row.cancellationNote || '-' },
   { key: 'recordedByName', label: 'Recorded By', render: (row) => row.recordedByName },
   { key: 'remark', label: 'Remarks', render: (row) => row.remark || '-' },
 ];
@@ -1556,7 +1582,7 @@ export default function ReportViewPage() {
         if (!accessToken) throw new Error('Missing session token.');
         const report = treasuryReport ?? await fetchTreasuryReport(accessToken, treasuryFilters);
         setTreasuryReport(report);
-        const headers = ['Date', 'Type', 'Booking ID', 'Customer', 'Booking Date', 'Cancel Date', 'Phone', 'Amount', 'Mode', 'Reason', 'Note', 'Performed By', 'Running Balance'];
+        const headers = ['Date', 'Type', 'Booking ID', 'Customer', 'Booking Date', 'Cancel Date', 'Phone', 'Amount', 'Money In Hand', 'Mode', 'Reason', 'Note', 'Performed By'];
         const rows = [
           ...report.entries.map((e) => [
           formatCsvDateTime(e.createdAt || e.date),
@@ -1567,11 +1593,11 @@ export default function ReportViewPage() {
           e.cancelDate ? new Date(e.cancelDate).toLocaleDateString('en-IN') : '',
           e.customerPhone,
           e.amount,
+          e.runningBalance,
           e.mode ?? '',
           e.reason ?? '',
           e.note ?? '',
           e.performedBy ?? '',
-          e.runningBalance,
           ]),
         ];
         await downloadTable(headers, rows, `treasury-ledger-${treasuryFilters.from || 'all'}`, treasuryDownloadFormat, {
@@ -1582,15 +1608,19 @@ export default function ReportViewPage() {
               title: 'Treasury Summary',
               rows: [
                 { label: 'Total Advance Received', value: report.summary.totalAdvanceReceived },
+                { label: 'Cancelled Bookings', value: report.summary.totalCancelledBookings ?? 0 },
                 {
-                  label: 'Cancelled Advance',
+                  label: 'Cancelled Advance In Hand',
                   value:
                     report.summary.totalCancelledAdvance ??
                     report.entries
                       .filter((entry) => entry.type === 'BOOKING_CANCELLED')
                       .reduce((sum, entry) => sum + entry.amount, 0),
                 },
-                { label: 'Paid Back', value: report.summary.totalPayouts },
+                { label: 'Paid Back', value: report.summary.totalPaidBack ?? report.summary.totalPayouts },
+                { label: 'Dine-In Used', value: report.summary.totalDineInUsed },
+                { label: 'Next Booking Used', value: report.summary.totalNextBookingApplied },
+                { label: 'Forfeited', value: report.summary.totalForfeited },
                 {
                   label: 'Balance',
                   value:
@@ -2675,8 +2705,9 @@ export default function ReportViewPage() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
               { label: 'Total Advance Received', value: treasuryReport.summary.totalAdvanceReceived, color: 'emerald' },
+              { label: 'Cancelled Bookings', value: treasuryReport.summary.totalCancelledBookings ?? 0, color: 'slate', isCount: true },
               {
-                label: 'Cancelled Advance',
+                label: 'Cancelled Advance In Hand',
                 value:
                   treasuryReport.summary.totalCancelledAdvance ??
                   treasuryReport.entries
@@ -2684,9 +2715,9 @@ export default function ReportViewPage() {
                     .reduce((sum, entry) => sum + entry.amount, 0),
                 color: 'amber',
               },
-              { label: 'Paid Back', value: treasuryReport.summary.totalPayouts, color: 'blue' },
+              { label: 'Paid Back', value: treasuryReport.summary.totalPaidBack ?? treasuryReport.summary.totalPayouts, color: 'blue' },
               {
-                label: 'Balance',
+                label: 'Money In Hand',
                 value:
                   treasuryReport.summary.closingBalance ??
                   treasuryReport.summary.totalAdvanceReceived - treasuryReport.summary.totalPayouts,
@@ -2706,14 +2737,47 @@ export default function ReportViewPage() {
                   card.color === 'blue' ? 'text-blue-700' :
                   'text-slate-700'
                 }`}>
-                  <InrAmount
-                    value={card.value}
-                    symbolClassName="mr-0.5 align-[0.15em] text-xs font-bold opacity-50"
-                  />
+                  {card.isCount ? (
+                    card.value
+                  ) : (
+                    <InrAmount
+                      value={card.value}
+                      symbolClassName="mr-0.5 align-[0.15em] text-xs font-bold opacity-50"
+                    />
+                  )}
                 </p>
               </div>
             ))}
           </div>
+
+          {treasuryReport.summary.balanceByMode?.length ? (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-900">Money In Hand By Mode</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-slate-100 bg-white">
+                    <tr>
+                      {['Mode', 'Received', 'Paid Back', 'In Hand'].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {treasuryReport.summary.balanceByMode.map((row) => (
+                      <tr key={row.mode}>
+                        <td className="px-4 py-3 font-medium text-slate-800">{row.mode}</td>
+                        <td className="px-4 py-3 text-emerald-700"><InrAmount value={row.received} /></td>
+                        <td className="px-4 py-3 text-blue-700"><InrAmount value={row.paidBack} /></td>
+                        <td className="px-4 py-3 font-bold text-slate-800"><InrAmount value={row.balance} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
 
           {/* Full ledger table */}
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -2721,7 +2785,7 @@ export default function ReportViewPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-100 bg-slate-50">
                   <tr>
-                    {['Date', 'Type', 'Booking ID', 'Customer', 'Mobile Number', 'Booking Date', 'Cancel Date', 'Amount', 'Mode', 'Reason', 'Note', 'Performed By', 'Running Balance'].map((h) => (
+                    {['Date', 'Type', 'Booking ID', 'Customer', 'Mobile Number', 'Booking Date', 'Cancel Date', 'Amount', 'Money In Hand', 'Mode', 'Reason', 'Note', 'Performed By'].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
                     ))}
                   </tr>
@@ -2733,8 +2797,8 @@ export default function ReportViewPage() {
                     </tr>
                   ) : (
                     treasuryReport.entries.map((entry, idx) => {
-                      const isDebit = ['DINE_IN_USED', 'PAYOUT_PROCESSED', 'NEXT_BOOKING_APPLIED', 'FORFEITED'].includes(entry.type);
-                      const isCredit = entry.type === 'ADVANCE_RECEIVED';
+                      const isDebit = entry.direction === 'DEBIT' || entry.type === 'PAYOUT_PROCESSED';
+                      const isCredit = entry.direction === 'CREDIT' || entry.type === 'ADVANCE_RECEIVED';
                       return (
                         <tr key={idx} className={`hover:bg-slate-50 ${isDebit ? 'bg-red-50/30' : isCredit ? 'bg-emerald-50/30' : ''}`}>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
@@ -2771,13 +2835,13 @@ export default function ReportViewPage() {
                             {isCredit ? '+' : ''}
                             <InrAmount value={isDebit ? -entry.amount : entry.amount} />
                           </td>
+                          <td className={`px-4 py-3 font-bold ${entry.runningBalance >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                            <InrAmount value={entry.runningBalance} />
+                          </td>
                           <td className="px-4 py-3 text-slate-500">{entry.mode ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-500 max-w-56 truncate">{entry.reason ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-500 max-w-48 truncate">{entry.note ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-600">{entry.performedBy ?? '—'}</td>
-                          <td className={`px-4 py-3 font-bold ${entry.runningBalance >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                            <InrAmount value={entry.runningBalance} />
-                          </td>
                         </tr>
                       );
                     })

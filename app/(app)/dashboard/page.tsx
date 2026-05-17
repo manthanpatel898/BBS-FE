@@ -578,6 +578,10 @@ function CancelledAdvanceDashboardSection({
     ...(data.paidBackByMethod ?? []).map((item) => item.amount),
     1,
   );
+  const maxPendingMethodAmount = Math.max(
+    ...(data.pendingByMethod ?? []).map((item) => item.amount),
+    1,
+  );
 
   const summaryItems = [
     {
@@ -664,6 +668,41 @@ function CancelledAdvanceDashboardSection({
         ) : (
           <p className="mt-4 rounded-xl bg-white px-4 py-3 text-sm text-slate-500">
             No paid back entries recorded for this year.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/70 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h4 className="text-sm font-bold text-slate-900">Pending With Company Methods</h4>
+            <p className="mt-0.5 text-xs text-slate-500">Original advance payment methods still held by the company.</p>
+          </div>
+          <p className="shrink-0 text-sm font-bold text-amber-700">{formatCurrency(data.totalPendingAmount)}</p>
+        </div>
+        {(data.pendingByMethod ?? []).length > 0 ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {data.pendingByMethod.map((item) => (
+              <div key={item.label} className="rounded-xl bg-white p-3 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
+                    <p className="text-xs text-slate-500">{item.count} pending entr{item.count === 1 ? 'y' : 'ies'}</p>
+                  </div>
+                  <p className="shrink-0 text-sm font-bold text-amber-700">{formatCurrency(item.amount)}</p>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-amber-100">
+                  <div
+                    className="h-full rounded-full bg-amber-500"
+                    style={{ width: `${Math.max((item.amount / maxPendingMethodAmount) * 100, item.amount > 0 ? 8 : 0)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 rounded-xl bg-white px-4 py-3 text-sm text-slate-500">
+            No pending company balance recorded for this year.
           </p>
         )}
       </div>
