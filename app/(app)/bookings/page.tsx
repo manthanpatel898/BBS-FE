@@ -318,6 +318,12 @@ export default function BookingsPage() {
   const [skippedRuleKeys, setSkippedRuleKeys] = useState<string[]>([]);
   const [ruleSearches, setRuleSearches] = useState<Record<string, string>>({});
   const [expandedRuleKeys, setExpandedRuleKeys] = useState<string[]>([]);
+  const [wizardHeaderExpanded, setWizardHeaderExpanded] = useState({
+    summary: true,
+    customer: false,
+    category: true,
+    price: false,
+  });
   const [addonPopup, setAddonPopup] = useState<{
     menuId: string;
     menuTitle: string;
@@ -596,6 +602,7 @@ export default function BookingsPage() {
     setSkippedRuleKeys([]);
     setRuleSearches({});
     setExpandedRuleKeys([]);
+    setWizardHeaderExpanded({ summary: true, customer: false, category: true, price: false });
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setFormState(initialFormState);
@@ -726,6 +733,14 @@ export default function BookingsPage() {
     setCustomEventName(resolvedEventName.customValue);
     setSkippedRuleKeys([]);
     setRuleSearches({});
+    setWizardHeaderExpanded({
+      summary: !order.categorySnapshot,
+      customer: false,
+      category: !order.categorySnapshot,
+      price:
+        order.customPricePerPlate !== null ||
+        order.inquiryCustomPrice !== null,
+    });
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setIsWizardOpen(true);
@@ -969,6 +984,13 @@ export default function BookingsPage() {
     setExpandedRuleKeys((current) =>
       current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
     );
+  }
+
+  function toggleWizardHeaderSection(section: keyof typeof wizardHeaderExpanded) {
+    setWizardHeaderExpanded((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
   }
 
   function removeSectionFromSelectedMenus(menuId: string, sectionTitle: string) {
@@ -3080,59 +3102,182 @@ function selectionStatus(order: Order) {
             panelClassName="flex h-[92vh] min-h-0 flex-col"
           >
             <div className="mt-5 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-              <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(145deg,#fffdf7,#ffffff)] p-4 shadow-sm">
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Customer
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    {formState.customerName || 'Customer name'}
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
-                  <Field label="Category">
-                    <select
-                      value={formState.categoryId}
-                      onChange={(event) =>
-                        {
-                          setSkippedRuleKeys([]);
-                          setExpandedRuleKeys([]);
-                          setFormState((current) => ({
-                            ...current,
-                            categoryId: event.target.value,
-                            selectedMenus: [],
-                          }));
-                        }
-                      }
-                      className={inputCls}
+              <div className="rounded-[20px] border border-slate-200 bg-[linear-gradient(145deg,#fffdf7,#ffffff)] p-3 shadow-sm sm:rounded-[24px] sm:p-4">
+                <button
+                  type="button"
+                  onClick={() => toggleWizardHeaderSection('summary')}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600">
+                      Booking Setup
+                    </p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-900 sm:text-base">
+                      {formState.customerName || 'Customer'} · {selectedCategory?.name || 'Category'} ·{' '}
+                      {formState.customPricePerPlate
+                        ? formatCurrency(Number(formState.customPricePerPlate) || 0)
+                        : 'Default price'}
+                    </p>
+                  </div>
+                  <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition ${wizardHeaderExpanded.summary ? 'rotate-180' : ''}`}>
+                    <IconChevronDown />
+                  </span>
+                </button>
+
+                {wizardHeaderExpanded.summary ? (
+                <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_1.4fr] lg:items-start">
+                  <div className="rounded-2xl border border-slate-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={() => toggleWizardHeaderSection('customer')}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:px-4 sm:py-3"
                     >
-                      <option value="">Select category</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name} ({formatCurrency(category.pricePerPlate)})
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Custom Price">
-                    <input
-                      type="number"
-                      min="0"
-                      inputMode="decimal"
-                      placeholder="Custom price"
-                      value={formState.customPricePerPlate}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          customPricePerPlate: event.target.value,
-                        }))
-                      }
-                      className={inputCls}
-                    />
-                  </Field>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                          Customer
+                        </p>
+                        <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 sm:text-lg">
+                          {formState.customerName || 'Customer name'}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 text-slate-500 transition ${wizardHeaderExpanded.customer ? 'rotate-180' : ''}`}>
+                        <IconChevronDown />
+                      </span>
+                    </button>
+                    {wizardHeaderExpanded.customer ? (
+                      <div className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500 sm:px-4 sm:py-3">
+                        <p>{formState.mobileNumber || 'No mobile number'}</p>
+                        <p className="mt-1">{formState.functionDate || 'Function date pending'}</p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+                    <div className="rounded-2xl border border-slate-200 bg-white">
+                      <button
+                        type="button"
+                        onClick={() => toggleWizardHeaderSection('category')}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:px-4 sm:py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                            Category
+                          </p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">
+                            {selectedCategory
+                              ? `${selectedCategory.name} (${formatCurrency(selectedCategory.pricePerPlate)})`
+                              : 'Select category'}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 text-slate-500 transition ${wizardHeaderExpanded.category ? 'rotate-180' : ''}`}>
+                          <IconChevronDown />
+                        </span>
+                      </button>
+                      {wizardHeaderExpanded.category ? (
+                        <div className="border-t border-slate-100 p-3 sm:p-4">
+                          <div className="hidden sm:block">
+                            <Field label="Category">
+                              <select
+                                value={formState.categoryId}
+                                onChange={(event) =>
+                                  {
+                                    setSkippedRuleKeys([]);
+                                    setExpandedRuleKeys([]);
+                                    setFormState((current) => ({
+                                      ...current,
+                                      categoryId: event.target.value,
+                                      selectedMenus: [],
+                                    }));
+                                  }
+                                }
+                                className={inputCls}
+                              >
+                                <option value="">Select category</option>
+                                {categories.map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name} ({formatCurrency(category.pricePerPlate)})
+                                  </option>
+                                ))}
+                              </select>
+                            </Field>
+                          </div>
+                          <div className="grid max-h-36 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:hidden">
+                            {categories.map((category) => {
+                              const selected = formState.categoryId === category.id;
+                              return (
+                                <button
+                                  key={category.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSkippedRuleKeys([]);
+                                    setExpandedRuleKeys([]);
+                                    setFormState((current) => ({
+                                      ...current,
+                                      categoryId: category.id,
+                                      selectedMenus: [],
+                                    }));
+                                    setWizardHeaderExpanded((current) => ({ ...current, category: false }));
+                                  }}
+                                  className={`min-w-0 rounded-xl border px-3 py-2 text-left transition ${
+                                    selected
+                                      ? 'border-amber-300 bg-amber-50 text-slate-900'
+                                      : 'border-slate-200 bg-slate-50 text-slate-700'
+                                  }`}
+                                >
+                                  <p className="truncate text-sm font-semibold">{category.name}</p>
+                                  <p className="mt-0.5 text-xs text-slate-500">{formatCurrency(category.pricePerPlate)}</p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white">
+                      <button
+                        type="button"
+                        onClick={() => toggleWizardHeaderSection('price')}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:px-4 sm:py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                            Custom Price
+                          </p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">
+                            {formState.customPricePerPlate
+                              ? formatCurrency(Number(formState.customPricePerPlate) || 0)
+                              : 'Default'}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 text-slate-500 transition ${wizardHeaderExpanded.price ? 'rotate-180' : ''}`}>
+                          <IconChevronDown />
+                        </span>
+                      </button>
+                      {wizardHeaderExpanded.price ? (
+                        <div className="border-t border-slate-100 p-3 sm:p-4">
+                          <Field label="Custom Price">
+                            <input
+                              type="number"
+                              min="0"
+                              inputMode="decimal"
+                              placeholder="Custom price"
+                              value={formState.customPricePerPlate}
+                              onChange={(event) =>
+                                setFormState((current) => ({
+                                  ...current,
+                                  customPricePerPlate: event.target.value,
+                                }))
+                              }
+                              className={inputCls}
+                            />
+                          </Field>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-              </div>
+                ) : null}
               </div>
 
               <div className="min-h-0 flex-1">
@@ -3170,47 +3315,47 @@ function selectionStatus(order: Order) {
                       return (
                       <div
                         key={`${rule.menuId}-${rule.sectionTitle}`}
-                        className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                        className="mb-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mb-4"
                       >
                         <button
                           type="button"
                           onClick={() => toggleRuleExpanded(rule.menuId, rule.sectionTitle)}
-                          className="flex w-full flex-col gap-3 p-5 text-left transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex w-full items-center justify-between gap-3 p-3 text-left transition hover:bg-slate-50 sm:p-5"
                         >
                           <div className="min-w-0">
                               {Number.isFinite(resolvedRuleDisplayOrder) &&
                               resolvedRuleDisplayOrder !== Number.MAX_SAFE_INTEGER ? (
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 sm:text-[11px] sm:tracking-[0.18em]">
                                   Order #{resolvedRuleDisplayOrder}
                                 </p>
                               ) : null}
                               {!showSingleLabel ? (
-                                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
+                                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-600 sm:text-xs sm:tracking-[0.24em]">
                                   {rule.menuTitle}
                                 </p>
                               ) : null}
-                              <h3 className={`${showSingleLabel ? '' : 'mt-1 '}text-xl font-semibold text-slate-900`}>
+                              <h3 className={`${showSingleLabel ? '' : 'mt-0.5 sm:mt-1 '}truncate text-base font-semibold text-slate-900 sm:text-xl`}>
                                 {rule.sectionTitle}
                               </h3>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <div className="flex shrink-0 items-center gap-1.5 sm:flex-wrap sm:gap-2 sm:justify-end">
                             {skipped ? (
-                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                              <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 sm:px-3 sm:text-xs">
                                 Skipped
                               </span>
                             ) : (
-                              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                              <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 sm:px-3 sm:text-xs">
                                 {selectedCount}/{rule.selectionLimit} selected
                               </span>
                             )}
-                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                              {expanded ? 'Hide options' : 'Show options'}
+                            <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition ${expanded ? 'rotate-180' : ''}`}>
+                              <IconChevronDown />
                             </span>
                           </div>
                         </button>
                         {expanded ? (
-                          <div className="border-t border-slate-100 p-5">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="border-t border-slate-100 p-3 sm:p-5">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                               <div className="min-w-[220px] flex-1 sm:max-w-[320px]">
                                 <input
                                   type="text"
@@ -3222,7 +3367,7 @@ function selectionStatus(order: Order) {
                                     }))
                                   }
                                   placeholder="Search subitem"
-                                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-slate-300"
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 placeholder:text-slate-400 outline-none transition focus:border-slate-300 sm:px-4 sm:py-2.5"
                                 />
                               </div>
                               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -3261,7 +3406,7 @@ function selectionStatus(order: Order) {
                             This item is skipped for this customer, so it will not block saving.
                           </div>
                         ) : (
-                        <div className="grid gap-3">
+                        <div className="grid gap-2 sm:gap-3">
                           <>
                             {normalizedSearchValue.length > 0 && normalizedSearchValue.length < 3 ? (
                               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
@@ -3281,7 +3426,7 @@ function selectionStatus(order: Order) {
                           ).map((addonItem) => (
                             <div
                               key={`addon-${rule.menuId}-${rule.sectionTitle}-${addonItem}`}
-                              className="flex w-full items-center gap-3 rounded-2xl border border-amber-300 bg-gradient-to-br from-amber-50 to-white px-4 py-4 text-sm shadow-sm"
+                              className="flex w-full items-center gap-2 rounded-xl border border-amber-300 bg-gradient-to-br from-amber-50 to-white px-3 py-2.5 text-sm shadow-sm sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-4"
                             >
                               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-500 bg-amber-500 text-white">
                                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
@@ -3299,6 +3444,7 @@ function selectionStatus(order: Order) {
                               </button>
                             </div>
                           ))}
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                           {filteredAllowedItems.map((item) => {
                             const linkedMenu =
                               menuLookup.get(rule.menuId) ??
@@ -3330,7 +3476,7 @@ function selectionStatus(order: Order) {
                                     !checked,
                                   )
                                 }
-                                className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-4 text-left text-sm transition ${
+                                className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3 ${
                                   checked
                                     ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-white text-slate-900 shadow-sm'
                                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
@@ -3351,15 +3497,15 @@ function selectionStatus(order: Order) {
                                     />
                                   </svg>
                                 </span>
-                                <span className="flex flex-1 flex-wrap items-center gap-2 font-medium">
+                                <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 font-medium sm:gap-2">
                                   {isHotSelling ? (
-                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-sm text-red-600">
+                                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs text-red-600 sm:h-6 sm:w-6 sm:text-sm">
                                       🔥
                                     </span>
                                   ) : null}
-                                  <span>{item}</span>
+                                  <span className="min-w-0 break-words leading-snug">{item}</span>
                                   {isHotSelling ? (
-                                    <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-red-600">
+                                    <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-red-600 sm:px-2 sm:text-[10px] sm:tracking-[0.14em]">
                                       Hot Selling
                                     </span>
                                   ) : null}
@@ -3367,6 +3513,7 @@ function selectionStatus(order: Order) {
                               </button>
                             );
                           })}
+                          </div>
                           {normalizedSearchValue.length >= 3 && filteredAllowedItems.length === 0 ? (
                             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                               No subitems match this search.
@@ -3382,16 +3529,16 @@ function selectionStatus(order: Order) {
                     );
                     })
                   )}
-                  <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:mb-4 sm:p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600 sm:text-xs sm:tracking-[0.24em]">
                           Manual Entry
                         </p>
-                        <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                        <h3 className="mt-1 text-base font-semibold text-slate-900 sm:text-xl">
                           Custom Menu
                         </h3>
-                        <p className="mt-2 text-sm text-slate-500">
+                        <p className="mt-1 text-xs text-slate-500 sm:mt-2 sm:text-sm">
                           Add item and subitem manually. Example: item `Pizza`, subitem `Italian Pizza`.
                         </p>
                       </div>
@@ -3443,12 +3590,12 @@ function selectionStatus(order: Order) {
                   </div>
                 </div>
               </div>
-              <div className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-4 backdrop-blur">
+              <div className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur sm:pt-4">
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={resetWizard}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:rounded-2xl sm:py-3"
                   >
                     Cancel
                   </button>
@@ -3457,7 +3604,7 @@ function selectionStatus(order: Order) {
                     disabled={isSubmitting}
                     onClick={() => void handleSaveBookingSelection()}
                     isLoading={isSubmitting}
-                    className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60"
+                    className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:rounded-2xl sm:py-3"
                   >
                     Save category
                   </LoadingButton>
