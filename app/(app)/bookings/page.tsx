@@ -814,18 +814,6 @@ export default function BookingsPage() {
     item: string,
     checked: boolean,
   ) {
-    const selectedCount = formState.selectedMenus.find(
-      (selectedMenu) => selectedMenu.menuId === rule.menuId,
-    )?.sections.find((section) => section.sectionTitle === sectionTitle)?.items.length ?? 0;
-
-    if (checked && selectedCount >= rule.selectionLimit) {
-      setToast({
-        type: 'error',
-        message: `Only ${rule.selectionLimit} selection(s) allowed for ${sectionTitle}.`,
-      });
-      return;
-    }
-
     setFormState((current) => {
       const existingMenu = current.selectedMenus.find(
         (selectedMenu) => selectedMenu.menuId === rule.menuId,
@@ -1333,22 +1321,6 @@ export default function BookingsPage() {
         message: 'This category has no configured menu items. Update the category first.',
       });
       return;
-    }
-
-    for (const rule of orderedCategoryRules) {
-      if (isRuleSkipped(rule.menuId, rule.sectionTitle)) {
-        continue;
-      }
-
-      const selectedCount = selectedCountForRule(rule);
-
-      if (selectedCount < rule.selectionLimit) {
-        setToast({
-          type: 'error',
-          message: `Select ${rule.selectionLimit} item(s) for ${rule.sectionTitle} before saving.`,
-        });
-        return;
-      }
     }
 
     try {
@@ -3345,7 +3317,7 @@ function selectionStatus(order: Order) {
                               </span>
                             ) : (
                               <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 sm:px-3 sm:text-xs">
-                                {selectedCount}/{rule.selectionLimit} selected
+                                {selectedCount} selected / {rule.selectionLimit} allowed
                               </span>
                             )}
                             <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition ${expanded ? 'rotate-180' : ''}`}>
