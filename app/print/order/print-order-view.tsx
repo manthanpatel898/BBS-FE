@@ -15,6 +15,12 @@ type MenuRow = {
   showSection: boolean;
 };
 
+type MenuSectionBox = {
+  key: string;
+  section: string;
+  items: string[];
+};
+
 export function PrintOrderView({
   orderId,
   copyType,
@@ -158,6 +164,7 @@ function PrintDocument({
   copyType: CopyType;
 }) {
   const menuRows = buildMenuRows(order);
+  const kitchenMenuSectionRows = buildKitchenMenuSectionRows(order, 3);
   const advanceRows = [...order.advancePayments].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
@@ -181,12 +188,18 @@ function PrintDocument({
         : [];
 
   return (
-    <article className="mx-auto max-w-[210mm] bg-white px-[7mm] py-[6mm] text-stone-900 shadow-sm print:max-w-none print:px-[4mm] print:pb-[16mm] print:pt-[3mm] print:text-[11px] print:shadow-none">
-      <header className="border-b border-stone-300 pb-3">
+    <article
+      className={`mx-auto max-w-[210mm] bg-white text-stone-950 shadow-sm print:max-w-none print:shadow-none ${
+        isKitchenCopy
+          ? 'px-[5mm] py-[4mm] text-[12px] font-semibold print:px-[3mm] print:py-[2mm] print:text-[12px]'
+          : 'px-[7mm] py-[6mm] text-stone-900 print:px-[4mm] print:pb-[16mm] print:pt-[3mm] print:text-[11px]'
+      }`}
+    >
+      <header className={`border-b border-stone-400 ${isKitchenCopy ? 'pb-1.5' : 'pb-3'}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             {restaurant?.logoUrl ? (
-              <div className="flex h-16 w-16 items-center justify-center p-1 print:h-14 print:w-14">
+              <div className={`flex items-center justify-center p-1 ${isKitchenCopy ? 'h-11 w-11 print:h-10 print:w-10' : 'h-16 w-16 print:h-14 print:w-14'}`}>
                 <img
                   src={restaurant.logoUrl}
                   alt={restaurant.name}
@@ -197,15 +210,15 @@ function PrintDocument({
             <div className="w-px self-stretch bg-stone-300" />
             <div className="pt-1">
               {restaurant?.name ? (
-                <p className="text-[19px] font-semibold tracking-[0.08em] text-stone-950 print:text-[16px]">
+                <p className={`font-bold text-stone-950 ${isKitchenCopy ? 'text-[18px] print:text-[17px]' : 'text-[19px] tracking-[0.08em] print:text-[16px]'}`}>
                   {restaurant.name}
                 </p>
               ) : null}
               {restaurantContacts.length > 0 ? (
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-stone-600 print:text-[10px]">
-                  <span className="font-semibold text-stone-700">Contact:</span>
+                <div className={`flex flex-wrap items-center gap-x-2 gap-y-1 font-bold text-stone-900 ${isKitchenCopy ? 'mt-0.5 text-[11px] print:text-[11px]' : 'mt-1.5 text-[11px] print:text-[10px]'}`}>
+                  <span>Contact:</span>
                   {restaurantContacts.map((contact) => (
-                    <span key={contact} className="rounded-full bg-stone-100 px-2 py-0.5">
+                    <span key={contact} className="rounded-full bg-stone-100 px-2 py-0.5 text-stone-950">
                       {contact}
                     </span>
                   ))}
@@ -213,11 +226,11 @@ function PrintDocument({
               ) : null}
             </div>
           </div>
-          <div className="pt-3 text-right">
-            <p className="text-base font-semibold tracking-[0.14em] text-stone-800 print:text-[15px]">
+          <div className={`${isKitchenCopy ? 'pt-1' : 'pt-3'} text-right`}>
+            <p className={`font-bold uppercase text-stone-950 ${isKitchenCopy ? 'text-[18px] print:text-[17px]' : 'text-base tracking-[0.14em] print:text-[15px]'}`}>
               {isKitchenCopy ? 'Kitchen Print' : 'Booking Summary'}
             </p>
-            {restaurant?.address && restaurant.address.trim().toLowerCase() !== 'na' ? (
+            {!isKitchenCopy && restaurant?.address && restaurant.address.trim().toLowerCase() !== 'na' ? (
               <p className="mt-2 max-w-[220px] text-xs leading-5 text-stone-500 print:max-w-[180px] print:text-[10px]">
                 {restaurant.address}
               </p>
@@ -226,9 +239,11 @@ function PrintDocument({
         </div>
       </header>
 
-      <section className="mt-3 grid gap-3 md:grid-cols-2 print:grid-cols-2 print:gap-2">
+      <section className={`${isKitchenCopy ? 'mt-2 grid gap-1.5 md:grid-cols-2 print:grid-cols-2 print:gap-1.5' : 'mt-3 grid gap-3 md:grid-cols-2 print:grid-cols-2 print:gap-2'}`}>
         <CompactTable
           title="Event Details"
+          compact={isKitchenCopy}
+          strong={isKitchenCopy}
           rows={[
             ['Function Date and Time', formatEventDateTime(order)],
             ['Slot Type', order.serviceSlot || 'Pending'],
@@ -247,6 +262,8 @@ function PrintDocument({
         />
         <CompactTable
           title="Inquiry Notes"
+          compact={isKitchenCopy}
+          strong={isKitchenCopy}
           rows={[
             [
               'Jain/Swaminarayan Person Info',
@@ -261,88 +278,135 @@ function PrintDocument({
         />
       </section>
 
-      <section className="mt-3 overflow-hidden rounded-[14px] border border-stone-300 print:mt-2">
-        <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+      <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'} overflow-hidden rounded-[10px] border border-stone-400`}>
+        <div className={`${isKitchenCopy ? 'px-2 py-1' : 'px-3 py-1.5'} border-b border-stone-400 bg-stone-100`}>
+          <p className={`${isKitchenCopy ? 'text-[12px]' : 'text-xs tracking-[0.24em]'} font-bold uppercase text-stone-950`}>
             Selected Menu Snapshot
           </p>
         </div>
-        <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
-          <tbody>
-            {menuRows.length > 0 ? (
-              menuRows.map((row, index) => (
-                <tr key={row.key} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
-                  <td className="border-b border-stone-200 px-3 py-1.5 align-top font-semibold text-stone-900">
-                    {row.showSection ? row.section : ''}
-                  </td>
-                  <td className="border-b border-stone-200 px-3 py-1.5 text-stone-700">
-                    {row.item}
+        {isKitchenCopy ? (
+          <table className="min-w-full table-fixed border-collapse text-[12px] leading-tight text-stone-950 print:text-[12px]">
+            <tbody>
+              {kitchenMenuSectionRows.length > 0 ? (
+                kitchenMenuSectionRows.map((row, rowIndex) => (
+                  <tr key={`kitchen-menu-${rowIndex}`}>
+                    {row.map((section, cellIndex) => (
+                      <td
+                        key={section?.key ?? `empty-${rowIndex}-${cellIndex}`}
+                        className="w-1/3 border-b border-r border-stone-400 align-top last:border-r-0"
+                      >
+                        {section ? (
+                          <div className="min-h-full">
+                            <div className="border-b border-stone-300 bg-stone-100 px-1.5 py-0.5 font-black uppercase text-stone-950">
+                              {section.section} - {section.items.length}
+                            </div>
+                            <div className="px-1.5 py-1">
+                              {section.items.map((item, index) => (
+                                <div
+                                  key={`${section.key}-${index}-${item}`}
+                                  className="border-b border-dotted border-stone-300 py-0.5 font-semibold text-stone-900 last:border-b-0"
+                                >
+                                  {item}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-3 py-3 text-center font-bold text-stone-700">
+                    Menu selection pending
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={2}
-                  className="px-4 py-4 text-center text-xs text-stone-500"
-                >
-                  Menu selection pending
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        ) : (
+          <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
+            <tbody>
+              {menuRows.length > 0 ? (
+                menuRows.map((row, index) => (
+                  <tr key={row.key} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
+                    <td className="border-b border-stone-200 px-3 py-1.5 align-top font-semibold text-stone-900">
+                      {row.showSection ? row.section : ''}
+                    </td>
+                    <td className="border-b border-stone-200 px-3 py-1.5 text-stone-700">
+                      {row.item}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={2}
+                    className="px-4 py-4 text-center text-xs text-stone-500"
+                  >
+                    Menu selection pending
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </section>
 
-      <section className="mt-3 print:mt-2">
-        <div className="overflow-hidden rounded-[14px] border border-stone-300">
-        <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
-          <thead className="bg-stone-100 text-stone-700">
-            <tr>
-              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Date</th>
-              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Mode</th>
-              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Amount</th>
-              <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {advanceRows.length > 0 ? (
-              <>
-                {advanceRows.map((payment, index) => (
-                  <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
-                    <td className="border-b border-stone-200 px-3 py-1.5">{formatDateTime(payment.date)}</td>
-                    <td className="border-b border-stone-200 px-3 py-1.5">{payment.paymentMode}</td>
-                    <td className="border-b border-stone-200 px-3 py-1.5">{formatCurrency(payment.amount)}</td>
-                    <td className="border-b border-stone-200 px-3 py-1.5">{payment.remark || '-'}</td>
-                  </tr>
-                ))}
-                <tr className="bg-stone-100">
-                  <td className="px-3 py-2 font-semibold text-stone-700">Advance Payment</td>
-                  <td className="px-3 py-2 text-right font-semibold text-stone-700">Total Advance Payment</td>
-                  <td className="px-3 py-2 font-semibold text-stone-900">{formatCurrency(order.advanceAmount)}</td>
-                  <td className="px-3 py-2" />
+      <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'}`}>
+        {!isKitchenCopy ? (
+          <div className="overflow-hidden rounded-[14px] border border-stone-300">
+            <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
+              <thead className="bg-stone-100 text-stone-700">
+                <tr>
+                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Date</th>
+                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Mode</th>
+                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Amount</th>
+                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Remarks</th>
                 </tr>
-              </>
-            ) : (
-              <tr>
-                <td colSpan={4} className="px-3 py-3 text-center text-stone-500">
-                  No advance entries recorded.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        </div>
-        <div className="mt-2 overflow-hidden rounded-[12px] border border-stone-200">
-          <div className="grid grid-cols-2 divide-x divide-stone-200 bg-stone-50">
+              </thead>
+              <tbody>
+                {advanceRows.length > 0 ? (
+                  <>
+                    {advanceRows.map((payment, index) => (
+                      <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
+                        <td className="border-b border-stone-200 px-3 py-1.5">{formatDateTime(payment.date)}</td>
+                        <td className="border-b border-stone-200 px-3 py-1.5">{payment.paymentMode}</td>
+                        <td className="border-b border-stone-200 px-3 py-1.5">{formatCurrency(payment.amount)}</td>
+                        <td className="border-b border-stone-200 px-3 py-1.5">{payment.remark || '-'}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-stone-100">
+                      <td className="px-3 py-2 font-semibold text-stone-700">Advance Payment</td>
+                      <td className="px-3 py-2 text-right font-semibold text-stone-700">Total Advance Payment</td>
+                      <td className="px-3 py-2 font-semibold text-stone-900">{formatCurrency(order.advanceAmount)}</td>
+                      <td className="px-3 py-2" />
+                    </tr>
+                  </>
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-3 text-center text-stone-500">
+                      No advance entries recorded.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        <div className={`${isKitchenCopy ? 'overflow-hidden rounded-[10px] border border-stone-400' : 'mt-2 overflow-hidden rounded-[12px] border border-stone-200'}`}>
+          <div className={`grid grid-cols-2 divide-x ${isKitchenCopy ? 'divide-stone-400 bg-stone-100' : 'divide-stone-200 bg-stone-50'}`}>
             <SummaryCell
-              label="Addon Service"
+              label={isKitchenCopy ? 'Addon Data' : 'Addon Service'}
               value={addonServicesSummary}
-              valueClassName="text-[10px] leading-5 print:text-[9px]"
+              strong={isKitchenCopy}
+              valueClassName={isKitchenCopy ? 'text-[12px] leading-4 print:text-[12px]' : 'text-[10px] leading-5 print:text-[9px]'}
             />
             <SummaryCell
               label="Total Addon Service"
               value={formatCurrency(addonServicesTotal)}
+              strong={isKitchenCopy}
             />
           </div>
         </div>
@@ -386,12 +450,14 @@ function PrintDocument({
         </>
       ) : null}
 
+      {!isKitchenCopy ? (
       <div className="hidden print:fixed print:bottom-[4mm] print:left-[5mm] print:right-[5mm] print:block">
         <div className="flex items-center justify-between border-t border-stone-300 pt-1.5 text-[10px] font-medium text-stone-500">
           <span>{restaurant?.name || 'Booking Summary'}</span>
           <span>Page 1</span>
         </div>
       </div>
+      ) : null}
     </article>
   );
 }
@@ -400,27 +466,29 @@ function CompactTable({
   title,
   rows,
   compact = false,
+  strong = false,
 }: {
   title: string;
   rows: Array<[string, string]>;
   compact?: boolean;
+  strong?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-[14px] border border-stone-300">
-      <div className="border-b border-stone-300 bg-stone-50 px-3 py-2 print:px-2 print:py-1.5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+    <section className={`overflow-hidden ${strong ? 'rounded-[10px] border border-stone-400' : 'rounded-[14px] border border-stone-300'}`}>
+      <div className={`${strong ? 'border-b border-stone-400 bg-stone-100 px-2 py-1' : 'border-b border-stone-300 bg-stone-50 px-3 py-2 print:px-2 print:py-1.5'}`}>
+        <p className={`${strong ? 'text-[12px] font-bold text-stone-950' : 'text-xs font-semibold tracking-[0.24em] text-stone-700'} uppercase`}>
           {title}
         </p>
       </div>
-      <div className="divide-y divide-stone-200">
+      <div className={strong ? 'divide-y divide-stone-300' : 'divide-y divide-stone-200'}>
         {rows.map(([label, value]) => {
           return (
             <div
               key={`${title}-${label}`}
-              className={`grid gap-3 px-3 print:gap-2 print:px-2 ${compact ? 'grid-cols-[130px_minmax(0,1fr)] py-1.5 text-[11px] print:grid-cols-[110px_minmax(0,1fr)] print:py-1 print:text-[10px]' : 'grid-cols-[145px_minmax(0,1fr)] py-2 text-[11px] print:grid-cols-[118px_minmax(0,1fr)] print:py-1 print:text-[10px]'}`}
+              className={`grid gap-2 px-2 ${compact ? 'grid-cols-[minmax(0,34%)_minmax(0,66%)] py-0.5 text-[13px] print:grid-cols-[minmax(0,34%)_minmax(0,66%)] print:py-0.5 print:text-[13px]' : 'grid-cols-[145px_minmax(0,1fr)] px-3 py-2 text-[11px] print:grid-cols-[118px_minmax(0,1fr)] print:py-1 print:text-[10px]'}`}
             >
-              <span className="font-medium text-stone-500">{label}</span>
-              <span className="font-semibold text-stone-900">{value}</span>
+              <span className={strong ? 'min-w-0 font-bold uppercase leading-tight text-stone-700 [overflow-wrap:anywhere]' : 'font-medium text-stone-500'}>{label}</span>
+              <span className={strong ? 'min-w-0 font-bold leading-tight text-stone-950 [overflow-wrap:anywhere]' : 'font-semibold text-stone-900'}>{value}</span>
             </div>
           );
         })}
@@ -444,17 +512,19 @@ function SummaryCell({
   label,
   value,
   valueClassName = '',
+  strong = false,
 }: {
   label: string;
   value: string;
   valueClassName?: string;
+  strong?: boolean;
 }) {
   return (
-    <div className="px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-stone-600">
+    <div className={strong ? 'px-2 py-1' : 'px-3 py-2'}>
+      <p className={`${strong ? 'text-[12px] font-black text-stone-950' : 'text-[10px] font-semibold tracking-[0.24em] text-stone-600'} uppercase`}>
         {label}
       </p>
-      <p className={`mt-1 text-sm font-semibold text-stone-900 ${valueClassName}`.trim()}>
+      <p className={`${strong ? 'mt-0.5 text-[13px] font-black text-stone-950' : 'mt-1 text-sm font-semibold text-stone-900'} ${valueClassName}`.trim()}>
         {value}
       </p>
     </div>
@@ -472,6 +542,27 @@ function buildMenuRows(order: Order): MenuRow[] {
       })),
     ),
   );
+}
+
+function buildKitchenMenuSectionRows(order: Order, columns: number) {
+  const sections: MenuSectionBox[] = order.menuSelectionSnapshot.flatMap((menu) =>
+    menu.sections.map((section) => ({
+      key: `${menu.menuId}-${section.sectionTitle}`,
+      section: section.sectionTitle,
+      items: section.items,
+    })),
+  );
+  const rows: Array<Array<MenuSectionBox | null>> = [];
+
+  for (let index = 0; index < sections.length; index += columns) {
+    const row: Array<MenuSectionBox | null> = sections.slice(index, index + columns);
+    while (row.length < columns) {
+      row.push(null);
+    }
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 function fullName(order: Order) {
