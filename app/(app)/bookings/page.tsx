@@ -1161,10 +1161,18 @@ export default function BookingsPage() {
       return;
     }
 
-    if ((formState.startTime || formState.endTime) && (!formState.startTime || !formState.endTime)) {
+    if (!formState.startTime || !formState.endTime) {
       setToast({
         type: 'error',
-        message: 'Start time and end time are both required.',
+        message: 'Function start time and end time are required.',
+      });
+      return;
+    }
+
+    if (!formState.startTime || !formState.endTime) {
+      setToast({
+        type: 'error',
+        message: 'Function start time and end time are required.',
       });
       return;
     }
@@ -2678,7 +2686,7 @@ function selectionStatus(order: Order) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Function Start Time">
+                <Field label="Function Start Time" required>
                   <TimePicker
                     value={formState.startTime}
                     onChange={(value) =>
@@ -2691,7 +2699,7 @@ function selectionStatus(order: Order) {
                     minutePlaceholder="Min"
                   />
                 </Field>
-                <Field label="Function End Time">
+                <Field label="Function End Time" required>
                   <TimePicker
                     value={formState.endTime}
                     onChange={(value) =>
