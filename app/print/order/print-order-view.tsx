@@ -164,7 +164,7 @@ function PrintDocument({
   copyType: CopyType;
 }) {
   const menuRows = buildMenuRows(order);
-  const kitchenMenuSectionRows = buildKitchenMenuSectionRows(order, 3);
+  const menuSectionRows = buildMenuSectionRows(order, 3);
   const advanceRows = [...order.advancePayments].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
@@ -242,8 +242,8 @@ function PrintDocument({
       <section className={`${isKitchenCopy ? 'mt-2 grid gap-1.5 md:grid-cols-2 print:grid-cols-2 print:gap-1.5' : 'mt-3 grid gap-3 md:grid-cols-2 print:grid-cols-2 print:gap-2'}`}>
         <CompactTable
           title="Event Details"
-          compact={isKitchenCopy}
-          strong={isKitchenCopy}
+          compact
+          strong
           rows={[
             ['Function Date and Time', formatEventDateTime(order)],
             ['Slot Type', order.serviceSlot || 'Pending'],
@@ -262,8 +262,8 @@ function PrintDocument({
         />
         <CompactTable
           title="Inquiry Notes"
-          compact={isKitchenCopy}
-          strong={isKitchenCopy}
+          compact
+          strong
           rows={[
             [
               'Jain/Swaminarayan Person Info',
@@ -280,15 +280,15 @@ function PrintDocument({
 
       <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'} overflow-hidden rounded-[10px] border border-stone-400`}>
         <div className={`${isKitchenCopy ? 'px-2 py-1' : 'px-3 py-1.5'} border-b border-stone-400 bg-stone-100`}>
-          <p className={`${isKitchenCopy ? 'text-[12px]' : 'text-xs tracking-[0.24em]'} font-bold uppercase text-stone-950`}>
+          <p className="text-[12px] font-bold uppercase text-stone-950">
             Selected Menu Snapshot
           </p>
         </div>
         {isKitchenCopy ? (
           <table className="min-w-full table-fixed border-collapse text-[12px] leading-tight text-stone-950 print:text-[12px]">
             <tbody>
-              {kitchenMenuSectionRows.length > 0 ? (
-                kitchenMenuSectionRows.map((row, rowIndex) => (
+              {menuSectionRows.length > 0 ? (
+                menuSectionRows.map((row, rowIndex) => (
                   <tr key={`kitchen-menu-${rowIndex}`}>
                     {row.map((section, cellIndex) => (
                       <td
@@ -326,17 +326,35 @@ function PrintDocument({
             </tbody>
           </table>
         ) : (
-          <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
+          <table className="min-w-full table-fixed border-collapse text-[12px] leading-tight text-stone-950 print:text-[12px]">
             <tbody>
-              {menuRows.length > 0 ? (
-                menuRows.map((row, index) => (
-                  <tr key={row.key} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
-                    <td className="border-b border-stone-200 px-3 py-1.5 align-top font-semibold text-stone-900">
-                      {row.showSection ? row.section : ''}
-                    </td>
-                    <td className="border-b border-stone-200 px-3 py-1.5 text-stone-700">
-                      {row.item}
-                    </td>
+              {menuSectionRows.length > 0 ? (
+                menuSectionRows.map((row, rowIndex) => (
+                  <tr key={`menu-section-${rowIndex}`}>
+                    {row.map((section, cellIndex) => (
+                      <td
+                        key={section?.key ?? `empty-${rowIndex}-${cellIndex}`}
+                        className="w-1/3 border-b border-r border-stone-400 align-top last:border-r-0"
+                      >
+                        {section ? (
+                          <div>
+                            <div className="border-b border-stone-300 bg-stone-100 px-1.5 py-0.5 font-black uppercase text-stone-950">
+                              {section.section} - {section.items.length}
+                            </div>
+                            <div className="px-1.5 py-1">
+                              {section.items.map((item, index) => (
+                                <div
+                                  key={`${section.key}-${index}-${item}`}
+                                  className="border-b border-dotted border-stone-300 py-0.5 font-semibold text-stone-900 last:border-b-0"
+                                >
+                                  {item}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </td>
+                    ))}
                   </tr>
                 ))
               ) : (
@@ -355,15 +373,33 @@ function PrintDocument({
       </section>
 
       <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'}`}>
-        {!isKitchenCopy ? (
-          <div className="overflow-hidden rounded-[14px] border border-stone-300">
-            <table className="min-w-full border-collapse text-[11px] print:text-[10px]">
-              <thead className="bg-stone-100 text-stone-700">
+        <div className={`${isKitchenCopy ? 'overflow-hidden rounded-[10px] border border-stone-400' : 'mt-2 overflow-hidden rounded-[10px] border border-stone-400'}`}>
+          <div className={`grid grid-cols-2 divide-x ${isKitchenCopy ? 'divide-stone-400 bg-stone-100' : 'divide-stone-400 bg-stone-100'}`}>
+            <SummaryCell
+              label={isKitchenCopy ? 'Addon Data' : 'Addon Service'}
+              value={addonServicesSummary}
+              strong
+              valueClassName="text-[12px] leading-4 print:text-[12px]"
+            />
+            <SummaryCell
+              label="Total Addon Service"
+              value={formatCurrency(addonServicesTotal)}
+              strong
+            />
+          </div>
+        </div>
+      </section>
+
+      {!isKitchenCopy ? (
+        <section className="mt-4 print:break-before-page print:pt-2">
+          <div className="overflow-hidden rounded-[10px] border border-stone-400">
+            <table className="min-w-full border-collapse text-[12px] font-bold text-stone-950 print:text-[12px]">
+              <thead className="bg-stone-100 text-stone-950">
                 <tr>
-                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Date</th>
-                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Mode</th>
-                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Amount</th>
-                  <th className="border-b border-stone-300 px-3 py-2 text-left font-semibold">Remarks</th>
+                  <th className="border-b border-stone-400 px-2 py-1 text-left font-black uppercase">Date</th>
+                  <th className="border-b border-stone-400 px-2 py-1 text-left font-black uppercase">Mode</th>
+                  <th className="border-b border-stone-400 px-2 py-1 text-left font-black uppercase">Amount</th>
+                  <th className="border-b border-stone-400 px-2 py-1 text-left font-black uppercase">Remarks</th>
                 </tr>
               </thead>
               <tbody>
@@ -371,22 +407,22 @@ function PrintDocument({
                   <>
                     {advanceRows.map((payment, index) => (
                       <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}>
-                        <td className="border-b border-stone-200 px-3 py-1.5">{formatDateTime(payment.date)}</td>
-                        <td className="border-b border-stone-200 px-3 py-1.5">{payment.paymentMode}</td>
-                        <td className="border-b border-stone-200 px-3 py-1.5">{formatCurrency(payment.amount)}</td>
-                        <td className="border-b border-stone-200 px-3 py-1.5">{payment.remark || '-'}</td>
+                        <td className="border-b border-stone-300 px-2 py-1">{formatDateTime(payment.date)}</td>
+                        <td className="border-b border-stone-300 px-2 py-1">{payment.paymentMode}</td>
+                        <td className="border-b border-stone-300 px-2 py-1">{formatCurrency(payment.amount)}</td>
+                        <td className="border-b border-stone-300 px-2 py-1">{payment.remark || '-'}</td>
                       </tr>
                     ))}
                     <tr className="bg-stone-100">
-                      <td className="px-3 py-2 font-semibold text-stone-700">Advance Payment</td>
-                      <td className="px-3 py-2 text-right font-semibold text-stone-700">Total Advance Payment</td>
-                      <td className="px-3 py-2 font-semibold text-stone-900">{formatCurrency(order.advanceAmount)}</td>
-                      <td className="px-3 py-2" />
+                      <td className="px-2 py-1 font-black uppercase text-stone-950">Advance Payment</td>
+                      <td className="px-2 py-1 text-right font-black uppercase text-stone-950">Total Advance Payment</td>
+                      <td className="px-2 py-1 font-black text-stone-950">{formatCurrency(order.advanceAmount)}</td>
+                      <td className="px-2 py-1" />
                     </tr>
                   </>
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-3 py-3 text-center text-stone-500">
+                    <td colSpan={4} className="px-3 py-3 text-center font-bold text-stone-700">
                       No advance entries recorded.
                     </td>
                   </tr>
@@ -394,70 +430,43 @@ function PrintDocument({
               </tbody>
             </table>
           </div>
-        ) : null}
-        <div className={`${isKitchenCopy ? 'overflow-hidden rounded-[10px] border border-stone-400' : 'mt-2 overflow-hidden rounded-[12px] border border-stone-200'}`}>
-          <div className={`grid grid-cols-2 divide-x ${isKitchenCopy ? 'divide-stone-400 bg-stone-100' : 'divide-stone-200 bg-stone-50'}`}>
-            <SummaryCell
-              label={isKitchenCopy ? 'Addon Data' : 'Addon Service'}
-              value={addonServicesSummary}
-              strong={isKitchenCopy}
-              valueClassName={isKitchenCopy ? 'text-[12px] leading-4 print:text-[12px]' : 'text-[10px] leading-5 print:text-[9px]'}
-            />
-            <SummaryCell
-              label="Total Addon Service"
-              value={formatCurrency(addonServicesTotal)}
-              strong={isKitchenCopy}
-            />
-          </div>
-        </div>
-      </section>
 
-      {!isKitchenCopy ? (
-        <>
           <section className="print:break-inside-avoid print:[page-break-inside:avoid]">
-            <section className="mt-4 pt-4 print:mt-3 print:pt-3">
-              <p className="text-[11px] font-medium text-stone-700 print:text-[10px]">
+            <section className="mt-3 pt-3 print:mt-2 print:pt-2">
+              <p className="text-[12px] font-bold text-stone-950 print:text-[12px]">
                 I agree to all banquet rules and confirm that I have read and understood them.
               </p>
             </section>
 
-            <section className="mt-4 grid gap-6 pb-4 pt-4 md:grid-cols-2 print:mt-3 print:grid-cols-2 print:gap-4 print:pb-5 print:pt-3">
-              <SignatureBox label="Customer Sign" />
-              <SignatureBox label="Manager Sign" />
+            <section className="mt-3 grid gap-4 pb-3 pt-3 md:grid-cols-2 print:mt-2 print:grid-cols-2 print:gap-3 print:pb-3 print:pt-2">
+              <SignatureBox label="Customer Sign" strong />
+              <SignatureBox label="Manager Sign" strong />
             </section>
           </section>
 
-          <section className="mt-3 overflow-hidden rounded-[14px] border border-stone-300 print:mt-2 print:break-before-page">
-            <div className="border-b border-stone-300 bg-stone-50 px-3 py-1.5">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-stone-700">
+          <section className="mt-3 overflow-hidden rounded-[10px] border border-stone-400 print:mt-2">
+            <div className="border-b border-stone-400 bg-stone-100 px-2 py-1">
+              <p className="text-[12px] font-black uppercase text-stone-950">
                 Banquet Rules
               </p>
             </div>
-            <div className="px-3 py-2.5 print:px-2 print:py-2">
+            <div className="px-2 py-2 print:px-2 print:py-1.5">
               {banquetRules.length > 0 ? (
-                <ol className="space-y-1 pl-5 text-[11px] text-stone-700 print:text-[10px]">
+                <ol className="space-y-1 pl-5 text-[12px] font-bold leading-snug text-stone-950 print:text-[12px]">
                   {banquetRules.map((rule) => (
                     <li key={rule.id}>{rule.label}</li>
                   ))}
                 </ol>
               ) : (
-                <p className="text-[11px] text-stone-500 print:text-[10px]">
+                <p className="text-[12px] font-bold text-stone-700 print:text-[12px]">
                   No banquet rules configured.
                 </p>
               )}
             </div>
           </section>
-        </>
+        </section>
       ) : null}
 
-      {!isKitchenCopy ? (
-      <div className="hidden print:fixed print:bottom-[4mm] print:left-[5mm] print:right-[5mm] print:block">
-        <div className="flex items-center justify-between border-t border-stone-300 pt-1.5 text-[10px] font-medium text-stone-500">
-          <span>{restaurant?.name || 'Booking Summary'}</span>
-          <span>Page 1</span>
-        </div>
-      </div>
-      ) : null}
     </article>
   );
 }
@@ -497,11 +506,11 @@ function CompactTable({
   );
 }
 
-function SignatureBox({ label }: { label: string }) {
+function SignatureBox({ label, strong = false }: { label: string; strong?: boolean }) {
   return (
-    <div className="rounded-[12px] border border-stone-300 px-4 pb-3 pt-6 print:break-inside-avoid print:[page-break-inside:avoid] print:px-3 print:pb-2 print:pt-5">
-      <div className="h-8 border-b border-stone-500 print:h-7" />
-      <p className="mt-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-stone-600">
+    <div className={`${strong ? 'rounded-[10px] border border-stone-400 px-3 pb-2 pt-5 print:px-2 print:pb-2 print:pt-4' : 'rounded-[12px] border border-stone-300 px-4 pb-3 pt-6 print:px-3 print:pb-2 print:pt-5'} print:break-inside-avoid print:[page-break-inside:avoid]`}>
+      <div className={`${strong ? 'h-8 border-b border-stone-700 print:h-7' : 'h-8 border-b border-stone-500 print:h-7'}`} />
+      <p className={`${strong ? 'mt-2 text-[12px] font-black text-stone-950 print:text-[12px]' : 'mt-2 text-xs font-semibold tracking-[0.2em] text-stone-600'} text-center uppercase`}>
         {label}
       </p>
     </div>
@@ -544,7 +553,7 @@ function buildMenuRows(order: Order): MenuRow[] {
   );
 }
 
-function buildKitchenMenuSectionRows(order: Order, columns: number) {
+function buildMenuSectionRows(order: Order, columns: number) {
   const sections: MenuSectionBox[] = order.menuSelectionSnapshot.flatMap((menu) =>
     menu.sections.map((section) => ({
       key: `${menu.menuId}-${section.sectionTitle}`,
