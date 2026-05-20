@@ -4443,9 +4443,14 @@ function selectionStatus(order: Order) {
                               : 'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]';
                         const showMenuStatus = !['INQUIRY', 'CANCELLED'].includes(calendarOrder.status);
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={`popup-${calendarOrder.id}`}
-                            className={`rounded-2xl border p-4 ${cardCls}`}
+                            onClick={() => {
+                              setDayRecordsPopup(null);
+                              void openOrderDetail(calendarOrder.id);
+                            }}
+                            className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${cardCls}`}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0 flex-1">
@@ -4484,43 +4489,7 @@ function selectionStatus(order: Order) {
                                 ) : null}
                               </div>
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <IconActionButton
-                                label="View booking"
-                                onClick={() => {
-                                  setDayRecordsPopup(null);
-                                  void openOrderDetail(calendarOrder.id);
-                                }}
-                                icon="view"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDayRecordsPopup(null);
-                                  setFollowUpPopup({
-                                    orderId: calendarOrder.id,
-                                    orderName: calendarOrder.customerName,
-                                    note: '',
-                                    date: toDateInputValue(new Date()),
-                                    nextFollowUpDate: '',
-                                  });
-                                }}
-                                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                              >
-                                Follow ups
-                              </button>
-                              {isCompanyAdmin &&
-                              (calendarOrder.status === 'INQUIRY' || calendarOrder.status === 'CONFIRMED') ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleOpenCancelFromCalendar(calendarOrder.id)}
-                                  className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                                >
-                                  Cancel booking
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
+                          </button>
                         );
                       })}
                             </div>
@@ -4544,6 +4513,8 @@ function selectionStatus(order: Order) {
               setDetailError('');
             }}
             widthClassName="max-w-4xl"
+            panelClassName="flex flex-col"
+            scrollablePanel={false}
           >
             {isDetailLoading && !detailOrder ? (
               <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
@@ -4552,7 +4523,8 @@ function selectionStatus(order: Order) {
             ) : detailError ? (
               <EmptyState title="Unable to open booking" description={detailError} />
             ) : detailOrder ? (
-              <div className="mt-6 space-y-6">
+              <div className="mt-6 flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pb-5 pr-1">
                 {(() => {
                   const menuStatus = selectionStatus(detailOrder);
                   const payoutEntries = detailOrder.cancelAdvanceManagement?.payoutEntries ?? [];
@@ -4689,7 +4661,7 @@ function selectionStatus(order: Order) {
                   </InfoCard>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+                <div className="grid gap-6">
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Menu Snapshot
@@ -4745,19 +4717,13 @@ function selectionStatus(order: Order) {
                         ) : null}
                       </div>
                     ) : null}
-
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Actions
-                      </p>
-                      {detailOrder.status === 'CONFIRMED' ? (
+                    {detailOrder.status === 'CONFIRMED' ? (
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                          Event Planner
+                        </p>
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex flex-col gap-3">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                Event Planner
-                              </p>
-                            </div>
                             <div className="flex flex-col gap-3 sm:flex-row">
                               <select
                                 value={selectedEventPlanner}
@@ -4794,122 +4760,21 @@ function selectionStatus(order: Order) {
                             ) : null}
                           </div>
                         </div>
-                      ) : null}
-                      {detailOrder.cancelReason ? (
-                        <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                          Cancel reason: {detailOrder.cancelReason}
-                        </p>
-                      ) : null}
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        {detailOrder.status === 'CONFIRMED' ? (
-                          <>
-                            <Link
-                              href={`/print/order?id=${detailOrder.id}`}
-                              target="_blank"
-                              className={ghostButtonCls}
-                            >
-                              Print
-                            </Link>
-                            <Link
-                              href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
-                              target="_blank"
-                              className={ghostButtonCls}
-                            >
-                              Kitchen Print
-                            </Link>
-                          </>
-                        ) : null}
-                        {detailOrder.status === 'INQUIRY' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenConvertInquiry(detailOrder)}
-                            className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
-                          >
-                            Confirm Inquiry
-                          </button>
-                        ) : null}
-                        {(detailOrder.status === 'INQUIRY' ||
-                          detailOrder.status === 'CONFIRMED') ? (
-                          <button
-                            type="button"
-                            onClick={() => openTransferPopup(detailOrder)}
-                            className={ghostButtonCls}
-                          >
-                            Transfer
-                          </button>
-                        ) : null}
-                        {(detailOrder.status === 'INQUIRY' ||
-                          detailOrder.status === 'CONFIRMED') ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsDetailOpen(false);
-                              openEditInquiry(detailOrder);
-                            }}
-                            className={ghostButtonCls}
-                          >
-                            Edit inquiry
-                          </button>
-                        ) : null}
-                        {(detailOrder.status === 'INQUIRY' ||
-                          detailOrder.status === 'CONFIRMED') ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsDetailOpen(false);
-                              openCategoryChooser(detailOrder);
-                            }}
-                            className={ghostButtonCls}
-                          >
-                            {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
-                          </button>
-                        ) : null}
-                      {isCompanyAdmin &&
-                      (detailOrder.status === 'INQUIRY' ||
-                        detailOrder.status === 'CONFIRMED') ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsDetailOpen(false);
-                            setCancelPopup({
-                              order: detailOrder,
-                              reason: '',
-                              advanceOption: null,
-                              expiryMonths: null,
-                              expiryCustomDate: '',
-                              paybackMode: null,
-                            });
-                          }}
-                          className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                        >
-                          Cancel order
-                        </button>
-                        ) : null}
                       </div>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
+                {detailOrder.cancelReason ? (
+                  <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    Cancel reason: {detailOrder.cancelReason}
+                  </p>
+                ) : null}
                 {(detailOrder.status === 'CONFIRMED' || detailOrder.status === 'CANCELLED') && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
                         Advance Payments
                       </p>
-                      {detailOrder.status === 'CONFIRMED' ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentAmount('');
-                            setPaymentPopupMode(defaultPaymentMode);
-                            setPaymentRemark('');
-                            setPaymentEditor({ orderId: detailOrder.id });
-                            setPaymentPopup({ orderId: detailOrder.id });
-                          }}
-                          className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
-                        >
-                          Add Advance
-                        </button>
-                      ) : null}
                     </div>
                     {(!detailOrder.advancePayments || detailOrder.advancePayments.length === 0) ? (
                       <p className="mt-4 text-sm text-slate-500">No advance payments recorded yet.</p>
@@ -5111,6 +4976,118 @@ function selectionStatus(order: Order) {
                       </>
                     );
                   })()}
+              </div>
+              <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.75rem+var(--zb-safe-bottom))] pt-3 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</p>
+                  </div>
+                  {detailOrder.status === 'CONFIRMED' ? (
+                    <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 sm:inline-flex">
+                      Advance {formatCurrency(detailOrder.advanceAmount)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2 min-[520px]:grid-cols-3 md:grid-cols-4">
+                  {detailOrder.status === 'CONFIRMED' ? (
+                    <>
+                      <Link
+                        href={`/print/order?id=${detailOrder.id}`}
+                        target="_blank"
+                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Print
+                      </Link>
+                      <Link
+                        href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
+                        target="_blank"
+                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Kitchen Print
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentAmount('');
+                          setPaymentPopupMode(defaultPaymentMode);
+                          setPaymentRemark('');
+                          setPaymentEditor({ orderId: detailOrder.id });
+                          setPaymentPopup({ orderId: detailOrder.id });
+                        }}
+                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                      >
+                        Add Advance
+                      </button>
+                    </>
+                  ) : null}
+                  {detailOrder.status === 'INQUIRY' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenConvertInquiry(detailOrder)}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                    >
+                      Confirm Inquiry
+                    </button>
+                  ) : null}
+                  {(detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => openTransferPopup(detailOrder)}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      Transfer
+                    </button>
+                  ) : null}
+                  {(detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        openEditInquiry(detailOrder);
+                      }}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      Edit inquiry
+                    </button>
+                  ) : null}
+                  {(detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        openCategoryChooser(detailOrder);
+                      }}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
+                    </button>
+                  ) : null}
+                  {isCompanyAdmin &&
+                  (detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        setCancelPopup({
+                          order: detailOrder,
+                          reason: '',
+                          advanceOption: null,
+                          expiryMonths: null,
+                          expiryCustomDate: '',
+                          paybackMode: null,
+                        });
+                      }}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
+                    >
+                      Cancel order
+                    </button>
+                  ) : null}
+                </div>
+              </div>
               </div>
             ) : null}
           </ModalShell>
