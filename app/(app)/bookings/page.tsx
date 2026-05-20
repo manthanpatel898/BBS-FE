@@ -168,6 +168,25 @@ function isHotSellingMenuItem(
   );
 }
 
+function getMenuSubitemDescription(
+  menu: Menu | undefined,
+  sectionTitle: string,
+  item: string,
+) {
+  const normalizedSectionTitle = normalizeMenuText(sectionTitle);
+  const normalizedItem = normalizeMenuText(item);
+
+  const matchedSection = menu?.sections.find(
+    (section) => normalizeMenuText(section.sectionTitle) === normalizedSectionTitle,
+  );
+
+  return (
+    matchedSection?.subitemDescriptions
+      ?.find((entry) => normalizeMenuText(entry.name) === normalizedItem)
+      ?.description?.trim() ?? ''
+  );
+}
+
 function resolveMenuForRule(
   menus: Menu[],
   menuId: string,
@@ -318,6 +337,8 @@ export default function BookingsPage() {
   const [skippedRuleKeys, setSkippedRuleKeys] = useState<string[]>([]);
   const [ruleSearches, setRuleSearches] = useState<Record<string, string>>({});
   const [expandedRuleKeys, setExpandedRuleKeys] = useState<string[]>([]);
+  const [subitemDescriptionKey, setSubitemDescriptionKey] = useState<string | null>(null);
+  const subitemDescriptionPopoverRef = useRef<HTMLSpanElement | null>(null);
   const [wizardHeaderExpanded, setWizardHeaderExpanded] = useState({
     summary: true,
     customer: false,
@@ -344,6 +365,30 @@ export default function BookingsPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
+
+  useEffect(() => {
+    if (!subitemDescriptionKey) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        subitemDescriptionPopoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setSubitemDescriptionKey(null);
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [subitemDescriptionKey]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -487,6 +532,25 @@ export default function BookingsPage() {
     () => new Map(menus.map((menu) => [menu.id, menu])),
     [menus],
   );
+  const subitemDescriptionLookup = useMemo(() => {
+    const lookup = new Map<string, string>();
+
+    menus.forEach((menu) => {
+      menu.sections.forEach((section) => {
+        section.subitemDescriptions?.forEach((entry) => {
+          const description = entry.description.trim();
+          if (!description) return;
+
+          [
+            `${menu.id}|${normalizeMenuText(section.sectionTitle)}|${normalizeMenuText(entry.name)}`,
+            `${normalizeMenuText(menu.title)}|${normalizeMenuText(section.sectionTitle)}|${normalizeMenuText(entry.name)}`,
+          ].forEach((key) => lookup.set(key, description));
+        });
+      });
+    });
+
+    return lookup;
+  }, [menus]);
   const orderedCategoryRules = useMemo(
     () =>
       [...categoryRules].sort((left, right) => {
@@ -1976,7 +2040,11 @@ export default function BookingsPage() {
     }
   }
 
-function statusClasses(status: OrderStatus) {
+function statusClasses(status: OrderStatus, inquiryClosed = false) {
+    if (inquiryClosed) {
+      return 'border-slate-900 bg-slate-950 text-white';
+    }
+
     switch (status) {
       case 'CONFIRMED':
         return 'border-emerald-200 bg-emerald-50 text-emerald-700';
@@ -2168,9 +2236,10 @@ function selectionStatus(order: Order) {
                             <span
                               className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(
                                 order.status,
+                                order.inquiryClosed,
                               )}`}
                             >
-                              {order.status}
+                              {order.inquiryClosed ? 'CLOSED INQUIRY' : order.status}
                             </span>
                           </td>
                           <td className="px-5 py-4">
@@ -2263,9 +2332,10 @@ function selectionStatus(order: Order) {
                       <span
                         className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-medium ${statusClasses(
                           order.status,
+                          order.inquiryClosed,
                         )}`}
                       >
-                        {order.status}
+                        {order.inquiryClosed ? 'CLOSED INQUIRY' : order.status}
                       </span>
                     </div>
                     <div className="mt-3 space-y-1 text-xs text-slate-700">
@@ -2436,11 +2506,12 @@ function selectionStatus(order: Order) {
                       const statusRows = [
                         { key: 'booked', count: statusCounts.booked, markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
                         { key: 'inquiry', count: statusCounts.inquiry, markerClassName: 'bg-amber-300', textClassName: 'text-slate-800' },
+                        { key: 'closed', count: statusCounts.closed, markerClassName: 'bg-slate-950', textClassName: 'text-slate-800' },
                         { key: 'cancelled', count: statusCounts.cancelled, markerClassName: 'bg-red-300', textClassName: 'text-slate-800' },
                       ];
                       const compactStatusRows = [
                         ...statusRows.filter((statusRow) => statusRow.count > 0),
-                        ...Array.from({ length: 3 - statusRows.filter((statusRow) => statusRow.count > 0).length }, () => null),
+                        ...Array.from({ length: 4 - statusRows.filter((statusRow) => statusRow.count > 0).length }, () => null),
                       ];
 
                       return (
@@ -2474,7 +2545,7 @@ function selectionStatus(order: Order) {
                           >
                             <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isHighlightedDay ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-3 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
+                          <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-4 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
                             {compactStatusRows.map((statusRow, index) => (
                               <div
                                 key={statusRow?.key ?? `status-empty-${index}`}
@@ -3439,6 +3510,20 @@ function selectionStatus(order: Order) {
                               rule.sectionTitle,
                               item,
                             );
+                            const description = rule.allowedItemDescriptions?.find(
+                              (entry) =>
+                                normalizeMenuText(entry.name) === normalizeMenuText(item),
+                            )?.description?.trim() || getMenuSubitemDescription(
+                              linkedMenu,
+                              rule.sectionTitle,
+                              item,
+                            ) || subitemDescriptionLookup.get(
+                              `${rule.menuId}|${normalizeMenuText(rule.sectionTitle)}|${normalizeMenuText(item)}`,
+                            ) || subitemDescriptionLookup.get(
+                              `${normalizeMenuText(rule.menuTitle)}|${normalizeMenuText(rule.sectionTitle)}|${normalizeMenuText(item)}`,
+                            ) || '';
+                            const descriptionKey = `${rule.menuId}-${rule.sectionTitle}-${item}`;
+                            const showDescription = subitemDescriptionKey === descriptionKey;
                             const checked = isItemSelected(
                               rule.menuId,
                               rule.sectionTitle,
@@ -3456,7 +3541,7 @@ function selectionStatus(order: Order) {
                                     !checked,
                                   )
                                 }
-                                className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3 ${
+                                className={`relative flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3 ${
                                   checked
                                     ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-white text-slate-900 shadow-sm'
                                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
@@ -3490,6 +3575,42 @@ function selectionStatus(order: Order) {
                                     </span>
                                   ) : null}
                                 </span>
+                                {description ? (
+                                  <span
+                                    ref={showDescription ? subitemDescriptionPopoverRef : undefined}
+                                    className="relative shrink-0"
+                                  >
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      aria-label={`Show description for ${item}`}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setSubitemDescriptionKey((current) =>
+                                          current === descriptionKey ? null : descriptionKey,
+                                        );
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          setSubitemDescriptionKey((current) =>
+                                            current === descriptionKey ? null : descriptionKey,
+                                          );
+                                        }
+                                      }}
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-bold text-slate-600 shadow-sm transition hover:border-amber-300 hover:text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                                    >
+                                      i
+                                    </span>
+                                    {showDescription ? (
+                                      <span className="absolute right-0 top-9 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700 shadow-xl">
+                                        {description}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                ) : null}
                               </button>
                             );
                           })}
@@ -4444,16 +4565,23 @@ function selectionStatus(order: Order) {
                             <div className="grid gap-3 lg:grid-cols-2">
                               {sortedOrders.map((calendarOrder) => {
                         const cardCls =
-                          calendarOrder.status === 'CONFIRMED'
+                          calendarOrder.status === 'INQUIRY' && calendarOrder.inquiryClosed
+                            ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
+                            : calendarOrder.status === 'CONFIRMED'
                             ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
                             : calendarOrder.status === 'INQUIRY'
                               ? 'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]'
                               : 'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]';
                         const showMenuStatus = !['INQUIRY', 'CANCELLED'].includes(calendarOrder.status);
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={`popup-${calendarOrder.id}`}
-                            className={`rounded-2xl border p-4 ${cardCls}`}
+                            onClick={() => {
+                              setDayRecordsPopup(null);
+                              void openOrderDetail(calendarOrder.id);
+                            }}
+                            className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${cardCls}`}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0 flex-1">
@@ -4475,9 +4603,12 @@ function selectionStatus(order: Order) {
                               </div>
                               <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                                 <span
-                                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(calendarOrder.status)}`}
+                                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(
+                                    calendarOrder.status,
+                                    calendarOrder.inquiryClosed,
+                                  )}`}
                                 >
-                                  {calendarOrder.status}
+                                  {calendarOrder.inquiryClosed ? 'CLOSED INQUIRY' : calendarOrder.status}
                                 </span>
                                 {showMenuStatus ? (
                                   <span
@@ -4492,43 +4623,7 @@ function selectionStatus(order: Order) {
                                 ) : null}
                               </div>
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <IconActionButton
-                                label="View booking"
-                                onClick={() => {
-                                  setDayRecordsPopup(null);
-                                  void openOrderDetail(calendarOrder.id);
-                                }}
-                                icon="view"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDayRecordsPopup(null);
-                                  setFollowUpPopup({
-                                    orderId: calendarOrder.id,
-                                    orderName: calendarOrder.customerName,
-                                    note: '',
-                                    date: toDateInputValue(new Date()),
-                                    nextFollowUpDate: '',
-                                  });
-                                }}
-                                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                              >
-                                Follow ups
-                              </button>
-                              {isCompanyAdmin &&
-                              (calendarOrder.status === 'INQUIRY' || calendarOrder.status === 'CONFIRMED') ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleOpenCancelFromCalendar(calendarOrder.id)}
-                                  className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                                >
-                                  Cancel booking
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
+                          </button>
                         );
                       })}
                             </div>
@@ -4552,6 +4647,8 @@ function selectionStatus(order: Order) {
               setDetailError('');
             }}
             widthClassName="max-w-4xl"
+            panelClassName="flex flex-col"
+            scrollablePanel={false}
           >
             {isDetailLoading && !detailOrder ? (
               <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
@@ -4560,7 +4657,8 @@ function selectionStatus(order: Order) {
             ) : detailError ? (
               <EmptyState title="Unable to open booking" description={detailError} />
             ) : detailOrder ? (
-              <div className="mt-6 space-y-6">
+              <div className="mt-6 flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pb-5 pr-1">
                 {(() => {
                   const menuStatus = selectionStatus(detailOrder);
                   const payoutEntries = detailOrder.cancelAdvanceManagement?.payoutEntries ?? [];
@@ -4584,9 +4682,10 @@ function selectionStatus(order: Order) {
                   <span
                     className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(
                       detailOrder.status,
+                      detailOrder.inquiryClosed,
                     )}`}
                   >
-                    {detailOrder.status}
+                    {detailOrder.inquiryClosed ? 'CLOSED INQUIRY' : detailOrder.status}
                   </span>
                   <span
                     className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${menuStatus.className}`}
@@ -4595,91 +4694,68 @@ function selectionStatus(order: Order) {
                   </span>
                 </div>
 
-                <div className="grid items-start gap-4 xl:grid-cols-[3fr_1fr]">
-                  <InfoCard label="Inquiry Details">
-                    <p className="mt-2 text-lg font-semibold text-slate-900">
-                      {detailOrder.functionName || 'Booking details pending'}
-                    </p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Customer Name</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.customer.firstName} {detailOrder.customer.lastName}
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Inquiry Details</p>
+                        <p className="mt-1 text-base font-semibold text-slate-900">
+                          {detailOrder.functionName || 'Booking details pending'}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Mobile Number</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.customer.phone}
+                      <div className="min-w-[180px] rounded-xl bg-slate-50 px-3 py-2 text-right">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Package</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {detailOrder.categorySnapshot?.name ||
+                            (detailOrder.inquiryCustomPrice !== null
+                              ? 'Custom Price'
+                              : 'Package pending')}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Function Date</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.eventDate
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      {[
+                        ['Customer', `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`],
+                        ['Mobile', detailOrder.customer.phone],
+                        [
+                          'Date',
+                          detailOrder.eventDate
                             ? formatDisplayDate(detailOrder.eventDate)
-                            : 'Date pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Time</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.startTime && detailOrder.endTime
+                            : 'Date pending',
+                        ],
+                        [
+                          'Time',
+                          detailOrder.startTime && detailOrder.endTime
                             ? formatTimeRange(detailOrder.startTime, detailOrder.endTime)
-                            : 'Time pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Service Slot</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.serviceSlot || 'Service slot pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Hall Details</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.hallDetails || 'Hall details pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:col-span-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Jain/Swaminarayan Person</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.jainSwaminarayanPax ?? 'Pending'}
-                        </p>
-                      </div>
+                            : 'Time pending',
+                        ],
+                        ['Service Slot', detailOrder.serviceSlot || 'Service slot pending'],
+                        ['Hall', detailOrder.hallDetails || 'Hall details pending'],
+                        ['Jain/Swaminarayan', `${detailOrder.jainSwaminarayanPax ?? 'Pending'}`],
+                        ['PAX', `${detailOrder.pax ?? 0}`],
+                        [
+                          'Price',
+                          formatCurrency(
+                            detailOrder.customPricePerPlate !== null
+                              ? detailOrder.customPricePerPlate
+                              : detailOrder.inquiryCustomPrice !== null
+                                ? detailOrder.inquiryCustomPrice
+                              : detailOrder.pricePerPlate,
+                          ),
+                        ],
+                        ...(detailOrder.referenceBy ? [['Reference', detailOrder.referenceBy]] : []),
+                        ...(detailOrder.confirmedAt
+                          ? [['Confirmed', formatFollowUpDate(detailOrder.confirmedAt)]]
+                          : []),
+                      ].map(([label, value]) => (
+                        <div key={label} className="min-w-0 rounded-lg bg-slate-50 px-3 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{value}</p>
+                        </div>
+                      ))}
                     </div>
-                    {detailOrder.referenceBy ? (
-                      <p className="mt-3 text-sm text-slate-500">
-                        <span className="font-semibold uppercase tracking-wider text-slate-500">Reference:</span>{' '}
-                        {detailOrder.referenceBy}
-                      </p>
-                    ) : null}
-                  </InfoCard>
-                  <InfoCard label="Package">
-                    <p className="mt-2 text-lg font-semibold text-slate-900">
-                      {detailOrder.categorySnapshot?.name ||
-                        (detailOrder.inquiryCustomPrice !== null
-                          ? 'Custom Price'
-                          : 'Package pending')}
-                    </p>
-                    <p className="mt-2 text-slate-700">
-                      <span className="font-medium text-slate-500">PAX: </span>
-                      {detailOrder.pax ?? 0}
-                    </p>
-                    <p className="mt-1 text-slate-700">
-                      <span className="font-medium text-slate-500">Price: </span>
-                      {formatCurrency(
-                        detailOrder.customPricePerPlate !== null
-                          ? detailOrder.customPricePerPlate
-                          : detailOrder.inquiryCustomPrice !== null
-                            ? detailOrder.inquiryCustomPrice
-                          : detailOrder.pricePerPlate,
-                      )}
-                    </p>
                     {detailOrder.addonServiceSnapshots.length > 0 ? (
-                      <p className="mt-1 text-slate-700">
+                      <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
                         <span className="font-medium text-slate-500">Addons: </span>
                         {detailOrder.addonServiceSnapshots
                           .map(
@@ -4689,53 +4765,59 @@ function selectionStatus(order: Order) {
                           .join(', ')}
                       </p>
                     ) : null}
-                    {detailOrder.confirmedAt ? (
-                      <p className="mt-3 text-slate-500">
-                        Confirmed on {formatFollowUpDate(detailOrder.confirmedAt)}
-                      </p>
-                    ) : null}
-                  </InfoCard>
-                </div>
+                  </div>
 
-                <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Menu Snapshot
-                    </p>
-                    <div className="mt-4 space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Menu Snapshot
+                      </p>
+                      {detailOrder.menuSelectionSnapshot.length > 0 ? (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                          {detailOrder.menuSelectionSnapshot.length} menu
+                          {detailOrder.menuSelectionSnapshot.length === 1 ? '' : 's'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
                       {detailOrder.menuSelectionSnapshot.length === 0 ? (
-                        <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-500">
+                        <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 md:col-span-2 2xl:col-span-3">
                           No menu selected yet.
                         </p>
                       ) : (
-                        detailOrder.menuSelectionSnapshot.map((menu) => (
-                          <div
-                            key={menu.menuId}
-                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                          >
-                            <h3 className="text-lg font-semibold text-slate-900">
-                              {menu.title}
-                            </h3>
-                            <div className="mt-3 space-y-2 text-sm text-slate-700">
-                              {menu.sections.map((section) => (
-                                <div key={`${menu.menuId}-${section.sectionTitle}`}>
-                                  {section.sectionTitle.trim().toLowerCase() !==
-                                  menu.title.trim().toLowerCase() ? (
-                                    <p className="font-medium text-slate-900">
-                                      {section.sectionTitle}
-                                    </p>
-                                  ) : null}
-                                  <p>{section.items.join(', ')}</p>
-                                </div>
-                              ))}
+                        detailOrder.menuSelectionSnapshot.map((menu) => {
+                          return (
+                            <div
+                              key={menu.menuId}
+                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                            >
+                              <h3 className="text-sm font-semibold text-slate-900">{menu.title}</h3>
+                              <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
+                                {menu.sections.map((section) => (
+                                  <div
+                                    key={`${menu.menuId}-${section.sectionTitle}`}
+                                    className="min-w-0"
+                                  >
+                                    {section.sectionTitle.trim().toLowerCase() !==
+                                    menu.title.trim().toLowerCase() ? (
+                                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                        {section.sectionTitle}
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-0.5 leading-5">{section.items.join(', ')}</p>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
                   </div>
+                </div>
 
-                  <div className="space-y-6">
+                <div className="grid gap-4">
+                  <div className="space-y-4">
                     {detailOrder.additionalInformation || detailOrder.notes ? (
                       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -4753,19 +4835,13 @@ function selectionStatus(order: Order) {
                         ) : null}
                       </div>
                     ) : null}
-
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Actions
-                      </p>
-                      {detailOrder.status === 'CONFIRMED' ? (
+                    {detailOrder.status === 'CONFIRMED' ? (
+                      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                          Event Planner
+                        </p>
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex flex-col gap-3">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                Event Planner
-                              </p>
-                            </div>
                             <div className="flex flex-col gap-3 sm:flex-row">
                               <select
                                 value={selectedEventPlanner}
@@ -4802,122 +4878,21 @@ function selectionStatus(order: Order) {
                             ) : null}
                           </div>
                         </div>
-                      ) : null}
-                      {detailOrder.cancelReason ? (
-                        <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                          Cancel reason: {detailOrder.cancelReason}
-                        </p>
-                      ) : null}
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        {detailOrder.status === 'CONFIRMED' ? (
-                          <>
-                            <Link
-                              href={`/print/order?id=${detailOrder.id}`}
-                              target="_blank"
-                              className={ghostButtonCls}
-                            >
-                              Print
-                            </Link>
-                            <Link
-                              href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
-                              target="_blank"
-                              className={ghostButtonCls}
-                            >
-                              Kitchen Print
-                            </Link>
-                          </>
-                        ) : null}
-                        {detailOrder.status === 'INQUIRY' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenConvertInquiry(detailOrder)}
-                            className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
-                          >
-                            Confirm Inquiry
-                          </button>
-                        ) : null}
-                        {(detailOrder.status === 'INQUIRY' ||
-                          detailOrder.status === 'CONFIRMED') ? (
-                          <button
-                            type="button"
-                            onClick={() => openTransferPopup(detailOrder)}
-                            className={ghostButtonCls}
-                          >
-                            Transfer
-                          </button>
-                        ) : null}
-                        {(detailOrder.status === 'INQUIRY' ||
-                          detailOrder.status === 'CONFIRMED') ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsDetailOpen(false);
-                              openEditInquiry(detailOrder);
-                            }}
-                            className={ghostButtonCls}
-                          >
-                            Edit inquiry
-                          </button>
-                        ) : null}
-                        {(detailOrder.status === 'INQUIRY' ||
-                          detailOrder.status === 'CONFIRMED') ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsDetailOpen(false);
-                              openCategoryChooser(detailOrder);
-                            }}
-                            className={ghostButtonCls}
-                          >
-                            {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
-                          </button>
-                        ) : null}
-                      {isCompanyAdmin &&
-                      (detailOrder.status === 'INQUIRY' ||
-                        detailOrder.status === 'CONFIRMED') ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsDetailOpen(false);
-                            setCancelPopup({
-                              order: detailOrder,
-                              reason: '',
-                              advanceOption: null,
-                              expiryMonths: null,
-                              expiryCustomDate: '',
-                              paybackMode: null,
-                            });
-                          }}
-                          className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                        >
-                          Cancel order
-                        </button>
-                        ) : null}
                       </div>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
+                {detailOrder.cancelReason ? (
+                  <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    Cancel reason: {detailOrder.cancelReason}
+                  </p>
+                ) : null}
                 {(detailOrder.status === 'CONFIRMED' || detailOrder.status === 'CANCELLED') && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
                         Advance Payments
                       </p>
-                      {detailOrder.status === 'CONFIRMED' ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPaymentAmount('');
-                            setPaymentPopupMode(defaultPaymentMode);
-                            setPaymentRemark('');
-                            setPaymentEditor({ orderId: detailOrder.id });
-                            setPaymentPopup({ orderId: detailOrder.id });
-                          }}
-                          className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
-                        >
-                          Add Advance
-                        </button>
-                      ) : null}
                     </div>
                     {(!detailOrder.advancePayments || detailOrder.advancePayments.length === 0) ? (
                       <p className="mt-4 text-sm text-slate-500">No advance payments recorded yet.</p>
@@ -5119,6 +5094,118 @@ function selectionStatus(order: Order) {
                       </>
                     );
                   })()}
+              </div>
+              <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.75rem+var(--zb-safe-bottom))] pt-3 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</p>
+                  </div>
+                  {detailOrder.status === 'CONFIRMED' ? (
+                    <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 sm:inline-flex">
+                      Advance {formatCurrency(detailOrder.advanceAmount)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2 min-[520px]:grid-cols-3 md:grid-cols-4">
+                  {detailOrder.status === 'CONFIRMED' ? (
+                    <>
+                      <Link
+                        href={`/print/order?id=${detailOrder.id}`}
+                        target="_blank"
+                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Print
+                      </Link>
+                      <Link
+                        href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
+                        target="_blank"
+                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Kitchen Print
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentAmount('');
+                          setPaymentPopupMode(defaultPaymentMode);
+                          setPaymentRemark('');
+                          setPaymentEditor({ orderId: detailOrder.id });
+                          setPaymentPopup({ orderId: detailOrder.id });
+                        }}
+                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                      >
+                        Add Advance
+                      </button>
+                    </>
+                  ) : null}
+                  {detailOrder.status === 'INQUIRY' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenConvertInquiry(detailOrder)}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                    >
+                      Confirm Inquiry
+                    </button>
+                  ) : null}
+                  {(detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => openTransferPopup(detailOrder)}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      Transfer
+                    </button>
+                  ) : null}
+                  {(detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        openEditInquiry(detailOrder);
+                      }}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      Edit inquiry
+                    </button>
+                  ) : null}
+                  {(detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        openCategoryChooser(detailOrder);
+                      }}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
+                    </button>
+                  ) : null}
+                  {isCompanyAdmin &&
+                  (detailOrder.status === 'INQUIRY' ||
+                    detailOrder.status === 'CONFIRMED') ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        setCancelPopup({
+                          order: detailOrder,
+                          reason: '',
+                          advanceOption: null,
+                          expiryMonths: null,
+                          expiryCustomDate: '',
+                          paybackMode: null,
+                        });
+                      }}
+                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
+                    >
+                      Cancel order
+                    </button>
+                  ) : null}
+                </div>
+              </div>
               </div>
             ) : null}
           </ModalShell>
@@ -5496,7 +5583,9 @@ function IconChevronDown() {
 function getMonthTileStatusCounts(orders: CalendarOrder[]) {
   return orders.reduce(
     (counts, order) => {
-      if (order.status === 'INQUIRY') {
+      if (order.status === 'INQUIRY' && order.inquiryClosed) {
+        counts.closed += 1;
+      } else if (order.status === 'INQUIRY') {
         counts.inquiry += 1;
       } else if (order.status === 'CANCELLED') {
         counts.cancelled += 1;
@@ -5506,7 +5595,7 @@ function getMonthTileStatusCounts(orders: CalendarOrder[]) {
 
       return counts;
     },
-    { inquiry: 0, booked: 0, cancelled: 0 },
+    { inquiry: 0, booked: 0, cancelled: 0, closed: 0 },
   );
 }
 

@@ -163,6 +163,10 @@ export interface CategoryMenuRule {
   displayOrder?: number;
   sectionTitle: string;
   allowedItems: string[];
+  allowedItemDescriptions?: Array<{
+    name: string;
+    description: string;
+  }>;
   selectionLimit: number;
 }
 
@@ -180,6 +184,10 @@ export interface MenuSection {
   sectionTitle: string;
   items: string[];
   hotSellingItems?: string[];
+  subitemDescriptions?: Array<{
+    name: string;
+    description: string;
+  }>;
 }
 
 export interface Menu {
@@ -323,6 +331,10 @@ export interface Order {
   eventDate: string | null;
   inquiryDate: string | null;
   confirmedAt: string | null;
+  inquiryClosed: boolean;
+  inquiryClosedAt: string | null;
+  inquiryClosedByName: string | null;
+  inquiryCloseReason: string | null;
   startTime: string | null;
   endTime: string | null;
   categorySnapshot: OrderCategorySnapshot | null;
@@ -542,6 +554,7 @@ export interface CalendarOrder {
   pax: number;
   serviceSlot: string | null;
   hallDetails: string | null;
+  inquiryClosed: boolean;
   hasMenuSelection: boolean;
   customerName: string;
 }

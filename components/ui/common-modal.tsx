@@ -7,6 +7,8 @@ export function CommonModal({
   onClose,
   widthClassName = 'max-w-3xl',
   zIndexClassName = 'z-50',
+  panelClassName = '',
+  contentClassName = '',
 }: {
   title: string;
   description?: string;
@@ -14,11 +16,13 @@ export function CommonModal({
   onClose: () => void;
   widthClassName?: string;
   zIndexClassName?: string;
+  panelClassName?: string;
+  contentClassName?: string;
 }) {
   return (
     <div className={`modal-viewport-pad fixed inset-0 ${zIndexClassName} flex items-center justify-center bg-slate-900/50 px-3 backdrop-blur-sm sm:px-4 sm:py-6`}>
       <div
-        className={`modal-panel-height safe-pad-bottom relative w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6 ${widthClassName}`}
+        className={`modal-panel-height safe-pad-bottom relative w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6 ${widthClassName} ${panelClassName}`}
       >
         <button
           type="button"
@@ -43,7 +47,7 @@ export function CommonModal({
             ) : null}
           </div>
         </div>
-        <div className="mt-6">{children}</div>
+        <div className={`mt-6 ${contentClassName}`}>{children}</div>
       </div>
     </div>
   );

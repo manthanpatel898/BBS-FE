@@ -704,6 +704,12 @@ export async function confirmInquiry(
   });
 }
 
+export async function closeInquiry(accessToken: string, orderId: string) {
+  return authorizedRequest<Order>(`/orders/${orderId}/close-inquiry`, accessToken, {
+    method: 'PATCH',
+  });
+}
+
 export async function cancelOrder(
   accessToken: string,
   orderId: string,
