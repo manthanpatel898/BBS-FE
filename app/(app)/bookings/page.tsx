@@ -2032,7 +2032,11 @@ export default function BookingsPage() {
     }
   }
 
-function statusClasses(status: OrderStatus) {
+function statusClasses(status: OrderStatus, inquiryClosed = false) {
+    if (inquiryClosed) {
+      return 'border-slate-900 bg-slate-950 text-white';
+    }
+
     switch (status) {
       case 'CONFIRMED':
         return 'border-emerald-200 bg-emerald-50 text-emerald-700';
@@ -2224,9 +2228,10 @@ function selectionStatus(order: Order) {
                             <span
                               className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(
                                 order.status,
+                                order.inquiryClosed,
                               )}`}
                             >
-                              {order.status}
+                              {order.inquiryClosed ? 'CLOSED INQUIRY' : order.status}
                             </span>
                           </td>
                           <td className="px-5 py-4">
@@ -2319,9 +2324,10 @@ function selectionStatus(order: Order) {
                       <span
                         className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-medium ${statusClasses(
                           order.status,
+                          order.inquiryClosed,
                         )}`}
                       >
-                        {order.status}
+                        {order.inquiryClosed ? 'CLOSED INQUIRY' : order.status}
                       </span>
                     </div>
                     <div className="mt-3 space-y-1 text-xs text-slate-700">
@@ -2492,11 +2498,12 @@ function selectionStatus(order: Order) {
                       const statusRows = [
                         { key: 'booked', count: statusCounts.booked, markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
                         { key: 'inquiry', count: statusCounts.inquiry, markerClassName: 'bg-amber-300', textClassName: 'text-slate-800' },
+                        { key: 'closed', count: statusCounts.closed, markerClassName: 'bg-slate-950', textClassName: 'text-slate-800' },
                         { key: 'cancelled', count: statusCounts.cancelled, markerClassName: 'bg-red-300', textClassName: 'text-slate-800' },
                       ];
                       const compactStatusRows = [
                         ...statusRows.filter((statusRow) => statusRow.count > 0),
-                        ...Array.from({ length: 3 - statusRows.filter((statusRow) => statusRow.count > 0).length }, () => null),
+                        ...Array.from({ length: 4 - statusRows.filter((statusRow) => statusRow.count > 0).length }, () => null),
                       ];
 
                       return (
@@ -2530,7 +2537,7 @@ function selectionStatus(order: Order) {
                           >
                             <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isHighlightedDay ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-3 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
+                          <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-4 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
                             {compactStatusRows.map((statusRow, index) => (
                               <div
                                 key={statusRow?.key ?? `status-empty-${index}`}
@@ -4550,7 +4557,9 @@ function selectionStatus(order: Order) {
                             <div className="grid gap-3 lg:grid-cols-2">
                               {sortedOrders.map((calendarOrder) => {
                         const cardCls =
-                          calendarOrder.status === 'CONFIRMED'
+                          calendarOrder.status === 'INQUIRY' && calendarOrder.inquiryClosed
+                            ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
+                            : calendarOrder.status === 'CONFIRMED'
                             ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
                             : calendarOrder.status === 'INQUIRY'
                               ? 'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]'
@@ -4586,9 +4595,12 @@ function selectionStatus(order: Order) {
                               </div>
                               <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                                 <span
-                                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(calendarOrder.status)}`}
+                                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(
+                                    calendarOrder.status,
+                                    calendarOrder.inquiryClosed,
+                                  )}`}
                                 >
-                                  {calendarOrder.status}
+                                  {calendarOrder.inquiryClosed ? 'CLOSED INQUIRY' : calendarOrder.status}
                                 </span>
                                 {showMenuStatus ? (
                                   <span
@@ -4662,9 +4674,10 @@ function selectionStatus(order: Order) {
                   <span
                     className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${statusClasses(
                       detailOrder.status,
+                      detailOrder.inquiryClosed,
                     )}`}
                   >
-                    {detailOrder.status}
+                    {detailOrder.inquiryClosed ? 'CLOSED INQUIRY' : detailOrder.status}
                   </span>
                   <span
                     className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${menuStatus.className}`}
@@ -5562,7 +5575,9 @@ function IconChevronDown() {
 function getMonthTileStatusCounts(orders: CalendarOrder[]) {
   return orders.reduce(
     (counts, order) => {
-      if (order.status === 'INQUIRY') {
+      if (order.status === 'INQUIRY' && order.inquiryClosed) {
+        counts.closed += 1;
+      } else if (order.status === 'INQUIRY') {
         counts.inquiry += 1;
       } else if (order.status === 'CANCELLED') {
         counts.cancelled += 1;
@@ -5572,7 +5587,7 @@ function getMonthTileStatusCounts(orders: CalendarOrder[]) {
 
       return counts;
     },
-    { inquiry: 0, booked: 0, cancelled: 0 },
+    { inquiry: 0, booked: 0, cancelled: 0, closed: 0 },
   );
 }
 

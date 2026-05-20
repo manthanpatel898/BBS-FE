@@ -331,6 +331,10 @@ export interface Order {
   eventDate: string | null;
   inquiryDate: string | null;
   confirmedAt: string | null;
+  inquiryClosed: boolean;
+  inquiryClosedAt: string | null;
+  inquiryClosedByName: string | null;
+  inquiryCloseReason: string | null;
   startTime: string | null;
   endTime: string | null;
   categorySnapshot: OrderCategorySnapshot | null;
@@ -550,6 +554,7 @@ export interface CalendarOrder {
   pax: number;
   serviceSlot: string | null;
   hallDetails: string | null;
+  inquiryClosed: boolean;
   hasMenuSelection: boolean;
   customerName: string;
 }
