@@ -163,6 +163,10 @@ export interface CategoryMenuRule {
   displayOrder?: number;
   sectionTitle: string;
   allowedItems: string[];
+  allowedItemDescriptions?: Array<{
+    name: string;
+    description: string;
+  }>;
   selectionLimit: number;
 }
 
@@ -180,6 +184,10 @@ export interface MenuSection {
   sectionTitle: string;
   items: string[];
   hotSellingItems?: string[];
+  subitemDescriptions?: Array<{
+    name: string;
+    description: string;
+  }>;
 }
 
 export interface Menu {

@@ -168,6 +168,25 @@ function isHotSellingMenuItem(
   );
 }
 
+function getMenuSubitemDescription(
+  menu: Menu | undefined,
+  sectionTitle: string,
+  item: string,
+) {
+  const normalizedSectionTitle = normalizeMenuText(sectionTitle);
+  const normalizedItem = normalizeMenuText(item);
+
+  const matchedSection = menu?.sections.find(
+    (section) => normalizeMenuText(section.sectionTitle) === normalizedSectionTitle,
+  );
+
+  return (
+    matchedSection?.subitemDescriptions
+      ?.find((entry) => normalizeMenuText(entry.name) === normalizedItem)
+      ?.description?.trim() ?? ''
+  );
+}
+
 function resolveMenuForRule(
   menus: Menu[],
   menuId: string,
@@ -318,6 +337,8 @@ export default function BookingsPage() {
   const [skippedRuleKeys, setSkippedRuleKeys] = useState<string[]>([]);
   const [ruleSearches, setRuleSearches] = useState<Record<string, string>>({});
   const [expandedRuleKeys, setExpandedRuleKeys] = useState<string[]>([]);
+  const [subitemDescriptionKey, setSubitemDescriptionKey] = useState<string | null>(null);
+  const subitemDescriptionPopoverRef = useRef<HTMLSpanElement | null>(null);
   const [wizardHeaderExpanded, setWizardHeaderExpanded] = useState({
     summary: true,
     customer: false,
@@ -344,6 +365,30 @@ export default function BookingsPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
+
+  useEffect(() => {
+    if (!subitemDescriptionKey) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        subitemDescriptionPopoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setSubitemDescriptionKey(null);
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [subitemDescriptionKey]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -487,6 +532,25 @@ export default function BookingsPage() {
     () => new Map(menus.map((menu) => [menu.id, menu])),
     [menus],
   );
+  const subitemDescriptionLookup = useMemo(() => {
+    const lookup = new Map<string, string>();
+
+    menus.forEach((menu) => {
+      menu.sections.forEach((section) => {
+        section.subitemDescriptions?.forEach((entry) => {
+          const description = entry.description.trim();
+          if (!description) return;
+
+          [
+            `${menu.id}|${normalizeMenuText(section.sectionTitle)}|${normalizeMenuText(entry.name)}`,
+            `${normalizeMenuText(menu.title)}|${normalizeMenuText(section.sectionTitle)}|${normalizeMenuText(entry.name)}`,
+          ].forEach((key) => lookup.set(key, description));
+        });
+      });
+    });
+
+    return lookup;
+  }, [menus]);
   const orderedCategoryRules = useMemo(
     () =>
       [...categoryRules].sort((left, right) => {
@@ -3431,6 +3495,20 @@ function selectionStatus(order: Order) {
                               rule.sectionTitle,
                               item,
                             );
+                            const description = rule.allowedItemDescriptions?.find(
+                              (entry) =>
+                                normalizeMenuText(entry.name) === normalizeMenuText(item),
+                            )?.description?.trim() || getMenuSubitemDescription(
+                              linkedMenu,
+                              rule.sectionTitle,
+                              item,
+                            ) || subitemDescriptionLookup.get(
+                              `${rule.menuId}|${normalizeMenuText(rule.sectionTitle)}|${normalizeMenuText(item)}`,
+                            ) || subitemDescriptionLookup.get(
+                              `${normalizeMenuText(rule.menuTitle)}|${normalizeMenuText(rule.sectionTitle)}|${normalizeMenuText(item)}`,
+                            ) || '';
+                            const descriptionKey = `${rule.menuId}-${rule.sectionTitle}-${item}`;
+                            const showDescription = subitemDescriptionKey === descriptionKey;
                             const checked = isItemSelected(
                               rule.menuId,
                               rule.sectionTitle,
@@ -3448,7 +3526,7 @@ function selectionStatus(order: Order) {
                                     !checked,
                                   )
                                 }
-                                className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3 ${
+                                className={`relative flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3 ${
                                   checked
                                     ? 'border-amber-300 bg-gradient-to-br from-amber-50 to-white text-slate-900 shadow-sm'
                                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
@@ -3482,6 +3560,42 @@ function selectionStatus(order: Order) {
                                     </span>
                                   ) : null}
                                 </span>
+                                {description ? (
+                                  <span
+                                    ref={showDescription ? subitemDescriptionPopoverRef : undefined}
+                                    className="relative shrink-0"
+                                  >
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      aria-label={`Show description for ${item}`}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setSubitemDescriptionKey((current) =>
+                                          current === descriptionKey ? null : descriptionKey,
+                                        );
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          setSubitemDescriptionKey((current) =>
+                                            current === descriptionKey ? null : descriptionKey,
+                                          );
+                                        }
+                                      }}
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-bold text-slate-600 shadow-sm transition hover:border-amber-300 hover:text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                                    >
+                                      i
+                                    </span>
+                                    {showDescription ? (
+                                      <span className="absolute right-0 top-9 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700 shadow-xl">
+                                        {description}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                ) : null}
                               </button>
                             );
                           })}
@@ -4559,91 +4673,68 @@ function selectionStatus(order: Order) {
                   </span>
                 </div>
 
-                <div className="grid items-start gap-4 xl:grid-cols-[3fr_1fr]">
-                  <InfoCard label="Inquiry Details">
-                    <p className="mt-2 text-lg font-semibold text-slate-900">
-                      {detailOrder.functionName || 'Booking details pending'}
-                    </p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Customer Name</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.customer.firstName} {detailOrder.customer.lastName}
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Inquiry Details</p>
+                        <p className="mt-1 text-base font-semibold text-slate-900">
+                          {detailOrder.functionName || 'Booking details pending'}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Mobile Number</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.customer.phone}
+                      <div className="min-w-[180px] rounded-xl bg-slate-50 px-3 py-2 text-right">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Package</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {detailOrder.categorySnapshot?.name ||
+                            (detailOrder.inquiryCustomPrice !== null
+                              ? 'Custom Price'
+                              : 'Package pending')}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Function Date</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.eventDate
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      {[
+                        ['Customer', `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`],
+                        ['Mobile', detailOrder.customer.phone],
+                        [
+                          'Date',
+                          detailOrder.eventDate
                             ? formatDisplayDate(detailOrder.eventDate)
-                            : 'Date pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Time</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.startTime && detailOrder.endTime
+                            : 'Date pending',
+                        ],
+                        [
+                          'Time',
+                          detailOrder.startTime && detailOrder.endTime
                             ? formatTimeRange(detailOrder.startTime, detailOrder.endTime)
-                            : 'Time pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Service Slot</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.serviceSlot || 'Service slot pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Hall Details</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.hallDetails || 'Hall details pending'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:col-span-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Jain/Swaminarayan Person</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailOrder.jainSwaminarayanPax ?? 'Pending'}
-                        </p>
-                      </div>
+                            : 'Time pending',
+                        ],
+                        ['Service Slot', detailOrder.serviceSlot || 'Service slot pending'],
+                        ['Hall', detailOrder.hallDetails || 'Hall details pending'],
+                        ['Jain/Swaminarayan', `${detailOrder.jainSwaminarayanPax ?? 'Pending'}`],
+                        ['PAX', `${detailOrder.pax ?? 0}`],
+                        [
+                          'Price',
+                          formatCurrency(
+                            detailOrder.customPricePerPlate !== null
+                              ? detailOrder.customPricePerPlate
+                              : detailOrder.inquiryCustomPrice !== null
+                                ? detailOrder.inquiryCustomPrice
+                              : detailOrder.pricePerPlate,
+                          ),
+                        ],
+                        ...(detailOrder.referenceBy ? [['Reference', detailOrder.referenceBy]] : []),
+                        ...(detailOrder.confirmedAt
+                          ? [['Confirmed', formatFollowUpDate(detailOrder.confirmedAt)]]
+                          : []),
+                      ].map(([label, value]) => (
+                        <div key={label} className="min-w-0 rounded-lg bg-slate-50 px-3 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{value}</p>
+                        </div>
+                      ))}
                     </div>
-                    {detailOrder.referenceBy ? (
-                      <p className="mt-3 text-sm text-slate-500">
-                        <span className="font-semibold uppercase tracking-wider text-slate-500">Reference:</span>{' '}
-                        {detailOrder.referenceBy}
-                      </p>
-                    ) : null}
-                  </InfoCard>
-                  <InfoCard label="Package">
-                    <p className="mt-2 text-lg font-semibold text-slate-900">
-                      {detailOrder.categorySnapshot?.name ||
-                        (detailOrder.inquiryCustomPrice !== null
-                          ? 'Custom Price'
-                          : 'Package pending')}
-                    </p>
-                    <p className="mt-2 text-slate-700">
-                      <span className="font-medium text-slate-500">PAX: </span>
-                      {detailOrder.pax ?? 0}
-                    </p>
-                    <p className="mt-1 text-slate-700">
-                      <span className="font-medium text-slate-500">Price: </span>
-                      {formatCurrency(
-                        detailOrder.customPricePerPlate !== null
-                          ? detailOrder.customPricePerPlate
-                          : detailOrder.inquiryCustomPrice !== null
-                            ? detailOrder.inquiryCustomPrice
-                          : detailOrder.pricePerPlate,
-                      )}
-                    </p>
                     {detailOrder.addonServiceSnapshots.length > 0 ? (
-                      <p className="mt-1 text-slate-700">
+                      <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
                         <span className="font-medium text-slate-500">Addons: </span>
                         {detailOrder.addonServiceSnapshots
                           .map(
@@ -4653,53 +4744,59 @@ function selectionStatus(order: Order) {
                           .join(', ')}
                       </p>
                     ) : null}
-                    {detailOrder.confirmedAt ? (
-                      <p className="mt-3 text-slate-500">
-                        Confirmed on {formatFollowUpDate(detailOrder.confirmedAt)}
-                      </p>
-                    ) : null}
-                  </InfoCard>
-                </div>
+                  </div>
 
-                <div className="grid gap-6">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Menu Snapshot
-                    </p>
-                    <div className="mt-4 space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Menu Snapshot
+                      </p>
+                      {detailOrder.menuSelectionSnapshot.length > 0 ? (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                          {detailOrder.menuSelectionSnapshot.length} menu
+                          {detailOrder.menuSelectionSnapshot.length === 1 ? '' : 's'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
                       {detailOrder.menuSelectionSnapshot.length === 0 ? (
-                        <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-500">
+                        <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 md:col-span-2 2xl:col-span-3">
                           No menu selected yet.
                         </p>
                       ) : (
-                        detailOrder.menuSelectionSnapshot.map((menu) => (
-                          <div
-                            key={menu.menuId}
-                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                          >
-                            <h3 className="text-lg font-semibold text-slate-900">
-                              {menu.title}
-                            </h3>
-                            <div className="mt-3 space-y-2 text-sm text-slate-700">
-                              {menu.sections.map((section) => (
-                                <div key={`${menu.menuId}-${section.sectionTitle}`}>
-                                  {section.sectionTitle.trim().toLowerCase() !==
-                                  menu.title.trim().toLowerCase() ? (
-                                    <p className="font-medium text-slate-900">
-                                      {section.sectionTitle}
-                                    </p>
-                                  ) : null}
-                                  <p>{section.items.join(', ')}</p>
-                                </div>
-                              ))}
+                        detailOrder.menuSelectionSnapshot.map((menu) => {
+                          return (
+                            <div
+                              key={menu.menuId}
+                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                            >
+                              <h3 className="text-sm font-semibold text-slate-900">{menu.title}</h3>
+                              <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
+                                {menu.sections.map((section) => (
+                                  <div
+                                    key={`${menu.menuId}-${section.sectionTitle}`}
+                                    className="min-w-0"
+                                  >
+                                    {section.sectionTitle.trim().toLowerCase() !==
+                                    menu.title.trim().toLowerCase() ? (
+                                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                        {section.sectionTitle}
+                                      </p>
+                                    ) : null}
+                                    <p className="mt-0.5 leading-5">{section.items.join(', ')}</p>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
                   </div>
+                </div>
 
-                  <div className="space-y-6">
+                <div className="grid gap-4">
+                  <div className="space-y-4">
                     {detailOrder.additionalInformation || detailOrder.notes ? (
                       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">

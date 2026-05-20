@@ -23,7 +23,10 @@ import { createExcelBlobFromRecords } from '@/lib/excel';
 type MenuFormState = {
   sectionTitle: string;
   displayOrder: string;
-  items: string[];
+  items: Array<{
+    name: string;
+    description: string;
+  }>;
   hotSellingItems: string[];
 };
 
@@ -153,6 +156,10 @@ function countSubitems(sections: MenuSection[]) {
   return sections.reduce((count, section) => count + section.items.length, 0);
 }
 
+function getSubitemDescription(section: MenuSection | undefined, item: string) {
+  return section?.subitemDescriptions?.find((entry) => entry.name === item)?.description ?? '';
+}
+
 export default function MenusPage() {
   useAppPageHeader({
     eyebrow: 'Menus',
@@ -177,6 +184,7 @@ export default function MenusPage() {
   const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
   const [formState, setFormState] = useState<MenuFormState>(initialFormState);
   const [itemDraft, setItemDraft] = useState('');
+  const [itemDescriptionDraft, setItemDescriptionDraft] = useState('');
   const [subitemSearch, setSubitemSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [menuToDelete, setMenuToDelete] = useState<Menu | null>(null);
@@ -289,6 +297,7 @@ export default function MenusPage() {
     setEditingMenu(null);
     setFormState(initialFormState);
     setItemDraft('');
+    setItemDescriptionDraft('');
     setSubitemSearch('');
     setError('');
     setSuccessMessage('');
@@ -296,17 +305,22 @@ export default function MenusPage() {
   }
 
   function openEditModal(menu: Menu) {
+    const firstSection = menu.sections[0];
     setEditingMenu(menu);
     setFormState({
-      sectionTitle: menu.sections[0]?.sectionTitle ?? menu.title,
+      sectionTitle: firstSection?.sectionTitle ?? menu.title,
       displayOrder:
         typeof menu.displayOrder === 'number' && menu.displayOrder > 0
           ? String(menu.displayOrder)
           : '',
-      items: [...(menu.sections[0]?.items ?? [])],
-      hotSellingItems: [...(menu.sections[0]?.hotSellingItems ?? [])],
+      items: (firstSection?.items ?? []).map((item) => ({
+        name: item,
+        description: getSubitemDescription(firstSection, item),
+      })),
+      hotSellingItems: [...(firstSection?.hotSellingItems ?? [])],
     });
     setItemDraft('');
+    setItemDescriptionDraft('');
     setSubitemSearch('');
     setError('');
     setSuccessMessage('');
@@ -321,16 +335,34 @@ export default function MenusPage() {
 
     setFormState((current) => ({
       ...current,
-      items: Array.from(new Set([...current.items, ...values])),
+      items: [
+        ...current.items,
+        ...values
+          .filter((value) => !current.items.some((item) => item.name === value))
+          .map((value) => ({
+            name: value,
+            description: values.length === 1 ? itemDescriptionDraft.trim() : '',
+          })),
+      ],
     }));
     setItemDraft('');
+    setItemDescriptionDraft('');
   }
 
   function removeItem(item: string) {
     setFormState((current) => ({
       ...current,
-      items: current.items.filter((currentItem) => currentItem !== item),
+      items: current.items.filter((currentItem) => currentItem.name !== item),
       hotSellingItems: current.hotSellingItems.filter((currentItem) => currentItem !== item),
+    }));
+  }
+
+  function updateItemDescription(item: string, description: string) {
+    setFormState((current) => ({
+      ...current,
+      items: current.items.map((currentItem) =>
+        currentItem.name === item ? { ...currentItem, description } : currentItem,
+      ),
     }));
   }
 
@@ -370,12 +402,25 @@ export default function MenusPage() {
         sections: [
           {
             sectionTitle: formState.sectionTitle.trim(),
-            items: Array.from(new Set(formState.items.map((item) => item.trim()))).filter(
+            items: Array.from(new Set(formState.items.map((item) => item.name.trim()))).filter(
               Boolean,
             ),
             hotSellingItems: Array.from(
               new Set(formState.hotSellingItems.map((item) => item.trim())),
             ).filter(Boolean),
+            subitemDescriptions: Array.from(
+              new Map(
+                formState.items
+                  .map((item) => [
+                    item.name.trim(),
+                    {
+                      name: item.name.trim(),
+                      description: item.description.trim(),
+                    },
+                  ] as const)
+                  .filter(([name]) => Boolean(name)),
+              ).values(),
+            ),
           },
         ],
         ...(formState.displayOrder.trim()
@@ -478,7 +523,11 @@ export default function MenusPage() {
   const filteredSubitems = useMemo(() => {
     const query = subitemSearch.trim().toLowerCase();
     if (!query) return formState.items;
-    return formState.items.filter((item) => item.toLowerCase().includes(query));
+    return formState.items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(query) ||
+        item.description.toLowerCase().includes(query),
+    );
   }, [formState.items, subitemSearch]);
 
   return (
@@ -698,112 +747,113 @@ export default function MenusPage() {
         {isModalOpen ? (
           <CommonModal
             title={editingMenu ? 'Edit item' : 'Create item'}
-            description="Create one item at a time and manage its subitems."
+            description="Manage item details and subitems."
             onClose={() => setIsModalOpen(false)}
-            widthClassName="max-w-3xl"
+            widthClassName="max-w-4xl"
+            panelClassName="flex flex-col overflow-hidden"
+            contentClassName="min-h-0 flex-1"
           >
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Item name</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Example: Mocktail, Soups, Desserts.
-                  </p>
-                </div>
-                <input
-                  value={formState.sectionTitle}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      sectionTitle: event.target.value,
-                    }))
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                    }
-                  }}
-                  placeholder="Item name, e.g. Mocktail"
-                  className={inputCls}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Order number</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Lower numbers show first in the menu list.
-                  </p>
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={formState.displayOrder}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      displayOrder: event.target.value,
-                    }))
-                  }
-                  placeholder="Optional"
-                  className={inputCls}
-                />
-              </div>
-
-              <div className="space-y-5">
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">Add subitems</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Type a subitem and press Enter.
-                    </p>
-                  </div>
-                  <input
-                    type="text"
-                    value={itemDraft}
-                    onChange={(event) => setItemDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        addItems();
+            <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+              <div className="min-h-0 flex-1 space-y-4">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px]">
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Item name</span>
+                    <input
+                      value={formState.sectionTitle}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          sectionTitle: event.target.value,
+                        }))
                       }
-                    }}
-                    placeholder="MINT MOJITO"
-                    className={inputCls}
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => addItems()}
-                      className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500"
-                    >
-                      Add subitems
-                    </button>
-                  </div>
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                        }
+                      }}
+                      placeholder="Item name"
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Order number</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={formState.displayOrder}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          displayOrder: event.target.value,
+                        }))
+                      }
+                      placeholder="Optional"
+                      className={inputCls}
+                    />
+                  </label>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-3 md:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_auto] md:items-end">
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Subitem name</span>
+                    <input
+                      type="text"
+                      value={itemDraft}
+                      onChange={(event) => setItemDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addItems();
+                        }
+                      }}
+                      placeholder="Type one or more subitems"
+                      className={inputCls}
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Description</span>
+                    <input
+                      type="text"
+                      value={itemDescriptionDraft}
+                      onChange={(event) => setItemDescriptionDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addItems();
+                        }
+                      }}
+                      placeholder="Optional"
+                      className={inputCls}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => addItems()}
+                    className="h-12 rounded-xl bg-amber-400 px-5 text-sm font-semibold text-white transition hover:bg-amber-500"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">Current subitems</p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Added subitems appear here one by one.
-                      </p>
                     </div>
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600">
                       {totalConfiguredSubitems}
                     </span>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <input
                       value={subitemSearch}
                       onChange={(event) => setSubitemSearch(event.target.value)}
-                      placeholder="Search current subitems"
-                      className={`${inputCls} bg-white`}
+                      placeholder="Search subitems or descriptions"
+                      className={`${inputCls} bg-white py-2.5`}
                     />
                   </div>
-                  <div className="mt-4 max-h-64 overflow-y-auto pr-1">
+                  <div className="mt-3 max-h-[38vh] overflow-y-auto pr-1">
                     {formState.items.length === 0 ? (
                       <p className="text-sm text-slate-400">No subitems added yet.</p>
                     ) : filteredSubitems.length === 0 ? (
@@ -812,26 +862,54 @@ export default function MenusPage() {
                       <div className="space-y-2">
                         {filteredSubitems.map((item) => (
                           <div
-                            key={`${formState.sectionTitle}-${item}`}
-                            className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium text-slate-700 md:flex-row md:items-center md:justify-between"
+                            key={`${formState.sectionTitle}-${item.name}`}
+                            className="grid gap-2 rounded-xl border border-slate-200 bg-white p-2.5 text-sm text-slate-700 md:grid-cols-[minmax(140px,0.6fr)_minmax(220px,1fr)] xl:grid-cols-[minmax(160px,0.7fr)_minmax(260px,1fr)_auto] xl:items-end"
                           >
-                            <span className="min-w-0 flex-1 break-words">{item}</span>
-                            <div className="flex shrink-0 flex-wrap items-center gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Subitem</p>
+                              <p className="mt-1 break-words font-semibold text-slate-900">{item.name}</p>
+                            </div>
+                            <label className="space-y-1">
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                                Description
+                              </span>
+                              <input
+                                value={item.description}
+                                onChange={(event) => updateItemDescription(item.name, event.target.value)}
+                                placeholder="Optional"
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                              />
+                            </label>
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 md:col-span-2 xl:col-span-1">
                               <label className="flex items-center gap-2 text-xs font-semibold text-amber-700">
                                 <input
                                   type="checkbox"
-                                  checked={formState.hotSellingItems.includes(item)}
-                                  onChange={() => toggleHotSellingItem(item)}
+                                  checked={formState.hotSellingItems.includes(item.name)}
+                                  onChange={() => toggleHotSellingItem(item.name)}
                                   className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
                                 />
                                 Hot selling
                               </label>
                               <button
                                 type="button"
-                                onClick={() => removeItem(item)}
-                                className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600"
+                                onClick={() => removeItem(item.name)}
+                                aria-label={`Delete ${item.name}`}
+                                title="Delete"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200"
                               >
-                                Remove
+                                <svg
+                                  viewBox="0 0 20 20"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h14" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 5V3.5h4V5" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 7.5 6.7 16h6.6L14 7.5" />
+                                  <path strokeLinecap="round" d="M8.5 9.5v4M11.5 9.5v4" />
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -842,7 +920,7 @@ export default function MenusPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="sticky bottom-0 z-10 -mx-4 mt-4 grid grid-cols-2 gap-3 border-t border-slate-200 bg-white/95 px-4 pt-3 shadow-[0_-12px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
