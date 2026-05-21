@@ -439,8 +439,28 @@ function PrintDocument({
             </section>
 
             <section className="mt-3 grid gap-4 pb-3 pt-3 md:grid-cols-2 print:mt-2 print:grid-cols-2 print:gap-3 print:pb-3 print:pt-2">
-              <SignatureBox label="Customer Sign" strong />
-              <SignatureBox label="Manager Sign" strong />
+              <SignatureBox
+                label="Customer Sign"
+                strong
+                signatureImage={order.activeSignature?.signatureImage}
+                meta={
+                  order.activeSignature
+                    ? `Signed ${formatDateTime(order.activeSignature.signedAt)} by ${
+                        order.activeSignature.bookingSnapshot.customerName || fullName(order)
+                      }`
+                    : undefined
+                }
+              />
+              <SignatureBox
+                label="Manager Sign"
+                strong
+                signatureImage={order.activeSignature?.capturedByUserSignature?.signatureImage}
+                meta={
+                  order.activeSignature?.capturedByUserSignature
+                    ? order.activeSignature.capturedByUserSignature.signedByName
+                    : undefined
+                }
+              />
             </section>
           </section>
 
@@ -506,13 +526,36 @@ function CompactTable({
   );
 }
 
-function SignatureBox({ label, strong = false }: { label: string; strong?: boolean }) {
+function SignatureBox({
+  label,
+  strong = false,
+  signatureImage,
+  meta,
+}: {
+  label: string;
+  strong?: boolean;
+  signatureImage?: string;
+  meta?: string;
+}) {
   return (
     <div className={`${strong ? 'rounded-[10px] border border-stone-400 px-3 pb-2 pt-5 print:px-2 print:pb-2 print:pt-4' : 'rounded-[12px] border border-stone-300 px-4 pb-3 pt-6 print:px-3 print:pb-2 print:pt-5'} print:break-inside-avoid print:[page-break-inside:avoid]`}>
-      <div className={`${strong ? 'h-8 border-b border-stone-700 print:h-7' : 'h-8 border-b border-stone-500 print:h-7'}`} />
+      <div className={`${strong ? 'h-12 border-b border-stone-700 print:h-10' : 'h-10 border-b border-stone-500 print:h-8'} flex items-end justify-center`}>
+        {signatureImage ? (
+          <img
+            src={signatureImage}
+            alt={label}
+            className="max-h-full max-w-full object-contain"
+          />
+        ) : null}
+      </div>
       <p className={`${strong ? 'mt-2 text-[12px] font-black text-stone-950 print:text-[12px]' : 'mt-2 text-xs font-semibold tracking-[0.2em] text-stone-600'} text-center uppercase`}>
         {label}
       </p>
+      {meta ? (
+        <p className="mt-1 text-center text-[10px] font-bold text-stone-700 print:text-[9px]">
+          {meta}
+        </p>
+      ) : null}
     </div>
   );
 }

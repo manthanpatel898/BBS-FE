@@ -15,6 +15,7 @@ import {
   ItemSalesReportRow,
   Menu,
   Order,
+  OrderSignature,
   OrderReports,
   AdvancePaymentReportRow,
   PaginatedAuditLogs,
@@ -37,6 +38,7 @@ import {
   AdvanceSummary,
   CancelledAdvanceDashboard,
   TreasuryReport,
+  UserSignature,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -574,6 +576,10 @@ export async function fetchOrderPrint(accessToken: string, orderId: string) {
   return authorizedRequest<Order>(`/orders/${orderId}/print`, accessToken);
 }
 
+export async function fetchOrderSignature(accessToken: string, orderId: string) {
+  return authorizedRequest<OrderSignature | null>(`/orders/${orderId}/signature`, accessToken);
+}
+
 export async function createOrder(
   accessToken: string,
   payload: {
@@ -704,9 +710,22 @@ export async function confirmInquiry(
   });
 }
 
-export async function closeInquiry(accessToken: string, orderId: string) {
-  return authorizedRequest<Order>(`/orders/${orderId}/close-inquiry`, accessToken, {
-    method: 'PATCH',
+export async function saveOrderSignature(
+  accessToken: string,
+  orderId: string,
+  payload: {
+    signatureImage: string;
+    confirmationAccepted: boolean;
+    confirmationText: string;
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    locationPermissionStatus: 'GRANTED' | 'DENIED' | 'UNAVAILABLE';
+  },
+) {
+  return authorizedRequest<OrderSignature>(`/orders/${orderId}/signature`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 
@@ -876,7 +895,7 @@ export async function downloadVoucherFile(accessToken: string, orderId: string) 
 export async function addOrderFollowUp(
   accessToken: string,
   orderId: string,
-  payload: { note: string; date?: string; nextFollowUpDate?: string },
+  payload: { note: string; date?: string; nextFollowUpDate?: string; closeInquiry?: boolean },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/follow-ups`, accessToken, {
     method: 'PATCH',
@@ -1115,6 +1134,17 @@ export async function fetchRepeatCustomersReport(
 
 export async function fetchSettings(accessToken: string) {
   return authorizedRequest<AppSettings>('/settings', accessToken);
+}
+
+export async function fetchMyUserSignature(accessToken: string) {
+  return authorizedRequest<UserSignature | null>('/settings/my-signature', accessToken);
+}
+
+export async function saveMyUserSignature(accessToken: string, signatureImage: string) {
+  return authorizedRequest<UserSignature>('/settings/my-signature', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ signatureImage }),
+  });
 }
 
 export async function createPaymentOption(accessToken: string, label: string) {

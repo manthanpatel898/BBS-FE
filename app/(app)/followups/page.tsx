@@ -4,7 +4,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { addOrderFollowUp, closeInquiry, fetchOrderById, fetchOrders } from '@/lib/auth/api';
+import { addOrderFollowUp, fetchOrderById, fetchOrders } from '@/lib/auth/api';
 import { Order, OrderFollowUp, OrderStatus } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
 
@@ -182,11 +182,7 @@ type FollowUpPopupState = {
   note: string;
   date: string;
   nextFollowUpDate: string;
-};
-
-type CloseInquiryPopupState = {
-  orderId: string;
-  orderName: string;
+  closeInquiry: boolean;
 };
 
 export default function FollowupsPage() {
@@ -219,8 +215,6 @@ export default function FollowupsPage() {
   // Follow up popup (z-[80] so it sits above detail modal z-[60])
   const [followUpPopup, setFollowUpPopup] = useState<FollowUpPopupState | null>(null);
   const [isFollowUpSubmitting, setIsFollowUpSubmitting] = useState(false);
-  const [closeInquiryPopup, setCloseInquiryPopup] = useState<CloseInquiryPopupState | null>(null);
-  const [isCloseInquirySubmitting, setIsCloseInquirySubmitting] = useState(false);
 
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -301,9 +295,25 @@ export default function FollowupsPage() {
         note: followUpPopup.note.trim(),
         date: followUpPopup.date || undefined,
         nextFollowUpDate: followUpPopup.nextFollowUpDate || undefined,
+        closeInquiry: followUpPopup.closeInquiry,
       });
       setFollowUpPopup(null);
-      setToast({ type: 'success', message: 'Follow up added successfully.' });
+      setToast({
+        type: 'success',
+        message: updatedOrder.inquiryClosed
+          ? 'Follow up added and inquiry closed successfully.'
+          : 'Follow up added successfully.',
+      });
+      if (updatedOrder.inquiryClosed) {
+        setDayPanel((current) =>
+          current
+            ? {
+                ...current,
+                orders: current.orders.filter((order) => order.id !== updatedOrder.id),
+              }
+            : current,
+        );
+      }
       if (isDetailOpen) setDetailOrder(updatedOrder);
       void loadMonth(accessToken, currentMonth);
     } catch (err) {
@@ -313,36 +323,6 @@ export default function FollowupsPage() {
       });
     } finally {
       setIsFollowUpSubmitting(false);
-    }
-  }
-
-  async function handleCloseInquiry() {
-    if (!accessToken || !closeInquiryPopup) return;
-
-    try {
-      setIsCloseInquirySubmitting(true);
-      const updatedOrder = await closeInquiry(accessToken, closeInquiryPopup.orderId);
-      setCloseInquiryPopup(null);
-      setToast({ type: 'success', message: 'Inquiry closed successfully.' });
-      setDayPanel((current) =>
-        current
-          ? {
-              ...current,
-              orders: current.orders.filter((order) => order.id !== updatedOrder.id),
-            }
-          : current,
-      );
-      if (detailOrder?.id === updatedOrder.id) {
-        setDetailOrder(updatedOrder);
-      }
-      void loadMonth(accessToken, currentMonth);
-    } catch (err) {
-      setToast({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Unable to close inquiry.',
-      });
-    } finally {
-      setIsCloseInquirySubmitting(false);
     }
   }
 
@@ -601,25 +581,12 @@ export default function FollowupsPage() {
                               note: '',
                               date: toDateInputValue(new Date()),
                               nextFollowUpDate: '',
+                              closeInquiry: false,
                             })
                           }
                           className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                         >
                           Follow ups
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCloseInquiryPopup({
-                              orderId: order.id,
-                              orderName:
-                                `${order.customer.firstName} ${order.customer.lastName}`.trim() ||
-                                order.orderId,
-                            })
-                          }
-                          className="rounded-xl border border-slate-300 bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-black"
-                        >
-                          Close inquiry
                         </button>
                       </div>
                     </div>
@@ -733,27 +700,12 @@ export default function FollowupsPage() {
                             note: '',
                             date: toDateInputValue(new Date()),
                             nextFollowUpDate: '',
+                            closeInquiry: false,
                           })
                         }
                         className={ghostButtonCls}
                       >
                         Add follow up
-                      </button>
-                    ) : null}
-                    {detailOrder.status === 'INQUIRY' && !detailOrder.inquiryClosed ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCloseInquiryPopup({
-                            orderId: detailOrder.id,
-                            orderName:
-                              `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`.trim() ||
-                              detailOrder.orderId,
-                          })
-                        }
-                        className="rounded-xl border border-slate-300 bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-black"
-                      >
-                        Close inquiry
                       </button>
                     ) : null}
                   </div>
@@ -858,6 +810,19 @@ export default function FollowupsPage() {
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               Set the next follow up date to keep today’s dashboard follow up list accurate.
             </div>
+            <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={followUpPopup.closeInquiry}
+                onChange={(event) =>
+                  setFollowUpPopup((current) =>
+                    current ? { ...current, closeInquiry: event.target.checked } : current,
+                  )
+                }
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-amber-500"
+              />
+              <span>Close inquiry after saving this follow up</span>
+            </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
@@ -874,44 +839,6 @@ export default function FollowupsPage() {
                 className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
               >
                 Save follow up
-              </LoadingButton>
-            </div>
-          </div>
-        </ModalShell>
-      ) : null}
-
-      {closeInquiryPopup ? (
-        <ModalShell
-          eyebrow="Close Inquiry"
-          title="Close inquiry"
-          onClose={() => setCloseInquiryPopup(null)}
-          widthClassName="max-w-lg"
-          zIndexClassName="z-[90]"
-        >
-          <div className="mt-6 space-y-5">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Customer</p>
-              <p className="mt-2 text-lg font-semibold text-slate-900">{closeInquiryPopup.orderName}</p>
-            </div>
-            <p className="text-sm leading-6 text-slate-600">
-              This inquiry will be closed and removed from future follow-up calendars.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setCloseInquiryPopup(null)}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <LoadingButton
-                type="button"
-                onClick={() => void handleCloseInquiry()}
-                disabled={isCloseInquirySubmitting}
-                isLoading={isCloseInquirySubmitting}
-                className="w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60"
-              >
-                Close inquiry
               </LoadingButton>
             </div>
           </div>

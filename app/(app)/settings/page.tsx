@@ -1,8 +1,9 @@
 'use client';
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CompanyAdminRoute } from '@/components/auth/company-admin-route';
+import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { HotDatesManager } from '@/components/settings/hot-dates-manager';
@@ -23,9 +24,11 @@ import {
   deleteHallDetail,
   deletePaymentOption,
   fetchMyRestaurant,
+  fetchMyUserSignature,
   fetchSettings,
   hideHallDetailCombination,
   restoreHallDetailCombination,
+  saveMyUserSignature,
   updateAddonService,
   updateBanquetRule,
   updateEventOption,
@@ -36,7 +39,7 @@ import {
   updatePaymentOption,
   uploadLogo,
 } from '@/lib/auth/api';
-import { AppSettings, Restaurant, SettingOption } from '@/lib/auth/types';
+import { AppSettings, Restaurant, SettingOption, UserSignature } from '@/lib/auth/types';
 import { buildHallDetailChoices } from '@/lib/hall-detail-combinations';
 
 const inputCls =
@@ -49,7 +52,8 @@ type SettingsTabKey =
   | 'hallDetails'
   | 'banquetRules'
   | 'addonServices'
-  | 'hotDates';
+  | 'hotDates'
+  | 'mySignature';
 
 type TabularOptionsSectionProps = {
   title: string;
@@ -448,11 +452,13 @@ function AddIcon() {
 function SettingsTabs({
   activeTab,
   onChange,
+  canManageSettings,
 }: {
   activeTab: SettingsTabKey;
   onChange: (tab: SettingsTabKey) => void;
+  canManageSettings: boolean;
 }) {
-  const tabs: Array<{ key: SettingsTabKey; label: string }> = [
+  const adminTabs: Array<{ key: SettingsTabKey; label: string }> = [
     { key: 'paymentOptions', label: 'Payment Options' },
     { key: 'eventOptions', label: 'Event Options' },
     { key: 'eventPlanners', label: 'Event Planners' },
@@ -460,7 +466,11 @@ function SettingsTabs({
     { key: 'banquetRules', label: 'Banquet Rules' },
     { key: 'addonServices', label: 'Addon Services' },
     { key: 'hotDates', label: 'Hot Dates' },
+    { key: 'mySignature', label: 'My Signature' },
   ];
+  const tabs = canManageSettings
+    ? adminTabs
+    : adminTabs.filter((tab) => tab.key === 'mySignature');
 
   return (
     <div className="overflow-x-auto">
@@ -506,6 +516,14 @@ function getTabMeta(tab: SettingsTabKey) {
         addButtonLabel: 'Add planner',
         emptyMessage: 'No event planners configured yet.',
       };
+    case 'mySignature':
+      return {
+        title: 'My Signature',
+        description: 'Save your signature for booking print manager sign.',
+        addPlaceholder: '',
+        addButtonLabel: '',
+        emptyMessage: '',
+      };
     case 'hallDetails':
       return {
         title: 'Hall Details',
@@ -550,6 +568,7 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { accessToken, setSession, user } = useAuth();
   const { showToast } = useToast();
+  const canManageSettings = user?.role === 'company_admin';
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -578,10 +597,16 @@ export default function SettingsPage() {
   const [brandingName, setBrandingName] = useState('');
   const [brandingLogoUrl, setBrandingLogoUrl] = useState('');
   const [brandingContactNumbers, setBrandingContactNumbers] = useState('');
+  const [mySignature, setMySignature] = useState<UserSignature | null>(null);
+  const [hasDrawnSignature, setHasDrawnSignature] = useState(false);
+  const [isSignatureSaving, setIsSignatureSaving] = useState(false);
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingSignatureRef = useRef(false);
 
   useEffect(() => {
     const requestedTab = searchParams.get('tab');
-    const validTabs: SettingsTabKey[] = [
+    const validTabs: SettingsTabKey[] = canManageSettings
+      ? [
       'paymentOptions',
       'eventOptions',
       'eventPlanners',
@@ -589,12 +614,16 @@ export default function SettingsPage() {
       'banquetRules',
       'addonServices',
       'hotDates',
-    ];
+      'mySignature',
+        ]
+      : ['mySignature'];
 
     if (requestedTab && validTabs.includes(requestedTab as SettingsTabKey)) {
       setActiveTab(requestedTab as SettingsTabKey);
+    } else if (!canManageSettings) {
+      setActiveTab('mySignature');
     }
-  }, [searchParams]);
+  }, [canManageSettings, searchParams]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -606,12 +635,14 @@ export default function SettingsPage() {
     async function loadSettings() {
       try {
         setIsLoading(true);
-        const [response, restaurantResponse] = await Promise.all([
+        const [response, restaurantResponse, signatureResponse] = await Promise.all([
           fetchSettings(token),
           fetchMyRestaurant(token),
+          fetchMyUserSignature(token),
         ]);
         setSettings(response);
         setRestaurant(restaurantResponse);
+        setMySignature(signatureResponse);
         setBrandingName(restaurantResponse.name);
         setBrandingLogoUrl(restaurantResponse.logoUrl ?? '');
         setBrandingContactNumbers((restaurantResponse.contactNumbers ?? []).join('\n'));
@@ -628,6 +659,12 @@ export default function SettingsPage() {
     void loadSettings();
   }, [accessToken, showToast]);
 
+  useEffect(() => {
+    if (activeTab === 'mySignature') {
+      window.setTimeout(() => resetSignatureCanvas(), 0);
+    }
+  }, [activeTab]);
+
   async function mutateSettings(request: () => Promise<AppSettings>, successMessage: string) {
     try {
       setIsSaving(true);
@@ -641,6 +678,104 @@ export default function SettingsPage() {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  function resetSignatureCanvas() {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+
+    prepareSignatureCanvas(canvas, true);
+    isDrawingSignatureRef.current = false;
+    setHasDrawnSignature(false);
+  }
+
+  function prepareSignatureCanvas(canvas: HTMLCanvasElement, forceClear = false) {
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const nextWidth = Math.max(Math.floor(rect.width * ratio), 1);
+    const nextHeight = Math.max(Math.floor(rect.height * ratio), 1);
+
+    if (forceClear || canvas.width !== nextWidth || canvas.height !== nextHeight) {
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+    }
+
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (forceClear) {
+      context.clearRect(0, 0, rect.width, rect.height);
+    }
+    context.lineWidth = 2.5;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#0f172a';
+  }
+
+  function getSignaturePoint(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  }
+
+  function handleSignaturePointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = signatureCanvasRef.current;
+    if (canvas) {
+      prepareSignatureCanvas(canvas);
+    }
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getSignaturePoint(event);
+    isDrawingSignatureRef.current = true;
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  }
+
+  function handleSignaturePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!isDrawingSignatureRef.current) return;
+
+    const context = signatureCanvasRef.current?.getContext('2d');
+    if (!context) return;
+
+    const point = getSignaturePoint(event);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    setHasDrawnSignature(true);
+  }
+
+  function handleSignaturePointerEnd(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    isDrawingSignatureRef.current = false;
+  }
+
+  async function handleMySignatureSave() {
+    const token = requireToken();
+    const signatureImage = signatureCanvasRef.current?.toDataURL('image/png');
+    if (!token || !signatureImage) return;
+
+    if (!hasDrawnSignature) {
+      showToast('Add your signature before saving.', 'error');
+      return;
+    }
+
+    try {
+      setIsSignatureSaving(true);
+      const nextSignature = await saveMyUserSignature(token, signatureImage);
+      setMySignature(nextSignature);
+      resetSignatureCanvas();
+      showToast('Signature saved successfully.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to save signature.', 'error');
+    } finally {
+      setIsSignatureSaving(false);
     }
   }
 
@@ -1004,6 +1139,10 @@ export default function SettingsPage() {
     setActiveTab(tab);
 
     const nextParams = new URLSearchParams(searchParams.toString());
+    if (!canManageSettings && tab !== 'mySignature') {
+      return;
+    }
+
     if (tab === 'paymentOptions') {
       nextParams.delete('tab');
     } else {
@@ -1015,7 +1154,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <CompanyAdminRoute>
+    <BookingsRoute>
       <section className="space-y-6">
         <div>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">
@@ -1027,6 +1166,7 @@ export default function SettingsPage() {
           <PageLoader message="Loading settings..." />
         ) : settings ? (
           <div className="space-y-6">
+            {canManageSettings ? (
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
                 Restaurant Branding
@@ -1146,9 +1286,80 @@ export default function SettingsPage() {
                 </LoadingButton>
               </div>
             </section>
-            <SettingsTabs activeTab={activeTab} onChange={handleTabChange} />
+            ) : null}
+            <SettingsTabs activeTab={activeTab} onChange={handleTabChange} canManageSettings={canManageSettings} />
             {activeTab === 'hotDates' ? (
               <HotDatesManager />
+            ) : activeTab === 'mySignature' ? (
+              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+                      My Signature
+                    </p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-900">User Signature</h2>
+                    <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                      This signature is used automatically as the manager sign on booking prints
+                      when you capture the customer signature.
+                    </p>
+                  </div>
+                  {mySignature ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Saved on {formatSettingsDate(mySignature.signedAt)}
+                    </div>
+                  ) : null}
+                </div>
+
+                {mySignature ? (
+                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Current Signature
+                    </p>
+                    <div className="mt-3 flex min-h-28 items-center justify-center rounded-xl border border-slate-200 bg-white p-4">
+                      <img
+                        src={mySignature.signatureImage}
+                        alt="Current user signature"
+                        className="max-h-24 max-w-full object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-5">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {mySignature ? 'Replace signature' : 'Add signature'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => resetSignatureCanvas()}
+                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <canvas
+                    ref={signatureCanvasRef}
+                    onPointerDown={handleSignaturePointerDown}
+                    onPointerMove={handleSignaturePointerMove}
+                    onPointerUp={handleSignaturePointerEnd}
+                    onPointerCancel={handleSignaturePointerEnd}
+                    className="h-48 w-full touch-none rounded-2xl border border-slate-300 bg-white shadow-inner"
+                  />
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <LoadingButton
+                    type="button"
+                    onClick={() => void handleMySignatureSave()}
+                    disabled={isSignatureSaving || !hasDrawnSignature}
+                    isLoading={isSignatureSaving}
+                    className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
+                  >
+                    Save signature
+                  </LoadingButton>
+                </div>
+              </section>
             ) : (
               <div className="space-y-5">
                 {activeTab === 'hallDetails' ? (
@@ -1367,7 +1578,7 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
-    </CompanyAdminRoute>
+    </BookingsRoute>
   );
 }
 
@@ -1380,4 +1591,14 @@ function parseContactNumbers(value: string) {
         .filter(Boolean),
     ),
   );
+}
+
+function formatSettingsDate(value: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 }

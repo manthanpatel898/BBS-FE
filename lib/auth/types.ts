@@ -379,8 +379,60 @@ export interface Order {
   }>;
   redeemableBalance: number;
   cancelAdvanceManagement: CancelAdvanceManagement | null;
+  activeSignature: OrderSignature | null;
   bookingTakenBy: string;
   createdAt: string;
+  updatedAt: string;
+}
+
+export type SignatureLocationPermissionStatus = 'GRANTED' | 'DENIED' | 'UNAVAILABLE';
+
+export interface OrderSignature {
+  id: string;
+  orderId: string;
+  restaurantId: string;
+  status: 'ACTIVE' | 'REPLACED';
+  signatureImage: string;
+  signedAt: string;
+  location: {
+    latitude: number | null;
+    longitude: number | null;
+    accuracy: number | null;
+    permissionStatus: SignatureLocationPermissionStatus;
+  };
+  confirmationAccepted: boolean;
+  confirmationText: string;
+  bookingSnapshot: {
+    orderId: string;
+    customerName: string;
+    eventDate: string | null;
+    serviceSlot: string | null;
+    startTime: string | null;
+    endTime: string | null;
+    pax: number | null;
+    packageName: string | null;
+    packagePrice: number | null;
+    totalAmount: number;
+  };
+  capturedByUserId: string;
+  capturedByName: string;
+  capturedByUserSignature: UserSignature | null;
+  replacedAt: string | null;
+  replacedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserSignature {
+  id: string;
+  userId?: string;
+  restaurantId?: string | null;
+  status?: 'ACTIVE' | 'REPLACED';
+  signatureImage: string;
+  signedByName: string;
+  signedAt: string;
+  replacedAt?: string | null;
+  createdAt?: string;
   updatedAt: string;
 }
 

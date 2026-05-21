@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
@@ -22,6 +23,7 @@ import {
   fetchOrders,
   fetchSettings,
   processAdvancePayout,
+  saveOrderSignature,
   updateAdvancePayment,
   updateOrder,
 } from '@/lib/auth/api';
@@ -34,6 +36,7 @@ import {
   Order,
   OrderStatus,
   PaymentMode,
+  SignatureLocationPermissionStatus,
 } from '@/lib/auth/types';
 import { filterHiddenHallDetailChoices } from '@/lib/hall-detail-combinations';
 import { LoadingButton } from '@/components/ui/loading-button';
@@ -97,6 +100,14 @@ type FollowUpPopupState = {
   note: string;
   date: string;
   nextFollowUpDate: string;
+  closeInquiry: boolean;
+};
+
+type SignaturePopupState = {
+  order: Order;
+  confirmationAccepted: boolean;
+  hasSignature: boolean;
+  locationMessage: string;
 };
 
 type TransferPopupState = {
@@ -240,6 +251,7 @@ const fallbackEventOptions = [
 const EVENT_OTHER_VALUE = '__other__';
 const ADDON_OTHER_VALUE = '__other__';
 const CUSTOM_MENU_ID = 'custom:manual';
+const SIGNATURE_CONFIRMATION_TEXT = 'I confirm the above booking details are correct.';
 
 type MenuSelectionTrackingState = {
   orderId: string;
@@ -322,6 +334,10 @@ export default function BookingsPage() {
   } | null>(null);
   const [followUpPopup, setFollowUpPopup] = useState<FollowUpPopupState | null>(null);
   const [isFollowUpSubmitting, setIsFollowUpSubmitting] = useState(false);
+  const [signaturePopup, setSignaturePopup] = useState<SignaturePopupState | null>(null);
+  const [isSignatureSubmitting, setIsSignatureSubmitting] = useState(false);
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingSignatureRef = useRef(false);
   const [transferPopup, setTransferPopup] = useState<TransferPopupState | null>(null);
   const [isTransferSubmitting, setIsTransferSubmitting] = useState(false);
   const [paymentPopup, setPaymentPopup] = useState<{ orderId: string } | null>(null);
@@ -1707,9 +1723,15 @@ export default function BookingsPage() {
         note: followUpPopup.note.trim(),
         date: followUpPopup.date || undefined,
         nextFollowUpDate: followUpPopup.nextFollowUpDate || undefined,
+        closeInquiry: followUpPopup.closeInquiry,
       });
       setFollowUpPopup(null);
-      setToast({ type: 'success', message: 'Follow up added successfully.' });
+      setToast({
+        type: 'success',
+        message: updatedOrder.inquiryClosed
+          ? 'Follow up added and inquiry closed successfully.'
+          : 'Follow up added successfully.',
+      });
       await refreshBookingViews(accessToken);
       if (isDetailOpen) {
         setDetailOrder(updatedOrder);
@@ -1724,6 +1746,197 @@ export default function BookingsPage() {
       });
     } finally {
       setIsFollowUpSubmitting(false);
+    }
+  }
+
+  function openSignaturePopup(order: Order) {
+    setSignaturePopup({
+      order,
+      confirmationAccepted: false,
+      hasSignature: false,
+      locationMessage: '',
+    });
+    window.setTimeout(() => resetSignatureCanvas(), 0);
+  }
+
+  function resetSignatureCanvas() {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+
+    prepareSignatureCanvas(canvas, true);
+    isDrawingSignatureRef.current = false;
+    setSignaturePopup((current) =>
+      current ? { ...current, hasSignature: false } : current,
+    );
+  }
+
+  function prepareSignatureCanvas(canvas: HTMLCanvasElement, forceClear = false) {
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const nextWidth = Math.max(Math.floor(rect.width * ratio), 1);
+    const nextHeight = Math.max(Math.floor(rect.height * ratio), 1);
+
+    if (forceClear || canvas.width !== nextWidth || canvas.height !== nextHeight) {
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+    }
+
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    if (forceClear) {
+      context.clearRect(0, 0, rect.width, rect.height);
+    }
+    context.lineWidth = 2.5;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#0f172a';
+  }
+
+  function getSignaturePoint(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  }
+
+  function handleSignaturePointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = signatureCanvasRef.current;
+    if (canvas) {
+      prepareSignatureCanvas(canvas);
+    }
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getSignaturePoint(event);
+    isDrawingSignatureRef.current = true;
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  }
+
+  function handleSignaturePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!isDrawingSignatureRef.current) return;
+
+    const context = signatureCanvasRef.current?.getContext('2d');
+    if (!context) return;
+
+    const point = getSignaturePoint(event);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    setSignaturePopup((current) =>
+      current?.hasSignature ? current : current ? { ...current, hasSignature: true } : current,
+    );
+  }
+
+  function handleSignaturePointerEnd(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    isDrawingSignatureRef.current = false;
+  }
+
+  async function captureSignatureLocation(): Promise<{
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    locationPermissionStatus: SignatureLocationPermissionStatus;
+    message: string;
+  }> {
+    if (!navigator.geolocation) {
+      return {
+        locationPermissionStatus: 'UNAVAILABLE',
+        message: 'Location is unavailable. Signature will be saved without coordinates.',
+      };
+    }
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        });
+      });
+
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        locationPermissionStatus: 'GRANTED',
+        message: 'Location captured with signature.',
+      };
+    } catch (error) {
+      const permissionDenied =
+        error instanceof GeolocationPositionError && error.code === error.PERMISSION_DENIED;
+
+      return {
+        locationPermissionStatus: permissionDenied ? 'DENIED' : 'UNAVAILABLE',
+        message: permissionDenied
+          ? 'Location permission denied. Signature will be saved without coordinates.'
+          : 'Location is unavailable. Signature will be saved without coordinates.',
+      };
+    }
+  }
+
+  async function handleSaveSignature() {
+    if (!accessToken || !signaturePopup) return;
+
+    if (!signaturePopup.confirmationAccepted) {
+      setToast({ type: 'error', message: 'Confirm the booking details before signing.' });
+      return;
+    }
+
+    if (!signaturePopup.hasSignature) {
+      setToast({ type: 'error', message: 'Add a signature before saving.' });
+      return;
+    }
+
+    const signatureImage = signatureCanvasRef.current?.toDataURL('image/png');
+    if (!signatureImage) {
+      setToast({ type: 'error', message: 'Unable to read signature.' });
+      return;
+    }
+
+    try {
+      setIsSignatureSubmitting(true);
+      const location = await captureSignatureLocation();
+      setSignaturePopup((current) =>
+        current ? { ...current, locationMessage: location.message } : current,
+      );
+      const signature = await saveOrderSignature(accessToken, signaturePopup.order.id, {
+        signatureImage,
+        confirmationAccepted: signaturePopup.confirmationAccepted,
+        confirmationText: SIGNATURE_CONFIRMATION_TEXT,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        locationPermissionStatus: location.locationPermissionStatus,
+      });
+      setToast({ type: 'success', message: 'Booking signature saved successfully.' });
+      setSignaturePopup(null);
+      setDetailOrder((current) =>
+        current?.id === signaturePopup.order.id
+          ? { ...current, activeSignature: signature }
+          : current,
+      );
+      setOrders((current) =>
+        current.map((order) =>
+          order.id === signaturePopup.order.id ? { ...order, activeSignature: signature } : order,
+        ),
+      );
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to save signature.',
+      });
+    } finally {
+      setIsSignatureSubmitting(false);
     }
   }
 
@@ -4109,6 +4322,19 @@ function selectionStatus(order: Order) {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Set the next follow up date to keep today’s dashboard follow up list accurate.
               </div>
+              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={followUpPopup.closeInquiry}
+                  onChange={(event) =>
+                    setFollowUpPopup((current) =>
+                      current ? { ...current, closeInquiry: event.target.checked } : current,
+                    )
+                  }
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-amber-500"
+                />
+                <span>Close inquiry after saving this follow up</span>
+              </label>
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
@@ -4125,6 +4351,136 @@ function selectionStatus(order: Order) {
                   className="w-full rounded-2xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60"
                 >
                   Save follow up
+                </LoadingButton>
+              </div>
+            </div>
+          </ModalShell>
+        ) : null}
+
+        {signaturePopup ? (
+          <ModalShell
+            title={signaturePopup.order.activeSignature ? 'Re-sign booking' : 'Sign booking'}
+            eyebrow="Digital Signature"
+            onClose={() => setSignaturePopup(null)}
+            widthClassName="max-w-3xl"
+            zIndexClassName="z-[90]"
+          >
+            <div className="mt-6 space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  [
+                    'Date',
+                    signaturePopup.order.eventDate
+                      ? formatDisplayDate(signaturePopup.order.eventDate)
+                      : 'Date pending',
+                  ],
+                  ['Slot', signaturePopup.order.serviceSlot || 'Slot pending'],
+                  [
+                    'Time',
+                    signaturePopup.order.startTime && signaturePopup.order.endTime
+                      ? formatTimeRange(signaturePopup.order.startTime, signaturePopup.order.endTime)
+                      : 'Time pending',
+                  ],
+                  ['Pax', `${signaturePopup.order.pax ?? 0}`],
+                  [
+                    'Package',
+                    signaturePopup.order.categorySnapshot?.name ||
+                      (signaturePopup.order.customPricePerPlate !== null
+                        ? 'Custom Price'
+                        : 'Package pending'),
+                  ],
+                  [
+                    'Package Price',
+                    formatCurrency(
+                      signaturePopup.order.customPricePerPlate ??
+                        signaturePopup.order.pricePerPlate,
+                    ),
+                  ],
+                  ['Total Amount', formatCurrency(signaturePopup.order.grandTotal)],
+                  ['Advance Paid', formatCurrency(signaturePopup.order.advanceAmount)],
+                  ['Pending Amount', formatCurrency(signaturePopup.order.pendingAmount)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      {label}
+                    </p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {signaturePopup.order.activeSignature ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  This booking was signed on{' '}
+                  {formatFollowUpDate(signaturePopup.order.activeSignature.signedAt)} by{' '}
+                  {signaturePopup.order.activeSignature.capturedByName}. Saving again will replace
+                  the active signature and keep the previous one in history.
+                </div>
+              ) : null}
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">Customer Signature</p>
+                  <button
+                    type="button"
+                    onClick={() => resetSignatureCanvas()}
+                    className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Reset
+                  </button>
+                </div>
+                <canvas
+                  ref={signatureCanvasRef}
+                  onPointerDown={handleSignaturePointerDown}
+                  onPointerMove={handleSignaturePointerMove}
+                  onPointerUp={handleSignaturePointerEnd}
+                  onPointerCancel={handleSignaturePointerEnd}
+                  className="h-48 w-full touch-none rounded-2xl border border-slate-300 bg-white shadow-inner"
+                />
+              </div>
+
+              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={signaturePopup.confirmationAccepted}
+                  onChange={(event) =>
+                    setSignaturePopup((current) =>
+                      current
+                        ? { ...current, confirmationAccepted: event.target.checked }
+                        : current,
+                    )
+                  }
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-amber-500"
+                />
+                <span>{SIGNATURE_CONFIRMATION_TEXT}</span>
+              </label>
+
+              {signaturePopup.locationMessage ? (
+                <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  {signaturePopup.locationMessage}
+                </p>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setSignaturePopup(null)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <LoadingButton
+                  type="button"
+                  onClick={() => void handleSaveSignature()}
+                  disabled={
+                    isSignatureSubmitting ||
+                    !signaturePopup.confirmationAccepted ||
+                    !signaturePopup.hasSignature
+                  }
+                  isLoading={isSignatureSubmitting}
+                  className="w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60"
+                >
+                  Save signature
                 </LoadingButton>
               </div>
             </div>
@@ -5055,6 +5411,7 @@ function selectionStatus(order: Order) {
                           note: '',
                           date: toDateInputValue(new Date()),
                           nextFollowUpDate: '',
+                          closeInquiry: false,
                         })
                       }
                       className={ghostButtonCls}
@@ -5136,6 +5493,23 @@ function selectionStatus(order: Order) {
                       >
                         Add Advance
                       </button>
+                      {detailOrder.activeSignature && !isCompanyAdmin ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-500 shadow-sm"
+                        >
+                          Signed
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openSignaturePopup(detailOrder)}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-300 bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
+                        >
+                          {detailOrder.activeSignature ? 'Re-sign' : 'Sign'}
+                        </button>
+                      )}
                     </>
                   ) : null}
                   {detailOrder.status === 'INQUIRY' ? (
