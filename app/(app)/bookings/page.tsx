@@ -154,6 +154,50 @@ const ghostButtonCls =
 const primaryButtonCls =
   'rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60';
 
+const requiredInquiryFields: Array<{
+  label: string;
+  isMissing: (formState: BookingFormState, resolvedEventName: string, pax: number) => boolean;
+}> = [
+  {
+    label: 'Customer Name',
+    isMissing: (formState) => !formState.customerName.trim(),
+  },
+  {
+    label: 'Mobile Number',
+    isMissing: (formState) => !formState.mobileNumber.trim(),
+  },
+  {
+    label: 'Service Slot',
+    isMissing: (formState) => !formState.serviceSlot.trim(),
+  },
+  {
+    label: 'Event Name',
+    isMissing: (_formState, resolvedEventName) => !resolvedEventName.trim(),
+  },
+  {
+    label: 'Function Date',
+    isMissing: (formState) => !formState.functionDate,
+  },
+  {
+    label: 'No Of Total Person',
+    isMissing: (_formState, _resolvedEventName, pax) => pax < 1,
+  },
+];
+
+function buildMissingInquiryFieldsMessage(
+  formState: BookingFormState,
+  resolvedEventName: string,
+  pax: number,
+) {
+  const missingFields = requiredInquiryFields
+    .filter((field) => field.isMissing(formState, resolvedEventName, pax))
+    .map((field) => field.label);
+
+  if (missingFields.length === 0) return '';
+
+  return `Please fill the required field${missingFields.length > 1 ? 's' : ''}: ${missingFields.join(', ')}.`;
+}
+
 function normalizeMenuText(value: string | undefined | null) {
   return value?.trim().toLowerCase() ?? '';
 }
@@ -1195,19 +1239,19 @@ export default function BookingsPage() {
     const customerName = formState.customerName.trim();
     const resolvedEventName = getResolvedEventName(formState.eventName, customEventName);
     const { firstName, lastName } = splitFullName(customerName);
+    const missingFieldsMessage = buildMissingInquiryFieldsMessage(
+      formState,
+      resolvedEventName,
+      pax,
+    );
+
+    if (missingFieldsMessage) {
+      setToast({ type: 'error', message: missingFieldsMessage });
+      return;
+    }
 
     if (!/^\d{10}$/.test(normalizedPhone)) {
       setToast({ type: 'error', message: 'Contact number must be exactly 10 digits.' });
-      return;
-    }
-
-    if (!customerName) {
-      setToast({ type: 'error', message: 'Customer name is required.' });
-      return;
-    }
-
-    if (!resolvedEventName) {
-      setToast({ type: 'error', message: 'Event name is required.' });
       return;
     }
 
@@ -2881,7 +2925,7 @@ function selectionStatus(order: Order) {
                     className={`${inputCls} min-h-12`}
                   />
                 </Field>
-                <Field label="Service Slot">
+                <Field label="Service Slot" required>
                   <div className="space-y-2">
                     <select
                       value={formState.serviceSlot}
@@ -2909,7 +2953,7 @@ function selectionStatus(order: Order) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Event Name">
+                <Field label="Event Name" required>
                   <div className="space-y-2">
                     <select
                       value={formState.eventName}
@@ -2945,7 +2989,7 @@ function selectionStatus(order: Order) {
                     ) : null}
                   </div>
                 </Field>
-                <Field label="Function Date">
+                <Field label="Function Date" required>
                   <div className="space-y-2">
                     <input
                       type="date"
@@ -2999,7 +3043,7 @@ function selectionStatus(order: Order) {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="No Of Total Person">
+                <Field label="No Of Total Person" required>
                   <input
                     type="number"
                     min="1"
@@ -5666,7 +5710,7 @@ function ModalShell({
       >
         <div
         className={`relative w-full border border-slate-200 bg-white ${
-          scrollablePanel ? 'overflow-y-auto' : 'overflow-hidden'
+          scrollablePanel ? 'app-scrollbar overflow-y-auto' : 'overflow-hidden'
         } ${
           fullScreen
             ? 'modal-panel-fullscreen-height max-w-6xl rounded-[28px] px-4 py-5 shadow-[0_28px_80px_rgba(0,0,0,0.5)] sm:max-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:min-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:px-6 sm:py-6'

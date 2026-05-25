@@ -332,6 +332,24 @@ export async function deleteEmployee(accessToken: string, employeeId: string) {
   });
 }
 
+export async function fetchEmployeeSignature(accessToken: string, employeeId: string) {
+  return authorizedRequest<UserSignature | null>(
+    `/employees/${employeeId}/signature`,
+    accessToken,
+  );
+}
+
+export async function saveEmployeeSignature(
+  accessToken: string,
+  employeeId: string,
+  signatureImage: string,
+) {
+  return authorizedRequest<UserSignature>(`/employees/${employeeId}/signature`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ signatureImage }),
+  });
+}
+
 export async function fetchCategories(
   accessToken: string,
   params: {

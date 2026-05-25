@@ -131,6 +131,12 @@ export interface Employee {
   restaurantId: string | null;
   isFirstLogin: boolean;
   isActive: boolean;
+  signatureSummary: {
+    id: string;
+    signedByName: string;
+    signedAt: string;
+    updatedAt: string;
+  } | null;
 }
 
 export interface PaginatedEmployees {

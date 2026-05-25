@@ -173,6 +173,55 @@ html {
   }
 }
 
+.app-scrollbar {
+  scrollbar-color: rgba(100, 116, 139, 0.48) transparent;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.app-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-color: rgba(100, 116, 139, 0.34);
+  background-clip: content-box;
+}
+
+.app-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(71, 85, 105, 0.58);
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: rgba(15, 23, 42, 0.68);
+}
+
+@media (pointer: coarse) {
+  .app-scrollbar {
+    scrollbar-width: auto;
+  }
+
+  .app-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .app-scrollbar::-webkit-scrollbar-thumb {
+    border-width: 1px;
+    background-color: rgba(100, 116, 139, 0.28);
+  }
+}
+
 /* =============================================
    KEYFRAME ANIMATIONS
    ============================================= */
