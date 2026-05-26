@@ -400,6 +400,9 @@ export interface OrderSignature {
   restaurantId: string;
   status: 'ACTIVE' | 'REPLACED';
   signatureImage: string;
+  signatureUrl?: string | null;
+  signatureKey?: string | null;
+  signatureStorage?: 'BASE64' | 'S3';
   signedAt: string;
   location: {
     latitude: number | null;
@@ -436,6 +439,9 @@ export interface UserSignature {
   restaurantId?: string | null;
   status?: 'ACTIVE' | 'REPLACED';
   signatureImage: string;
+  signatureUrl?: string | null;
+  signatureKey?: string | null;
+  signatureStorage?: 'BASE64' | 'S3';
   signedByName: string;
   signedAt: string;
   replacedAt?: string | null;

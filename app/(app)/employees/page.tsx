@@ -878,7 +878,10 @@ export default function EmployeesPage() {
                       </p>
                       <div className="mt-3 flex min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3">
                         <img
-                          src={signatureModal.signature.signatureImage}
+                          src={
+                            signatureModal.signature.signatureUrl ??
+                            signatureModal.signature.signatureImage
+                          }
                           alt={`${employeeName(signatureModal.employee)} signature`}
                           className="max-h-28 max-w-full object-contain"
                         />

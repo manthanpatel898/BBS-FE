@@ -456,7 +456,10 @@ function PrintDocument({
               <SignatureBox
                 label="Customer Sign"
                 strong
-                signatureImage={order.activeSignature?.signatureImage}
+                signatureImage={
+                  order.activeSignature?.signatureUrl ??
+                  order.activeSignature?.signatureImage
+                }
                 meta={
                   order.activeSignature
                     ? `Signed ${formatDateTime(order.activeSignature.signedAt)} by ${
@@ -468,7 +471,10 @@ function PrintDocument({
               <SignatureBox
                 label="Manager Sign"
                 strong
-                signatureImage={order.activeSignature?.capturedByUserSignature?.signatureImage}
+                signatureImage={
+                  order.activeSignature?.capturedByUserSignature?.signatureUrl ??
+                  order.activeSignature?.capturedByUserSignature?.signatureImage
+                }
                 meta={
                   order.activeSignature?.capturedByUserSignature
                     ? order.activeSignature.capturedByUserSignature.signedByName

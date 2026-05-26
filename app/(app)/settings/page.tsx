@@ -1317,7 +1317,7 @@ export default function SettingsPage() {
                     </p>
                     <div className="mt-3 flex min-h-28 items-center justify-center rounded-xl border border-slate-200 bg-white p-4">
                       <img
-                        src={mySignature.signatureImage}
+                        src={mySignature.signatureUrl ?? mySignature.signatureImage}
                         alt="Current user signature"
                         className="max-h-24 max-w-full object-contain"
                       />
