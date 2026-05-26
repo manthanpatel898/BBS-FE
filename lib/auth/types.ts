@@ -345,6 +345,7 @@ export interface Order {
   endTime: string | null;
   categorySnapshot: OrderCategorySnapshot | null;
   menuSelectionSnapshot: OrderMenuSelectionSnapshot[];
+  menuComment: string | null;
   pricePerPlate: number;
   customPricePerPlate: number | null;
   inquiryCustomPrice: number | null;

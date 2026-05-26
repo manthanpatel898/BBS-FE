@@ -87,6 +87,7 @@ type BookingFormState = {
   inquiryCustomPrice: string;
   customPricePerPlate: string;
   selectedMenus: SelectedMenu[];
+  menuComment: string;
 };
 
 type ToastState = {
@@ -141,6 +142,7 @@ const initialFormState: BookingFormState = {
   inquiryCustomPrice: '',
   customPricePerPlate: '',
   selectedMenus: [],
+  menuComment: '',
 };
 
 const inputCls =
@@ -795,6 +797,7 @@ export default function BookingsPage() {
           items: [...section.items],
         })),
       })),
+      menuComment: order.menuComment ?? '',
     });
     setCustomEventName(resolvedEventName.customValue);
     setIsInquiryOpen(true);
@@ -853,6 +856,7 @@ export default function BookingsPage() {
           items: [...section.items],
         })),
       })),
+      menuComment: order.menuComment ?? '',
     });
     setCustomEventName(resolvedEventName.customValue);
     setSkippedRuleKeys([]);
@@ -1492,6 +1496,7 @@ export default function BookingsPage() {
             items: section.items,
           })),
         })),
+        menuComment: formState.menuComment.trim(),
         extrasTotal: editingOrder.extrasTotal,
         discountAmount: editingOrder.discountAmount,
         advanceAmount: editingOrder.advanceAmount,
@@ -2668,14 +2673,13 @@ function selectionStatus(order: Order) {
         ) : (
           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center justify-between gap-3 sm:justify-start">
-                  <div className="min-w-0">
-                    <h2 className="whitespace-nowrap text-lg font-bold leading-none text-slate-900 sm:text-[2rem]">
-                      {formatMonthLabel(calendarMonth)}
-                    </h2>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center justify-between gap-2 sm:gap-3">
+                <div className="min-w-0 flex-1 pr-2">
+                  <h2 className="truncate text-lg font-bold leading-none text-slate-900 sm:text-[2rem]">
+                    {formatMonthLabel(calendarMonth)}
+                  </h2>
+                </div>
+                <div className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setCalendarMonth((current) => shiftMonth(current, -1))}
@@ -2692,6 +2696,31 @@ function selectionStatus(order: Order) {
                   >
                     <IconGlyph icon="next" />
                   </button>
+                  <div className="hidden items-center gap-2 sm:flex sm:gap-3">
+                    <div className="flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('list')}
+                        className="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:px-5"
+                      >
+                        List
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('calendar')}
+                        className="rounded-xl bg-amber-400 px-3 py-2 text-sm font-medium text-white transition sm:px-5"
+                      >
+                        Calendar
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarMonth(new Date())}
+                      className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 sm:px-5"
+                    >
+                      Today
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setIsCalendarActionsOpen(true)}
@@ -2699,32 +2728,6 @@ function selectionStatus(order: Order) {
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 shadow-sm transition hover:bg-amber-100 sm:hidden"
                   >
                     <IconChevronDown />
-                  </button>
-                  </div>
-                </div>
-                <div className="hidden items-center justify-between gap-2 sm:flex sm:justify-end">
-                  <div className="flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('list')}
-                      className="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:px-5"
-                    >
-                      List
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('calendar')}
-                      className="rounded-xl bg-amber-400 px-3 py-2 text-sm font-medium text-white transition sm:px-5"
-                    >
-                      Calendar
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setCalendarMonth(new Date())}
-                    className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 sm:px-5"
-                  >
-                    Today
                   </button>
                 </div>
               </div>
@@ -3946,6 +3949,22 @@ function selectionStatus(order: Order) {
                       )}
                     </div>
                   </div>
+                  <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:mb-4 sm:p-5">
+                    <Field label="Menu Comment">
+                      <textarea
+                        rows={4}
+                        value={formState.menuComment}
+                        onChange={(event) =>
+                          setFormState((current) => ({
+                            ...current,
+                            menuComment: event.target.value,
+                          }))
+                        }
+                        placeholder="Enter menu comment"
+                        className={`${inputCls} min-h-[110px] resize-y`}
+                      />
+                    </Field>
+                  </div>
                 </div>
               </div>
               <div className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur sm:pt-4">
@@ -4846,10 +4865,7 @@ function selectionStatus(order: Order) {
             <aside className="fixed inset-y-0 left-0 z-50 flex w-full max-w-xl flex-col border-r border-slate-200 bg-white shadow-2xl lg:max-w-5xl">
               <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-                    Day Bookings
-                  </p>
-                  <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                  <h3 className="text-2xl font-bold text-slate-900">
                     {formatDisplayDate(dayRecordsPopup.dateKey)}
                   </h3>
                   <p className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800 shadow-sm">
@@ -5214,6 +5230,16 @@ function selectionStatus(order: Order) {
                       )}
                     </div>
                   </div>
+                  {detailOrder.menuComment ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Menu Comment
+                      </p>
+                      <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                        {detailOrder.menuComment}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-4">

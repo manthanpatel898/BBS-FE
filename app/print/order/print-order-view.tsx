@@ -180,6 +180,7 @@ function PrintDocument({
     (sum, item) => sum + item.price,
     0,
   );
+  const menuComment = order.menuComment?.trim() ?? '';
   const restaurantContacts =
     restaurant?.contactNumbers?.filter(Boolean).length
       ? restaurant.contactNumbers.filter(Boolean)
@@ -371,6 +372,19 @@ function PrintDocument({
           </table>
         )}
       </section>
+
+      {menuComment ? (
+        <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'} overflow-hidden rounded-[10px] border border-stone-400`}>
+          <div className={`${isKitchenCopy ? 'px-2 py-1' : 'px-3 py-1.5'} border-b border-stone-400 bg-stone-100`}>
+            <p className="text-[12px] font-bold uppercase text-stone-950">
+              Menu Comment
+            </p>
+          </div>
+          <div className={`${isKitchenCopy ? 'px-2 py-1.5 text-[12px] print:text-[12px]' : 'px-3 py-2 text-[12px] print:text-[12px]'} whitespace-pre-wrap font-bold leading-snug text-stone-950 [overflow-wrap:anywhere]`}>
+            {menuComment}
+          </div>
+        </section>
+      ) : null}
 
       <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'}`}>
         <div className={`${isKitchenCopy ? 'overflow-hidden rounded-[10px] border border-stone-400' : 'mt-2 overflow-hidden rounded-[10px] border border-stone-400'}`}>

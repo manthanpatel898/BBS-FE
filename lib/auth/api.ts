@@ -627,6 +627,7 @@ export async function createOrder(
         items: string[];
       }>;
     }>;
+    menuComment?: string;
     extrasTotal?: number;
     discountAmount?: number;
     advanceAmount?: number;
@@ -681,6 +682,7 @@ export async function updateOrder(
         items: string[];
       }>;
     }>;
+    menuComment?: string;
     extrasTotal?: number;
     discountAmount?: number;
     advanceAmount?: number;
