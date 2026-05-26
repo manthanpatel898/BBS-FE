@@ -4865,10 +4865,7 @@ function selectionStatus(order: Order) {
             <aside className="fixed inset-y-0 left-0 z-50 flex w-full max-w-xl flex-col border-r border-slate-200 bg-white shadow-2xl lg:max-w-5xl">
               <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-                    Day Bookings
-                  </p>
-                  <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                  <h3 className="text-2xl font-bold text-slate-900">
                     {formatDisplayDate(dayRecordsPopup.dateKey)}
                   </h3>
                   <p className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800 shadow-sm">
