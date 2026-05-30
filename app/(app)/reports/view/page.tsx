@@ -90,6 +90,7 @@ type BookingFilters = {
   from: string;
   to: string;
   status: 'CONFIRMED' | 'INQUIRY' | 'CANCELLED';
+  dateBasis: 'eventDate' | 'inquiryDate' | 'confirmedAt' | 'cancelledAt' | 'createdAt';
 };
 
 type CancelledFilters = {
@@ -171,6 +172,14 @@ const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
   { key: 'advanceAmount', label: 'Advance Amount' },
   { key: 'pendingAmount', label: 'Pending Amount' },
   { key: 'bookedBy', label: 'Booked By' },
+];
+
+const BOOKING_DATE_BASIS_OPTIONS: Array<{ value: BookingFilters['dateBasis']; label: string }> = [
+  { value: 'eventDate', label: 'Event Date' },
+  { value: 'inquiryDate', label: 'Inquiry Date' },
+  { value: 'confirmedAt', label: 'Confirmation Date' },
+  { value: 'cancelledAt', label: 'Cancellation Date' },
+  { value: 'createdAt', label: 'Booking Created Date' },
 ];
 
 const CANCELLED_FIELDS: Array<{ key: CancelledFieldKey; label: string }> = [
@@ -388,6 +397,10 @@ function formatReportDateRange(from?: string, to?: string) {
     return `Date Range: Till ${formatCsvDate(to)}`;
   }
   return 'Date Range: All Dates';
+}
+
+function getBookingDateBasisLabel(value: BookingFilters['dateBasis']) {
+  return BOOKING_DATE_BASIS_OPTIONS.find((option) => option.value === value)?.label ?? 'Event Date';
 }
 
 function getQuickRange(months: number) {
@@ -1116,6 +1129,7 @@ export default function ReportViewPage() {
     from: toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
     to: toDateInputValue(new Date()),
     status: 'CONFIRMED',
+    dateBasis: 'eventDate',
   });
   const [advanceFilters, setAdvanceFilters] = useState<AdvancePaymentFilters>({
     from: toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
@@ -1245,6 +1259,7 @@ export default function ReportViewPage() {
     from: string;
     to: string;
     search?: string;
+    dateBasis?: BookingFilters['dateBasis'];
   }) {
     if (!accessToken) throw new Error('Missing session token.');
     validateDateRange(filters.from, filters.to);
@@ -1261,9 +1276,10 @@ export default function ReportViewPage() {
         status: filters.status,
         from: filters.from,
         to: filters.to,
+        dateBasis: filters.dateBasis ?? 'eventDate',
         ...(filters.status === 'CONFIRMED'
           ? {
-              sortBy: 'confirmedAt',
+              sortBy: 'reportDate',
               sortDirection: 'asc' as const,
             }
           : {}),
@@ -1366,6 +1382,7 @@ export default function ReportViewPage() {
         from: cancelledFilters.from,
         to: cancelledFilters.to,
         search: cancelledFilters.search,
+        dateBasis: 'cancelledAt',
       });
       setCancelledRows(orders);
     } catch (requestError) {
@@ -1395,7 +1412,7 @@ export default function ReportViewPage() {
           downloadFormat,
           {
             reportName: `Booking Report (${bookingFilters.status})`,
-            dateRange: formatReportDateRange(bookingFilters.from, bookingFilters.to),
+            dateRange: `${formatReportDateRange(bookingFilters.from, bookingFilters.to)} · Based on ${getBookingDateBasisLabel(bookingFilters.dateBasis)}`,
           },
         );
         return;
@@ -1645,6 +1662,7 @@ export default function ReportViewPage() {
               from: cancelledFilters.from,
               to: cancelledFilters.to,
               search: cancelledFilters.search,
+              dateBasis: 'cancelledAt',
             });
       setCancelledRows(rows);
       await downloadTable(
@@ -1705,7 +1723,7 @@ export default function ReportViewPage() {
                 Select a date range and booking status, then preview or export the result.
               </p>
             </div>
-            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_220px_180px_auto_auto]">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_220px_220px_180px_auto_auto]">
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Start Date</span>
                 <input
@@ -1743,6 +1761,25 @@ export default function ReportViewPage() {
                   <option value="CONFIRMED">Confirmed</option>
                   <option value="INQUIRY">Inquiry</option>
                   <option value="CANCELLED">Cancelled</option>
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Date Basis</span>
+                <select
+                  value={bookingFilters.dateBasis}
+                  onChange={(event) =>
+                    setBookingFilters((current) => ({
+                      ...current,
+                      dateBasis: event.target.value as BookingFilters['dateBasis'],
+                    }))
+                  }
+                  className={inputCls}
+                >
+                  {BOOKING_DATE_BASIS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="space-y-2">

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
@@ -307,6 +308,7 @@ type MenuSelectionTrackingState = {
 
 export default function BookingsPage() {
   const { accessToken, user } = useAuth();
+  const searchParams = useSearchParams();
   useAppPageHeader({
     eyebrow: 'Bookings',
     title: 'Bookings',
@@ -415,6 +417,7 @@ export default function BookingsPage() {
   } | null>(null);
   const [customMenuPopup, setCustomMenuPopup] = useState<CustomMenuPopupState | null>(null);
   const menuSelectionTrackingRef = useRef<MenuSelectionTrackingState | null>(null);
+  const deepLinkedOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!toast) {
@@ -508,6 +511,17 @@ export default function BookingsPage() {
   useEffect(() => {
     setSelectedEventPlanner(detailOrder?.currentEventPlanner?.plannerName ?? '');
   }, [detailOrder?.currentEventPlanner?.plannerName]);
+
+  useEffect(() => {
+    const orderId = searchParams.get('open');
+
+    if (!accessToken || !orderId || deepLinkedOrderIdRef.current === orderId) {
+      return;
+    }
+
+    deepLinkedOrderIdRef.current = orderId;
+    void openOrderDetail(orderId);
+  }, [accessToken, searchParams]);
 
   useEffect(() => {
     if (!accessToken) {

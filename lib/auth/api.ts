@@ -9,6 +9,8 @@ import {
   CalendarOrder,
   Category,
   Customer,
+  DashboardRecords,
+  DashboardRecordType,
   EventPlannerReportRow,
   HallOccupancyReportRow,
   HotDate,
@@ -517,6 +519,7 @@ export async function fetchOrders(
     hasAdvancePayments?: boolean;
     sortBy?: string;
     sortDirection?: 'asc' | 'desc';
+    dateBasis?: string;
   },
 ) {
   const query = new URLSearchParams({
@@ -568,6 +571,10 @@ export async function fetchOrders(
     query.set('sortDirection', params.sortDirection.trim());
   }
 
+  if (params.dateBasis?.trim()) {
+    query.set('dateBasis', params.dateBasis.trim());
+  }
+
   return authorizedRequest<PaginatedOrders>(`/orders?${query.toString()}`, accessToken);
 }
 
@@ -582,6 +589,22 @@ export async function fetchCalendarOrders(
 
   return authorizedRequest<CalendarOrder[]>(
     `/orders/calendar?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchDashboardRecords(
+  accessToken: string,
+  params: { type: DashboardRecordType; page: number; limit?: number },
+) {
+  const query = new URLSearchParams({
+    type: params.type,
+    page: String(params.page),
+    limit: String(params.limit ?? 50),
+  });
+
+  return authorizedRequest<DashboardRecords>(
+    `/orders/dashboard-records?${query.toString()}`,
     accessToken,
   );
 }

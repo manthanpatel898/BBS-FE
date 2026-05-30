@@ -388,6 +388,7 @@ export interface Order {
   cancelAdvanceManagement: CancelAdvanceManagement | null;
   activeSignature: OrderSignature | null;
   bookingTakenBy: string;
+  bookingTakenBySignature: UserSignature | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -634,6 +635,24 @@ export interface PaginatedOrders {
   };
 }
 
+export type DashboardRecordType =
+  | 'inquiries'
+  | 'confirmed'
+  | 'followups'
+  | 'cancelled'
+  | 'completed';
+
+export interface DashboardRecords {
+  type: DashboardRecordType;
+  items: Order[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface RestaurantStats {
   total: number;
   active: number;
@@ -671,6 +690,7 @@ export interface OrderStats {
   avgInquiryToConfirmationDays: number;
   inquiryToConfirmationSampleCount: number;
   confirmationConversionRate: number;
+  dashboardRecords?: Record<DashboardRecordType, number>;
 }
 
 export interface ReportMetric {

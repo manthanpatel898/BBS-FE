@@ -1,17 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { CommonModal } from '@/components/ui/common-modal';
 import {
   fetchCancelledAdvanceDashboard,
+  fetchDashboardRecords,
   fetchMyRestaurant,
+  fetchOrderById,
   fetchRestaurantStats,
   fetchOrderReports,
   fetchOrderStats,
 } from '@/lib/auth/api';
 import {
   CancelledAdvanceDashboard,
+  DashboardRecords,
+  DashboardRecordType,
+  Order,
   RestaurantStats,
   OrderReports,
   OrderStats,
@@ -65,18 +71,38 @@ interface StatCardProps {
   iconColor: string;
   sub?: string;
   delay?: string;
+  onClick?: () => void;
 }
 
-function StatCard({ label, value, icon, iconBg, iconColor, delay = '' }: StatCardProps) {
-  return (
-    <div
-      className={`zb-fade-up-1 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md ${delay}`}
-    >
+function StatCard({ label, value, icon, iconBg, iconColor, sub, delay = '', onClick }: StatCardProps) {
+  const content = (
+    <>
       <div className={`inline-flex items-center justify-center rounded-xl p-2.5 ${iconBg}`}>
         <span className={iconColor}>{icon}</span>
       </div>
       <p className="mt-4 text-3xl font-bold text-slate-900">{value}</p>
       <p className="mt-1 text-sm font-medium text-slate-500">{label}</p>
+      {sub ? <p className="mt-1 text-xs text-slate-400">{sub}</p> : null}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`zb-fade-up-1 min-h-36 rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-300 ${delay}`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={`zb-fade-up-1 min-h-36 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md ${delay}`}
+    >
+      {content}
     </div>
   );
 }
@@ -228,6 +254,15 @@ function CalendarIcon() {
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="18" rx="2" />
       <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
+function ArrowLeftIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 19-7-7 7-7" />
+      <path d="M19 12H5" />
     </svg>
   );
 }
@@ -762,6 +797,629 @@ function CancelledAdvanceDashboardSection({
 
 // ─── Company Admin Dashboard ──────────────────────────────────────────────────
 
+const DASHBOARD_RECORD_LIMIT = 50;
+
+const dashboardRecordMeta: Record<DashboardRecordType, {
+  label: string;
+  subtitle: string;
+  empty: string;
+  statusLabel: string;
+  cardClassName: string;
+  badgeClassName: string;
+}> = {
+  inquiries: {
+    label: 'Total Inquiries',
+    subtitle: 'Active inquiries from today onward',
+    empty: 'No active inquiries from today onward.',
+    statusLabel: 'INQUIRY',
+    cardClassName: 'border-amber-300 bg-amber-50/35',
+    badgeClassName: 'border-amber-300 bg-amber-50 text-amber-700',
+  },
+  confirmed: {
+    label: 'Confirm Bookings',
+    subtitle: 'Confirmed bookings from today onward',
+    empty: 'No confirmed bookings from today onward.',
+    statusLabel: 'CONFIRMED',
+    cardClassName: 'border-emerald-300 bg-emerald-50/45',
+    badgeClassName: 'border-emerald-300 bg-emerald-50 text-emerald-700',
+  },
+  followups: {
+    label: 'Follow Ups Due Today',
+    subtitle: 'Due today, overdue, or waiting for a next date',
+    empty: 'No follow ups are due today.',
+    statusLabel: 'FOLLOW UP',
+    cardClassName: 'border-sky-300 bg-sky-50/45',
+    badgeClassName: 'border-sky-300 bg-sky-50 text-sky-700',
+  },
+  cancelled: {
+    label: 'Cancelled Inquiries',
+    subtitle: 'Cancelled bookings and closed inquiries from today onward',
+    empty: 'No cancelled inquiries from today onward.',
+    statusLabel: 'CANCELLED',
+    cardClassName: 'border-red-300 bg-red-50/45',
+    badgeClassName: 'border-red-300 bg-red-50 text-red-700',
+  },
+  completed: {
+    label: 'Completed Event',
+    subtitle: 'Past completed events',
+    empty: 'No completed past events found.',
+    statusLabel: 'COMPLETED',
+    cardClassName: 'border-slate-300 bg-slate-50',
+    badgeClassName: 'border-slate-300 bg-slate-900 text-white',
+  },
+};
+
+function getRecordDate(order: Order) {
+  return order.eventDate ?? order.inquiryDate ?? order.confirmedAt ?? null;
+}
+
+function getDateKey(value: string | null) {
+  if (!value) return 'unknown';
+  return value.slice(0, 10);
+}
+
+function formatRecordDate(dateKey: string) {
+  if (dateKey === 'unknown') return 'Date not set';
+
+  const date = new Date(`${dateKey}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  if (date.getTime() === today.getTime()) {
+    return `Today, ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  }
+
+  if (date.getTime() === tomorrow.getTime()) {
+    return `Tomorrow, ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  }
+
+  return date.toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatTimeLabel(value: string | null) {
+  if (!value) return null;
+  const [hoursValue, minutesValue] = value.split(':');
+  const hours = Number(hoursValue);
+  const minutes = Number(minutesValue);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return value;
+  }
+
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function getTimeRange(order: Order) {
+  const start = formatTimeLabel(order.startTime);
+  const end = formatTimeLabel(order.endTime);
+
+  if (start && end) return `${start} - ${end}`;
+  if (start) return `${start} onwards`;
+  if (end) return `Until ${end}`;
+  return 'Time not set';
+}
+
+function getCustomerName(order: Order) {
+  return [order.customer.firstName, order.customer.lastName].filter(Boolean).join(' ').trim() || 'Guest';
+}
+
+function formatDetailDate(value: string | null) {
+  if (!value) return 'Not set';
+
+  return new Date(value).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function statusPillClasses(order: Order) {
+  if (order.status === 'INQUIRY' && order.inquiryClosed) {
+    return 'border-slate-300 bg-slate-900 text-white';
+  }
+
+  if (order.status === 'CONFIRMED') {
+    return 'border-emerald-300 bg-emerald-50 text-emerald-700';
+  }
+
+  if (order.status === 'CANCELLED') {
+    return 'border-red-300 bg-red-50 text-red-700';
+  }
+
+  if (order.status === 'COMPLETED') {
+    return 'border-slate-300 bg-slate-100 text-slate-700';
+  }
+
+  return 'border-amber-300 bg-amber-50 text-amber-700';
+}
+
+function menuStatusLabel(order: Order) {
+  return order.menuSelectionSnapshot.length > 0 ? 'Menu Selected' : 'Menu Pending';
+}
+
+function DetailField({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-slate-50 px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">
+        {value ?? 'Not set'}
+      </p>
+    </div>
+  );
+}
+
+function groupOrdersByDate(orders: Order[]) {
+  return orders.reduce<Array<{ dateKey: string; orders: Order[] }>>((groups, order) => {
+    const dateKey = getDateKey(getRecordDate(order));
+    const existing = groups.find((group) => group.dateKey === dateKey);
+
+    if (existing) {
+      existing.orders.push(order);
+    } else {
+      groups.push({ dateKey, orders: [order] });
+    }
+
+    return groups;
+  }, []);
+}
+
+function DashboardRecordCard({
+  order,
+  type,
+  onOpen,
+}: {
+  order: Order;
+  type: DashboardRecordType;
+  onOpen: (orderId: string) => void;
+}) {
+  const meta = dashboardRecordMeta[type];
+  const statusLabel =
+    order.status === 'INQUIRY' && order.inquiryClosed ? 'CLOSED INQUIRY' : meta.statusLabel;
+  const hasMenuSelection = order.menuSelectionSnapshot.length > 0;
+  const eventLabel = order.functionName?.trim() || order.eventType?.trim() || 'Event details pending';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(order.id)}
+      className={`block w-full rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-300 sm:p-4 ${meta.cardClassName}`}
+    >
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h4 className="break-words text-sm font-bold text-slate-950 sm:text-[15px]">{getCustomerName(order)}</h4>
+          <p className="mt-1.5 break-words text-sm font-medium text-slate-600">{eventLabel}</p>
+          <p className="mt-1 break-words text-xs font-medium text-slate-500">
+            {getTimeRange(order)} <span className="text-slate-400">•</span> {order.pax ? `${order.pax} pax` : 'pax not set'}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap gap-1.5 sm:max-w-[180px] sm:justify-end">
+          <span className={`inline-flex min-h-7 items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${meta.badgeClassName}`}>
+            {statusLabel}
+          </span>
+          {hasMenuSelection ? (
+            <span className="inline-flex min-h-7 items-center rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+              Menu Selected
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-2.5 space-y-1 text-xs text-slate-950 sm:text-sm">
+        <p><span className="font-bold">Service Slot:</span> {order.serviceSlot || 'Not set'}</p>
+        <p><span className="font-bold">Hall Details:</span> {order.hallDetails || 'Not set'}</p>
+        <p className="text-[11px] font-semibold text-slate-500">Booking ID: {order.orderId}</p>
+      </div>
+    </button>
+  );
+}
+
+function DashboardBookingDetailModal({
+  order,
+  loading,
+  error,
+  onClose,
+}: {
+  order: Order | null;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <CommonModal
+      title="Event Detail"
+      onClose={onClose}
+      widthClassName="max-w-4xl"
+      contentClassName="max-h-[72vh] overflow-y-auto pr-1"
+    >
+      {loading && !order ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-sm font-medium text-slate-400">
+          Loading booking details...
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      ) : order ? (
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusPillClasses(order)}`}>
+              {order.status === 'INQUIRY' && order.inquiryClosed ? 'CLOSED INQUIRY' : order.status}
+            </span>
+            <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              {menuStatusLabel(order)}
+            </span>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Inquiry Details
+                </p>
+                <p className="mt-1 text-base font-semibold text-slate-900">
+                  {order.functionName || order.eventType || 'Booking details pending'}
+                </p>
+              </div>
+              <div className="min-w-[170px] rounded-xl bg-slate-50 px-3 py-2 text-right">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Package</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {order.categorySnapshot?.name ||
+                    (order.inquiryCustomPrice !== null ? 'Custom Price' : 'Package pending')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <DetailField label="Customer" value={getCustomerName(order)} />
+              <DetailField label="Mobile" value={order.customer.phone} />
+              <DetailField label="Date" value={formatDetailDate(order.eventDate ?? order.inquiryDate)} />
+              <DetailField label="Time" value={getTimeRange(order)} />
+              <DetailField label="Service Slot" value={order.serviceSlot || 'Service slot pending'} />
+              <DetailField label="Hall" value={order.hallDetails || 'Hall details pending'} />
+              <DetailField label="PAX" value={order.pax ?? 'Pending'} />
+              <DetailField
+                label="Price"
+                value={formatCurrency(
+                  order.customPricePerPlate !== null
+                    ? order.customPricePerPlate
+                    : order.inquiryCustomPrice !== null
+                      ? order.inquiryCustomPrice
+                      : order.pricePerPlate,
+                )}
+              />
+              <DetailField label="Booking ID" value={order.orderId} />
+              <DetailField label="Booking Taken By" value={order.bookingTakenBy} />
+              {order.confirmedAt ? (
+                <DetailField label="Confirmed" value={formatDetailDate(order.confirmedAt)} />
+              ) : null}
+              {order.referenceBy ? <DetailField label="Reference" value={order.referenceBy} /> : null}
+            </div>
+
+            {order.addonServiceSnapshots.length > 0 ? (
+              <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                <span className="font-medium text-slate-500">Addons: </span>
+                {order.addonServiceSnapshots
+                  .map((item) => `${item.label} (${formatCurrency(item.price)})`)
+                  .join(', ')}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Menu Snapshot
+              </p>
+              {order.menuSelectionSnapshot.length > 0 ? (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {order.menuSelectionSnapshot.length} menu{order.menuSelectionSnapshot.length === 1 ? '' : 's'}
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {order.menuSelectionSnapshot.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 md:col-span-2">
+                  No menu selected yet.
+                </p>
+              ) : (
+                order.menuSelectionSnapshot.map((menu) => (
+                  <div key={menu.menuId} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                    <h3 className="text-sm font-semibold text-slate-900">{menu.title}</h3>
+                    <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
+                      {menu.sections.map((section) => (
+                        <div key={`${menu.menuId}-${section.sectionTitle}`} className="min-w-0">
+                          {section.sectionTitle.trim().toLowerCase() !== menu.title.trim().toLowerCase() ? (
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                              {section.sectionTitle}
+                            </p>
+                          ) : null}
+                          <p className="mt-0.5 leading-5">{section.items.join(', ')}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {order.additionalInformation || order.notes || order.cancelReason ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Notes
+              </p>
+              {order.additionalInformation ? (
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{order.additionalInformation}</p>
+              ) : null}
+              {order.notes && order.notes !== order.additionalInformation ? (
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{order.notes}</p>
+              ) : null}
+              {order.cancelReason ? (
+                <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  Cancel reason: {order.cancelReason}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {order.followUps.length > 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Follow Ups
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-500">
+                      <th className="px-3 py-2 font-medium">By</th>
+                      <th className="px-3 py-2 font-medium">Date</th>
+                      <th className="px-3 py-2 font-medium">Next</th>
+                      <th className="px-3 py-2 font-medium">Note</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...order.followUps].reverse().map((followUp, index) => (
+                      <tr key={`${followUp.createdAt}-${index}`} className="border-b border-slate-100 last:border-b-0">
+                        <td className="px-3 py-3 text-slate-700">{followUp.followUpByName}</td>
+                        <td className="px-3 py-3 text-slate-700">{formatDetailDate(followUp.date)}</td>
+                        <td className="px-3 py-3 text-slate-700">{formatDetailDate(followUp.nextFollowUpDate)}</td>
+                        <td className="px-3 py-3 text-slate-700">{followUp.note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          {order.status !== 'COMPLETED' ? (
+          <div className="sticky bottom-0 z-10 -mx-1 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-[0_-14px_30px_rgba(15,23,42,0.10)] backdrop-blur">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                Actions
+              </p>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                {order.orderId}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              {order.status === 'CONFIRMED' ? (
+                <>
+                  <Link
+                    href={`/print/order?id=${order.id}`}
+                    target="_blank"
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Print
+                  </Link>
+                  <Link
+                    href={`/print/order?id=${order.id}&copy=kitchen`}
+                    target="_blank"
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Kitchen Print
+                  </Link>
+                  {order.status === 'CONFIRMED' ? (
+                    <>
+                      <Link
+                        href={`/bookings?open=${order.id}`}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                      >
+                        Add Advance
+                      </Link>
+                      <Link
+                        href={`/bookings?open=${order.id}`}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
+                      >
+                        Sign
+                      </Link>
+                      <Link
+                        href={`/bookings?open=${order.id}`}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Transfer
+                      </Link>
+                      <Link
+                        href={`/bookings?open=${order.id}`}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Edit
+                      </Link>
+                      <Link
+                        href={`/bookings?open=${order.id}`}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        Select Menu
+                      </Link>
+                      <Link
+                        href={`/bookings?open=${order.id}`}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
+                      >
+                        Cancel
+                      </Link>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+              {order.status === 'INQUIRY' && !order.inquiryClosed ? (
+                <>
+                  <Link
+                    href={`/bookings?open=${order.id}`}
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                  >
+                    Confirm Inquiry
+                  </Link>
+                  <Link
+                    href={`/bookings?open=${order.id}`}
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Transfer
+                  </Link>
+                  <Link
+                    href={`/bookings?open=${order.id}`}
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Edit Inquiry
+                  </Link>
+                  <Link
+                    href={`/bookings?open=${order.id}`}
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Choose Category
+                  </Link>
+                  <Link
+                    href={`/bookings?open=${order.id}`}
+                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
+                  >
+                    Cancel
+                  </Link>
+                </>
+              ) : null}
+              {order.status === 'CANCELLED' || order.inquiryClosed ? (
+                <Link
+                  href={order.status === 'CANCELLED' ? '/cancelled-bookings' : `/bookings?open=${order.id}`}
+                  className="inline-flex min-h-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100"
+                >
+                  {order.status === 'CANCELLED' ? 'Manage Cancellation' : 'View Closed Inquiry'}
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          ) : null}
+        </div>
+      ) : null}
+    </CommonModal>
+  );
+}
+
+function DashboardRecordsPanel({
+  selectedType,
+  records,
+  loading,
+  error,
+  page,
+  onBack,
+  onPageChange,
+  onOpenOrder,
+}: {
+  selectedType: DashboardRecordType;
+  records: DashboardRecords | null;
+  loading: boolean;
+  error: string | null;
+  page: number;
+  onBack: () => void;
+  onPageChange: (page: number) => void;
+  onOpenOrder: (orderId: string) => void;
+}) {
+  const meta = dashboardRecordMeta[selectedType];
+  const groups = useMemo(() => groupOrdersByDate(records?.items ?? []), [records?.items]);
+  const pagination = records?.pagination;
+  const totalPages = pagination?.totalPages ?? 1;
+
+  return (
+    <section className="space-y-5">
+      {loading ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SkeletonCard key={index} />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm font-medium text-slate-500 shadow-sm">
+          {meta.empty}
+        </div>
+      ) : (
+        <div className="space-y-7">
+          {groups.map((group) => (
+            <div key={group.dateKey} className="space-y-3">
+              <div className="flex items-center gap-3">
+                <h3 className="shrink-0 rounded-full border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-slate-700 shadow-sm">
+                  {formatRecordDate(group.dateKey)}
+                </h3>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                {group.orders.map((order) => (
+                  <DashboardRecordCard
+                    key={order.id}
+                    order={order}
+                    type={selectedType}
+                    onOpen={onOpenOrder}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {pagination && pagination.total > 0 ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-slate-600">
+            Showing page {pagination.page} of {totalPages}
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:flex">
+            <button
+              type="button"
+              onClick={() => onPageChange(page - 1)}
+              disabled={page <= 1 || loading}
+              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-amber-300 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => onPageChange(page + 1)}
+              disabled={page >= totalPages || loading}
+              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-amber-300 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CompanyAdminDashboard({
   stats,
   reports,
@@ -769,6 +1427,15 @@ function CompanyAdminDashboard({
   cancelledAdvanceDashboard,
   loading,
   selectedYear,
+  selectedRecordType,
+  dashboardRecords,
+  dashboardRecordsLoading,
+  dashboardRecordsError,
+  dashboardRecordsPage,
+  onSelectRecordType,
+  onBackToDashboard,
+  onDashboardRecordsPageChange,
+  onOpenDashboardOrder,
 }: {
   stats: OrderStats | null;
   reports: OrderReports | null;
@@ -776,6 +1443,15 @@ function CompanyAdminDashboard({
   cancelledAdvanceDashboard: CancelledAdvanceDashboard | null;
   loading: boolean;
   selectedYear: number;
+  selectedRecordType: DashboardRecordType | null;
+  dashboardRecords: DashboardRecords | null;
+  dashboardRecordsLoading: boolean;
+  dashboardRecordsError: string | null;
+  dashboardRecordsPage: number;
+  onSelectRecordType: (type: DashboardRecordType) => void;
+  onBackToDashboard: () => void;
+  onDashboardRecordsPageChange: (page: number) => void;
+  onOpenDashboardOrder: (orderId: string) => void;
 }) {
   if (loading) {
     return (
@@ -804,6 +1480,7 @@ function CompanyAdminDashboard({
   const upcomingConfirmedAdvance =
     stats.upcomingConfirmedAdvance ??
     upcomingConfirmedAdvanceByPaymentMethod.reduce((sum, item) => sum + item.amount, 0);
+  const dashboardCounts = stats.dashboardRecords;
 
   return (
     <div className="space-y-6">
@@ -859,42 +1536,69 @@ function CompanyAdminDashboard({
         </div>
       ) : null}
 
+      {selectedRecordType ? (
+        <DashboardRecordsPanel
+          selectedType={selectedRecordType}
+          records={dashboardRecords}
+          loading={dashboardRecordsLoading}
+          error={dashboardRecordsError}
+          page={dashboardRecordsPage}
+          onBack={onBackToDashboard}
+          onPageChange={onDashboardRecordsPageChange}
+          onOpenOrder={onOpenDashboardOrder}
+        />
+      ) : (
+        <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Inquiries"
-          value={stats.inquiries}
+          value={dashboardCounts?.inquiries ?? stats.inquiries}
           icon={<InboxIcon />}
           iconBg="bg-purple-50"
           iconColor="text-purple-600"
           sub="Current inquiry count"
           delay="zb-fade-up-1"
+          onClick={() => onSelectRecordType('inquiries')}
         />
         <StatCard
           label="Confirm Bookings"
-          value={stats.confirmed}
+          value={dashboardCounts?.confirmed ?? stats.confirmed}
           icon={<CheckCircleIcon />}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
           sub="Confirmed bookings"
           delay="zb-fade-up-2"
+          onClick={() => onSelectRecordType('confirmed')}
         />
         <StatCard
           label="Follow Ups Due Today"
-          value={stats.followUps}
+          value={dashboardCounts?.followups ?? stats.followUps}
           icon={<InboxIcon />}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
           sub="Due today, overdue, or no next date"
           delay="zb-fade-up-3"
+          onClick={() => onSelectRecordType('followups')}
         />
         <StatCard
           label="Cancelled Inquiries"
-          value={stats.cancelled}
+          value={dashboardCounts?.cancelled ?? stats.cancelled}
           icon={<XCircleIcon />}
           iconBg="bg-red-50"
           iconColor="text-red-500"
           sub="Cancelled records"
           delay="zb-fade-up-4"
+          onClick={() => onSelectRecordType('cancelled')}
+        />
+        <StatCard
+          label="Completed Event"
+          value={dashboardCounts?.completed ?? stats.completed}
+          icon={<CheckCircleIcon />}
+          iconBg="bg-slate-100"
+          iconColor="text-slate-700"
+          sub="Past completed functions"
+          delay="zb-fade-up-4"
+          onClick={() => onSelectRecordType('completed')}
         />
       </div>
 
@@ -1037,6 +1741,89 @@ function CompanyAdminDashboard({
           />
         </>
       ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+function DashboardHeader({
+  userFirstName,
+  selectedYear,
+  currentYear,
+  isCompanyAdmin,
+  selectedRecordType,
+  dashboardRecords,
+  onYearChange,
+  onBackToDashboard,
+}: {
+  userFirstName?: string;
+  selectedYear: number;
+  currentYear: number;
+  isCompanyAdmin: boolean;
+  selectedRecordType: DashboardRecordType | null;
+  dashboardRecords: DashboardRecords | null;
+  onYearChange: (year: number) => void;
+  onBackToDashboard: () => void;
+}) {
+  const meta = selectedRecordType ? dashboardRecordMeta[selectedRecordType] : null;
+  const pagination = dashboardRecords?.pagination;
+
+  return (
+    <div className="sticky top-0 z-20 rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-sm backdrop-blur sm:static sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">
+            Dashboard
+          </p>
+          {meta ? (
+            <>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onBackToDashboard}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-amber-300 hover:text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                >
+                  <ArrowLeftIcon />
+                  Back
+                </button>
+                <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">
+                  {meta.label}
+                </h1>
+              </div>
+              <p className="mt-2 text-sm text-slate-500">
+                {meta.subtitle}
+                {pagination ? ` · ${pagination.total.toLocaleString('en-IN')} record${pagination.total === 1 ? '' : 's'}` : ''}
+              </p>
+            </>
+          ) : (
+            <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
+              {userFirstName ? `${userFirstName}'s Dashboard` : 'Dashboard'}
+            </h1>
+          )}
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          {pagination ? (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+              Page {pagination.page} of {pagination.totalPages}
+            </div>
+          ) : null}
+          {isCompanyAdmin ? (
+            <select
+              value={selectedYear}
+              onChange={(event) => onYearChange(Number(event.target.value))}
+              className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none focus:border-amber-400"
+            >
+              {Array.from({ length: 7 }, (_, index) => currentYear - 3 + index).map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1054,6 +1841,15 @@ export default function DashboardPage() {
   const [cancelledAdvanceDashboard, setCancelledAdvanceDashboard] =
     useState<CancelledAdvanceDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedRecordType, setSelectedRecordType] = useState<DashboardRecordType | null>(null);
+  const [dashboardRecordsPage, setDashboardRecordsPage] = useState(1);
+  const [dashboardRecords, setDashboardRecords] = useState<DashboardRecords | null>(null);
+  const [dashboardRecordsLoading, setDashboardRecordsLoading] = useState(false);
+  const [dashboardRecordsError, setDashboardRecordsError] = useState<string | null>(null);
+  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [detailOrderLoading, setDetailOrderLoading] = useState(false);
+  const [detailOrderError, setDetailOrderError] = useState<string | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -1088,43 +1884,97 @@ export default function DashboardPage() {
     load();
   }, [accessToken, user?.role, selectedYear]);
 
-  const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+  useEffect(() => {
+    if (!accessToken || user?.role !== 'company_admin' || !selectedRecordType) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRecords = async () => {
+      setDashboardRecordsLoading(true);
+      setDashboardRecordsError(null);
+
+      try {
+        const records = await fetchDashboardRecords(accessToken, {
+          type: selectedRecordType,
+          page: dashboardRecordsPage,
+          limit: DASHBOARD_RECORD_LIMIT,
+        });
+
+        if (!cancelled) {
+          setDashboardRecords(records);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDashboardRecords(null);
+          setDashboardRecordsError(error instanceof Error ? error.message : 'Unable to load records. Try again.');
+        }
+      } finally {
+        if (!cancelled) {
+          setDashboardRecordsLoading(false);
+        }
+      }
+    };
+
+    loadRecords();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, user?.role, selectedRecordType, dashboardRecordsPage]);
+
+  const openDashboardRecords = (type: DashboardRecordType) => {
+    setSelectedRecordType(type);
+    setDashboardRecordsPage(1);
+    setDashboardRecords(null);
+    setDashboardRecordsError(null);
+  };
+
+  const backToDashboard = () => {
+    setSelectedRecordType(null);
+    setDashboardRecordsPage(1);
+    setDashboardRecords(null);
+    setDashboardRecordsError(null);
+  };
+
+  const openDashboardOrder = async (orderId: string) => {
+    if (!accessToken) return;
+
+    setIsDetailOpen(true);
+    setDetailOrder(null);
+    setDetailOrderError(null);
+    setDetailOrderLoading(true);
+
+    try {
+      const order = await fetchOrderById(accessToken, orderId);
+      setDetailOrder(order);
+    } catch (error) {
+      setDetailOrderError(error instanceof Error ? error.message : 'Unable to open booking.');
+    } finally {
+      setDetailOrderLoading(false);
+    }
+  };
+
+  const closeDashboardOrder = () => {
+    setIsDetailOpen(false);
+    setDetailOrder(null);
+    setDetailOrderError(null);
+    setDetailOrderLoading(false);
   };
 
   return (
     <div className="space-y-6">
-      {/* Welcome banner */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">
-              Dashboard
-            </p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
-              {greeting()}, {user?.firstName ?? 'there'} 👋
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            {user?.role === 'company_admin' ? (
-              <select
-                value={selectedYear}
-                onChange={(event) => setSelectedYear(Number(event.target.value))}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-amber-400"
-              >
-                {Array.from({ length: 7 }, (_, index) => currentYear - 3 + index).map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <DashboardHeader
+        userFirstName={user?.firstName}
+        selectedYear={selectedYear}
+        currentYear={currentYear}
+        isCompanyAdmin={user?.role === 'company_admin'}
+        selectedRecordType={selectedRecordType}
+        dashboardRecords={dashboardRecords}
+        onYearChange={setSelectedYear}
+        onBackToDashboard={backToDashboard}
+      />
 
       {/* Role-based dashboard content */}
       {user?.role === 'super_admin' && (
@@ -1138,6 +1988,15 @@ export default function DashboardPage() {
           cancelledAdvanceDashboard={cancelledAdvanceDashboard}
           loading={loading}
           selectedYear={selectedYear}
+          selectedRecordType={selectedRecordType}
+          dashboardRecords={dashboardRecords}
+          dashboardRecordsLoading={dashboardRecordsLoading}
+          dashboardRecordsError={dashboardRecordsError}
+          dashboardRecordsPage={dashboardRecordsPage}
+          onSelectRecordType={openDashboardRecords}
+          onBackToDashboard={backToDashboard}
+          onDashboardRecordsPageChange={setDashboardRecordsPage}
+          onOpenDashboardOrder={openDashboardOrder}
         />
       )}
       {user?.role === 'employee' && (
@@ -1206,6 +2065,14 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {isDetailOpen ? (
+        <DashboardBookingDetailModal
+          order={detailOrder}
+          loading={detailOrderLoading}
+          error={detailOrderError}
+          onClose={closeDashboardOrder}
+        />
+      ) : null}
     </div>
   );
 }

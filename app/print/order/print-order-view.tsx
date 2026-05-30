@@ -472,12 +472,12 @@ function PrintDocument({
                 label="Manager Sign"
                 strong
                 signatureImage={
-                  order.activeSignature?.capturedByUserSignature?.signatureUrl ??
-                  order.activeSignature?.capturedByUserSignature?.signatureImage
+                  order.bookingTakenBySignature?.signatureUrl ??
+                  order.bookingTakenBySignature?.signatureImage
                 }
                 meta={
-                  order.activeSignature?.capturedByUserSignature
-                    ? order.activeSignature.capturedByUserSignature.signedByName
+                  order.bookingTakenBySignature
+                    ? order.bookingTakenBySignature.signedByName
                     : undefined
                 }
               />
