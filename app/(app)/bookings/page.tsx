@@ -5020,6 +5020,12 @@ function selectionStatus(order: Order) {
                                 <p className="mt-1 text-xs text-slate-500">
                                   {formatTimeRange(calendarOrder.startTime, calendarOrder.endTime)} • {calendarOrder.pax} pax
                                 </p>
+                                <p className="mt-1 text-xs font-semibold text-slate-900">
+                                  Inquiry Date:{' '}
+                                  {calendarOrder.inquiryDate
+                                    ? formatDisplayDate(calendarOrder.inquiryDate)
+                                    : 'Inquiry date pending'}
+                                </p>
                                 {calendarOrder.serviceSlot ? (
                                   <p className="mt-1 text-xs font-semibold text-slate-900">
                                     Service Slot: {calendarOrder.serviceSlot}
@@ -5148,7 +5154,13 @@ function selectionStatus(order: Order) {
                         ['Customer', `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`],
                         ['Mobile', detailOrder.customer.phone],
                         [
-                          'Date',
+                          'Inquiry Date',
+                          detailOrder.inquiryDate
+                            ? formatDisplayDate(detailOrder.inquiryDate)
+                            : 'Inquiry date pending',
+                        ],
+                        [
+                          'Event Date',
                           detailOrder.eventDate
                             ? formatDisplayDate(detailOrder.eventDate)
                             : 'Date pending',

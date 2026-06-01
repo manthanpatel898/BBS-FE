@@ -1086,7 +1086,7 @@ function DashboardBookingDetailModal({
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <DetailField label="Customer" value={getCustomerName(order)} />
               <DetailField label="Mobile" value={order.customer.phone} />
-              <DetailField label="Date" value={formatDetailDate(order.eventDate ?? order.inquiryDate)} />
+              <DetailField label="Event Date" value={formatDetailDate(order.eventDate ?? order.inquiryDate)} />
               <DetailField label="Time" value={getTimeRange(order)} />
               <DetailField label="Service Slot" value={order.serviceSlot || 'Service slot pending'} />
               <DetailField label="Hall" value={order.hallDetails || 'Hall details pending'} />
@@ -1770,7 +1770,7 @@ function DashboardHeader({
   const pagination = dashboardRecords?.pagination;
 
   return (
-    <div className="sticky top-0 z-20 rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-sm backdrop-blur sm:static sm:p-5">
+    <div className="rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-sm backdrop-blur sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">

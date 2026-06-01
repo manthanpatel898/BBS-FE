@@ -345,8 +345,11 @@ async function downloadTable(
     }>;
   },
 ) {
+  const headersWithSerial = ['Sr. No.', ...headers];
+  const rowsWithSerial = rows.map((row, index) => [index + 1, ...row]);
+
   if (format === 'xlsx') {
-    const blob = await createExcelBlobFromTable('Report', headers, rows, {
+    const blob = await createExcelBlobFromTable('Report', headersWithSerial, rowsWithSerial, {
       headerInfo: options?.reportName
         ? {
             reportName: options.reportName,
@@ -359,7 +362,7 @@ async function downloadTable(
     return;
   }
 
-  const csvRows = [headers, ...rows];
+  const csvRows = [headersWithSerial, ...rowsWithSerial];
 
   if (options?.footerSections?.length) {
     options.footerSections.forEach((section) => {
@@ -1080,6 +1083,7 @@ function DataTable<Row>({
         <table className="min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-500">
             <tr>
+              <th className="px-4 py-3 font-medium whitespace-nowrap">Sr. No.</th>
               {columns.map((column) => (
                 <th key={column.key} className="px-4 py-3 font-medium whitespace-nowrap">
                   {column.label}
@@ -1091,6 +1095,9 @@ function DataTable<Row>({
             {rows.length > 0 ? (
               rows.map((row, index) => (
                 <tr key={index} className={index > 0 ? 'border-t border-slate-200' : ''}>
+                  <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">
+                    {index + 1}
+                  </td>
                   {columns.map((column) => (
                     <td
                       key={column.key}
@@ -1105,7 +1112,7 @@ function DataTable<Row>({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={columns.length + 1} className="px-4 py-8 text-center text-slate-500">
                   {emptyMessage}
                 </td>
               </tr>
@@ -2822,7 +2829,7 @@ export default function ReportViewPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-slate-100 bg-slate-50">
                   <tr>
-                    {['Date', 'Type', 'Booking ID', 'Customer', 'Mobile Number', 'Booking Date', 'Cancel Date', 'Amount', 'Money In Hand', 'Mode', 'Reason', 'Note', 'Performed By'].map((h) => (
+                    {['Sr. No.', 'Date', 'Type', 'Booking ID', 'Customer', 'Mobile Number', 'Booking Date', 'Cancel Date', 'Amount', 'Money In Hand', 'Mode', 'Reason', 'Note', 'Performed By'].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
                     ))}
                   </tr>
@@ -2830,7 +2837,7 @@ export default function ReportViewPage() {
                 <tbody className="divide-y divide-slate-100">
                   {treasuryReport.entries.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="px-4 py-8 text-center text-sm text-slate-400">No entries found for the selected date range.</td>
+                      <td colSpan={14} className="px-4 py-8 text-center text-sm text-slate-400">No entries found for the selected date range.</td>
                     </tr>
                   ) : (
                     treasuryReport.entries.map((entry, idx) => {
@@ -2838,6 +2845,9 @@ export default function ReportViewPage() {
                       const isCredit = entry.direction === 'CREDIT' || entry.type === 'ADVANCE_RECEIVED';
                       return (
                         <tr key={idx} className={`hover:bg-slate-50 ${isDebit ? 'bg-red-50/30' : isCredit ? 'bg-emerald-50/30' : ''}`}>
+                          <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">
+                            {idx + 1}
+                          </td>
                           <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
                             {formatCsvDateTime(entry.createdAt || entry.date)}
                           </td>

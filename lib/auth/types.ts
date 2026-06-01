@@ -615,6 +615,7 @@ export interface CalendarOrder {
   eventType?: string;
   functionName: string;
   eventDate: string;
+  inquiryDate: string | null;
   startTime: string;
   endTime: string;
   pax: number;
