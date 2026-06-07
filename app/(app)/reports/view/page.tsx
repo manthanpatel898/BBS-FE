@@ -82,6 +82,7 @@ type CancelledFieldKey =
 type AdvancePaymentFilters = {
   from: string;
   to: string;
+  dateBasis: 'functionDate' | 'paymentDate';
   paymentMode: string;
   customer: string;
 };
@@ -1141,6 +1142,7 @@ export default function ReportViewPage() {
   const [advanceFilters, setAdvanceFilters] = useState<AdvancePaymentFilters>({
     from: toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
     to: toDateInputValue(new Date()),
+    dateBasis: 'functionDate',
     paymentMode: '',
     customer: '',
   });
@@ -1848,7 +1850,7 @@ export default function ReportViewPage() {
                 Filter collected advances by date, payment type, and customer.
               </p>
             </div>
-            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_220px_1fr_180px_auto_auto]">
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr_220px_220px_1fr_180px_auto_auto]">
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Start Date</span>
                 <input
@@ -1872,6 +1874,22 @@ export default function ReportViewPage() {
                 />
               </label>
               <label className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Date Basis</span>
+                <select
+                  value={advanceFilters.dateBasis}
+                  onChange={(event) =>
+                    setAdvanceFilters((current) => ({
+                      ...current,
+                      dateBasis: event.target.value as AdvancePaymentFilters['dateBasis'],
+                    }))
+                  }
+                  className={inputCls}
+                >
+                  <option value="functionDate">Function Date</option>
+                  <option value="paymentDate">Payment Date</option>
+                </select>
+              </label>
+              <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Payment Type</span>
                 <select
                   value={advanceFilters.paymentMode}
@@ -1881,6 +1899,7 @@ export default function ReportViewPage() {
                   className={inputCls}
                 >
                   <option value="">All payment types</option>
+                  <option value="Online">Online</option>
                   {paymentModes.map((option) => (
                     <option key={option} value={option}>
                       {option}

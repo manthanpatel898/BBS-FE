@@ -118,11 +118,18 @@ function AdvanceBreakdownCard({
   title: string;
   subtitle: string;
 }) {
-  const maxAmount = Math.max(...items.map((item) => item.amount), 1);
+  const [isOnlineExpanded, setIsOnlineExpanded] = useState(false);
+  const cashItem = items.find((item) => item.label.trim().toLowerCase() === 'cash');
+  const onlineItems = items.filter((item) => item.label.trim().toLowerCase() !== 'cash');
+  const cashAmount = cashItem?.amount ?? 0;
+  const cashCount = cashItem?.count ?? 0;
+  const onlineAmount = onlineItems.reduce((sum, item) => sum + item.amount, 0);
+  const onlineCount = onlineItems.reduce((sum, item) => sum + item.count, 0);
+  const maxOnlineAmount = Math.max(...onlineItems.map((item) => item.amount), 1);
 
   return (
     <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 p-2.5">
             <span className="text-blue-600">
@@ -135,11 +142,48 @@ function AdvanceBreakdownCard({
         </div>
       </div>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Total</p>
+          <p className="mt-3 text-2xl font-bold text-slate-900">{formatCurrency(total)}</p>
+          <p className="mt-1 text-xs text-slate-500">{cashCount + onlineCount} payment{cashCount + onlineCount === 1 ? '' : 's'}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-100 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Cash</p>
+          <p className="mt-3 text-2xl font-bold text-slate-900">{formatCurrency(cashAmount)}</p>
+          <p className="mt-1 text-xs text-slate-500">{cashCount} payment{cashCount === 1 ? '' : 's'}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsOnlineExpanded((current) => !current)}
+          aria-expanded={isOnlineExpanded}
+          className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-500">Online</p>
+              <p className="mt-3 text-2xl font-bold text-slate-900">{formatCurrency(onlineAmount)}</p>
+              <p className="mt-1 text-xs text-blue-600">{onlineCount} payment{onlineCount === 1 ? '' : 's'}</p>
+            </div>
+            <span className="mt-1 text-xs font-semibold text-blue-600">
+              {isOnlineExpanded ? 'Hide' : 'View'}
+            </span>
+          </div>
+        </button>
+      </div>
+
+      {isOnlineExpanded ? (
+        <div className="mt-5 space-y-3 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Online payment breakdown</p>
+            <p className="mt-0.5 text-xs text-slate-500">All payment modes except Cash</p>
+          </div>
         {items.length === 0 ? (
           <p className="text-sm text-slate-400">No upcoming confirmed advance payments found.</p>
         ) : (
-          items.map((item) => (
+          onlineItems.length === 0 ? (
+            <p className="text-sm text-slate-400">No online advance payments found.</p>
+          ) : onlineItems.map((item) => (
             <div key={item.label} className="space-y-1.5">
               <div className="flex items-center justify-between gap-3">
                 <p className="truncate text-sm font-medium text-slate-700">{item.label}</p>
@@ -152,14 +196,15 @@ function AdvanceBreakdownCard({
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-400"
                   style={{
-                    width: `${Math.max((item.amount / maxAmount) * 100, item.amount > 0 ? 8 : 0)}%`,
+                    width: `${Math.max((item.amount / maxOnlineAmount) * 100, item.amount > 0 ? 8 : 0)}%`,
                   }}
                 />
               </div>
             </div>
           ))
         )}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -654,6 +654,7 @@ export async function createOrder(
     extrasTotal?: number;
     discountAmount?: number;
     advanceAmount?: number;
+    advanceDate?: string;
     paymentMode?: PaymentMode;
     notes?: string;
     jainSwaminarayanPax?: number;
@@ -742,6 +743,7 @@ export async function confirmInquiry(
   payload: {
     advanceAmount?: number;
     paymentMode?: PaymentMode;
+    advanceDate?: string;
     extrasTotal?: number;
     discountAmount?: number;
     remark?: string;
@@ -1035,6 +1037,7 @@ export async function fetchAdvancePaymentsReport(
   params: {
     from?: string;
     to?: string;
+    dateBasis?: string;
     paymentMode?: string;
     customer?: string;
   },

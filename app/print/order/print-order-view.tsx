@@ -231,11 +231,6 @@ function PrintDocument({
             <p className={`font-bold uppercase text-stone-950 ${isKitchenCopy ? 'text-[18px] print:text-[17px]' : 'text-base tracking-[0.14em] print:text-[15px]'}`}>
               {isKitchenCopy ? 'Kitchen Print' : 'Booking Summary'}
             </p>
-            {!isKitchenCopy && restaurant?.address && restaurant.address.trim().toLowerCase() !== 'na' ? (
-              <p className="mt-2 max-w-[220px] text-xs leading-5 text-stone-500 print:max-w-[180px] print:text-[10px]">
-                {restaurant.address}
-              </p>
-            ) : null}
           </div>
         </div>
       </header>
@@ -246,15 +241,15 @@ function PrintDocument({
           compact
           strong
           rows={[
-            ['Function Date and Time', formatEventDateTime(order)],
+            ['Date and Time', formatEventDateTime(order)],
             ['Slot Type', order.serviceSlot || 'Pending'],
             ['Event Type', order.eventType || order.functionName || 'Pending'],
             ['Hall NO', order.hallDetails || 'Pending'],
             ['Customer Name', fullName(order)],
-            ['Customer Number', order.customer.phone],
+            ['Customer Mo.', order.customer.phone],
             ['Pax', order.pax ? `${order.pax} Person` : 'Pending'],
             [
-              'Menu Category with Price',
+              'Menu and Price',
               order.categorySnapshot
                 ? `${order.categorySnapshot.name} (${formatCurrency(order.pricePerPlate)})`
                 : 'Pending',
@@ -405,7 +400,7 @@ function PrintDocument({
       </section>
 
       {!isKitchenCopy ? (
-        <section className="mt-4 print:break-before-page print:pt-2">
+        <section className="mt-4 print:pt-2">
           <div className="overflow-hidden rounded-[10px] border border-stone-400">
             <table className="min-w-full border-collapse text-[12px] font-bold text-stone-950 print:text-[12px]">
               <thead className="bg-stone-100 text-stone-950">
@@ -650,21 +645,26 @@ function formatCurrency(value: number) {
 }
 
 function formatLongDate(value: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
+  return formatSlashDate(value);
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+  const date = new Date(value);
+  const time = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  }).format(date);
+
+  return `${formatSlashDate(value)}, ${time}`;
+}
+
+function formatSlashDate(value: string) {
+  const date = new Date(value);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${day}/${month}/${year}`;
 }
 
 function formatEventDateTime(order: Order) {

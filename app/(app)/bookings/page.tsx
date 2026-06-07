@@ -356,6 +356,7 @@ export default function BookingsPage() {
   const [confirmDiscount, setConfirmDiscount] = useState('0');
   const [confirmExtrasTotal, setConfirmExtrasTotal] = useState('0');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('Cash');
+  const [advanceDate, setAdvanceDate] = useState(() => toDateInputValue(new Date()));
   const [advanceRemark, setAdvanceRemark] = useState('');
   const [isAdvanceSubmitting, setIsAdvanceSubmitting] = useState(false);
   const [cancelPopup, setCancelPopup] = useState<{
@@ -374,6 +375,7 @@ export default function BookingsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const [isMobileDetailActionsOpen, setIsMobileDetailActionsOpen] = useState(false);
   const [selectedEventPlanner, setSelectedEventPlanner] = useState('');
   const [isAssigningEventPlanner, setIsAssigningEventPlanner] = useState(false);
   const [dayRecordsPopup, setDayRecordsPopup] = useState<{
@@ -689,7 +691,9 @@ export default function BookingsPage() {
   const bookingCreatedBy =
     [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || 'Current user';
   const isCompanyAdmin = user?.role === 'company_admin';
-  const isServiceSlotLocked = !isCompanyAdmin && Boolean(editingOrder);
+  const isProtectedBookingEditLocked = !isCompanyAdmin && Boolean(editingOrder);
+  const companyAdminOnlyEditMessage = 'Contact company admin to update this detail.';
+  const isServiceSlotLocked = isProtectedBookingEditLocked;
 
   useEffect(() => {
     if (!paymentOptions.includes(paymentMode)) {
@@ -902,6 +906,7 @@ export default function BookingsPage() {
     setDetailOrder(initialOrder ?? null);
     setIsDetailLoading(true);
     setDetailError('');
+    setIsMobileDetailActionsOpen(false);
 
     try {
       const order = await fetchOrderById(accessToken, orderId);
@@ -1236,6 +1241,7 @@ export default function BookingsPage() {
     setConfirmDiscount(order ? String(order.discountAmount || 0) : '0');
     setConfirmExtrasTotal(order ? String(order.extrasTotal || 0) : '0');
     setPaymentMode(order?.paymentMode ?? defaultPaymentMode);
+    setAdvanceDate(toDateInputValue(new Date()));
     setAdvanceRemark('');
     setAdvancePopup({ mode, order });
   }
@@ -1556,6 +1562,7 @@ export default function BookingsPage() {
         const createdOrder = await createOrder(accessToken, {
           ...pendingCreatePayload.current,
           advanceAmount: Number(advanceAmount) || 0,
+          advanceDate,
           paymentMode,
           notes:
             advanceRemark.trim() || pendingCreatePayload.current.notes || undefined,
@@ -1575,6 +1582,7 @@ export default function BookingsPage() {
           extrasTotal: Number(confirmExtrasTotal) || 0,
           discountAmount: Number(confirmDiscount) || 0,
           paymentMode,
+          advanceDate,
           remark: advanceRemark.trim() || undefined,
         });
         setAdvancePopup(null);
@@ -2004,6 +2012,11 @@ export default function BookingsPage() {
   }
 
   function openTransferPopup(order: Order) {
+    if (!isCompanyAdmin) {
+      setToast({ type: 'error', message: 'Contact company admin to transfer this booking.' });
+      return;
+    }
+
     setTransferPopup({
       orderId: order.id,
       orderName: order.functionName || order.orderId,
@@ -2017,6 +2030,11 @@ export default function BookingsPage() {
 
   async function handleTransferBooking() {
     if (!accessToken || !transferPopup) {
+      return;
+    }
+
+    if (!isCompanyAdmin) {
+      setToast({ type: 'error', message: 'Contact company admin to transfer this booking.' });
       return;
     }
 
@@ -2910,17 +2928,23 @@ function selectionStatus(order: Order) {
             <div className="mt-6 space-y-5">
               <div>
                 <Field label="Customer Name" required>
-                  <input
-                    value={formState.customerName}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        customerName: event.target.value,
-                      }))
-                    }
-                    placeholder="Enter customer name"
-                    className={`${inputCls} min-h-12`}
-                  />
+                  <div className="space-y-2">
+                    <input
+                      value={formState.customerName}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          customerName: event.target.value,
+                        }))
+                      }
+                      disabled={isProtectedBookingEditLocked}
+                      placeholder="Enter customer name"
+                      className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                    />
+                    {isProtectedBookingEditLocked ? (
+                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                    ) : null}
+                  </div>
                 </Field>
               </div>
 
@@ -2962,7 +2986,7 @@ function selectionStatus(order: Order) {
                     </select>
                     {isServiceSlotLocked ? (
                       <p className="text-xs text-slate-500">
-                        Employees can set the service slot while creating an inquiry, but only company admins can change it later.
+                        {companyAdminOnlyEditMessage}
                       </p>
                     ) : null}
                   </div>
@@ -2984,7 +3008,8 @@ function selectionStatus(order: Order) {
                           setCustomEventName('');
                         }
                       }}
-                      className={`${inputCls} min-h-12`}
+                      disabled={isProtectedBookingEditLocked}
+                      className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     >
                       <option value="">Select event option</option>
                       {eventChoices.map((option) => (
@@ -3000,9 +3025,13 @@ function selectionStatus(order: Order) {
                       <input
                         value={customEventName}
                         onChange={(event) => setCustomEventName(event.target.value)}
+                        disabled={isProtectedBookingEditLocked}
                         placeholder="Enter event name"
-                        className={`${inputCls} min-h-12`}
+                        className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                       />
+                    ) : null}
+                    {isProtectedBookingEditLocked ? (
+                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
                     ) : null}
                   </div>
                 </Field>
@@ -3018,13 +3047,15 @@ function selectionStatus(order: Order) {
                           functionDate: event.target.value,
                         }))
                       }
-                      disabled={!editingOrder}
-                      className={`${dateTimeInputCls} min-h-12 ${!editingOrder ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                      disabled={!editingOrder || isProtectedBookingEditLocked}
+                      className={`${dateTimeInputCls} min-h-12 ${!editingOrder || isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     />
                     {!editingOrder ? (
                       <p className="text-xs text-slate-500">
                         Function date is fixed from the selected calendar day while creating an inquiry.
                       </p>
+                    ) : isProtectedBookingEditLocked ? (
+                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
                     ) : null}
                   </div>
                 </Field>
@@ -3040,9 +3071,13 @@ function selectionStatus(order: Order) {
                         startTime: value,
                       }))
                     }
+                    disabled={isProtectedBookingEditLocked}
                     hourPlaceholder="Hour"
                     minutePlaceholder="Min"
                   />
+                  {isProtectedBookingEditLocked ? (
+                    <p className="mt-2 text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                  ) : null}
                 </Field>
                 <Field label="Function End Time" required>
                   <TimePicker
@@ -3053,9 +3088,13 @@ function selectionStatus(order: Order) {
                         endTime: value,
                       }))
                     }
+                    disabled={isProtectedBookingEditLocked}
                     hourPlaceholder="Hour"
                     minutePlaceholder="Min"
                   />
+                  {isProtectedBookingEditLocked ? (
+                    <p className="mt-2 text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                  ) : null}
                 </Field>
               </div>
 
@@ -3181,20 +3220,26 @@ function selectionStatus(order: Order) {
                 </Field>
 
                 <Field label="Custom Price">
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="decimal"
-                    value={formState.inquiryCustomPrice}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        inquiryCustomPrice: event.target.value,
-                      }))
-                    }
-                    placeholder="Optional custom price"
-                    className={`${inputCls} min-h-12`}
-                  />
+                  <div className="space-y-2">
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      value={formState.inquiryCustomPrice}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          inquiryCustomPrice: event.target.value,
+                        }))
+                      }
+                      disabled={isProtectedBookingEditLocked}
+                      placeholder="Optional custom price"
+                      className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                    />
+                    {isProtectedBookingEditLocked ? (
+                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                    ) : null}
+                  </div>
                 </Field>
               </div>
 
@@ -3582,20 +3627,26 @@ function selectionStatus(order: Order) {
                       {wizardHeaderExpanded.price ? (
                         <div className="border-t border-slate-100 p-3 sm:p-4">
                           <Field label="Custom Price">
-                            <input
-                              type="number"
-                              min="0"
-                              inputMode="decimal"
-                              placeholder="Custom price"
-                              value={formState.customPricePerPlate}
-                              onChange={(event) =>
-                                setFormState((current) => ({
-                                  ...current,
-                                  customPricePerPlate: event.target.value,
-                                }))
-                              }
-                              className={inputCls}
-                            />
+                            <div className="space-y-2">
+                              <input
+                                type="number"
+                                min="0"
+                                inputMode="decimal"
+                                placeholder="Custom price"
+                                value={formState.customPricePerPlate}
+                                onChange={(event) =>
+                                  setFormState((current) => ({
+                                    ...current,
+                                    customPricePerPlate: event.target.value,
+                                  }))
+                                }
+                                disabled={isProtectedBookingEditLocked}
+                                className={`${inputCls} ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                              />
+                              {isProtectedBookingEditLocked ? (
+                                <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                              ) : null}
+                            </div>
                           </Field>
                         </div>
                       ) : null}
@@ -4051,6 +4102,14 @@ function selectionStatus(order: Order) {
                     </option>
                   ))}
                 </select>
+              </Field>
+              <Field label="Advance Date">
+                <input
+                  type="date"
+                  value={advanceDate}
+                  onChange={(event) => setAdvanceDate(event.target.value)}
+                  className={dateTimeInputCls}
+                />
               </Field>
               <Field label="Remarks">
                 <textarea
@@ -5081,9 +5140,10 @@ function selectionStatus(order: Order) {
               setIsDetailOpen(false);
               setDetailOrder(null);
               setDetailError('');
+              setIsMobileDetailActionsOpen(false);
             }}
             widthClassName="max-w-4xl"
-            panelClassName="flex flex-col"
+            panelClassName="flex flex-col !pb-0"
             scrollablePanel={false}
           >
             {isDetailLoading && !detailOrder ? (
@@ -5189,6 +5249,7 @@ function selectionStatus(order: Order) {
                         ...(detailOrder.confirmedAt
                           ? [['Confirmed', formatFollowUpDate(detailOrder.confirmedAt)]]
                           : []),
+                        ['Created By', detailOrder.bookingTakenBy || 'N/A'],
                       ].map(([label, value]) => (
                         <div key={label} className="min-w-0 rounded-lg bg-slate-50 px-3 py-2">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
@@ -5548,133 +5609,170 @@ function selectionStatus(order: Order) {
                     );
                   })()}
               </div>
-              <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.75rem+var(--zb-safe-bottom))] pt-3 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</p>
-                  </div>
-                  {detailOrder.status === 'CONFIRMED' ? (
-                    <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 sm:inline-flex">
-                      Advance {formatCurrency(detailOrder.advanceAmount)}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="grid grid-cols-2 gap-2 min-[520px]:grid-cols-3 md:grid-cols-4">
-                  {detailOrder.status === 'CONFIRMED' ? (
+              <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
+                {(() => {
+                  const renderDetailActionButtons = () => (
                     <>
-                      <Link
-                        href={`/print/order?id=${detailOrder.id}`}
-                        target="_blank"
-                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Print
-                      </Link>
-                      <Link
-                        href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
-                        target="_blank"
-                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Kitchen Print
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPaymentAmount('');
-                          setPaymentPopupMode(defaultPaymentMode);
-                          setPaymentRemark('');
-                          setPaymentEditor({ orderId: detailOrder.id });
-                          setPaymentPopup({ orderId: detailOrder.id });
-                        }}
-                        className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-                      >
-                        Add Advance
-                      </button>
-                      {detailOrder.activeSignature && !isCompanyAdmin ? (
+                      {detailOrder.status === 'CONFIRMED' ? (
+                        <>
+                          <Link
+                            href={`/print/order?id=${detailOrder.id}`}
+                            target="_blank"
+                            className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          >
+                            Print
+                          </Link>
+                          <Link
+                            href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
+                            target="_blank"
+                            className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          >
+                            Kitchen Print
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPaymentAmount('');
+                              setPaymentPopupMode(defaultPaymentMode);
+                              setPaymentRemark('');
+                              setPaymentEditor({ orderId: detailOrder.id });
+                              setPaymentPopup({ orderId: detailOrder.id });
+                            }}
+                            className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                          >
+                            Add Advance
+                          </button>
+                          {detailOrder.activeSignature && !isCompanyAdmin ? (
+                            <button
+                              type="button"
+                              disabled
+                              className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-500 shadow-sm"
+                            >
+                              Signed
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openSignaturePopup(detailOrder)}
+                              className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-300 bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
+                            >
+                              {detailOrder.activeSignature ? 'Re-sign' : 'Sign'}
+                            </button>
+                          )}
+                        </>
+                      ) : null}
+                      {detailOrder.status === 'INQUIRY' ? (
                         <button
                           type="button"
-                          disabled
-                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-500 shadow-sm"
+                          onClick={() => handleOpenConvertInquiry(detailOrder)}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
                         >
-                          Signed
+                          Confirm Inquiry
                         </button>
-                      ) : (
+                      ) : null}
+                      {isCompanyAdmin &&
+                      (detailOrder.status === 'INQUIRY' ||
+                        detailOrder.status === 'CONFIRMED') ? (
                         <button
                           type="button"
-                          onClick={() => openSignaturePopup(detailOrder)}
-                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-300 bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
+                          onClick={() => openTransferPopup(detailOrder)}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                         >
-                          {detailOrder.activeSignature ? 'Re-sign' : 'Sign'}
+                          Transfer
                         </button>
-                      )}
+                      ) : null}
+                      {(detailOrder.status === 'INQUIRY' ||
+                        detailOrder.status === 'CONFIRMED') ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDetailOpen(false);
+                            setIsMobileDetailActionsOpen(false);
+                            openEditInquiry(detailOrder);
+                          }}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          Edit inquiry
+                        </button>
+                      ) : null}
+                      {(detailOrder.status === 'INQUIRY' ||
+                        detailOrder.status === 'CONFIRMED') ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDetailOpen(false);
+                            setIsMobileDetailActionsOpen(false);
+                            openCategoryChooser(detailOrder);
+                          }}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
+                        </button>
+                      ) : null}
+                      {isCompanyAdmin &&
+                      (detailOrder.status === 'INQUIRY' ||
+                        detailOrder.status === 'CONFIRMED') ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsDetailOpen(false);
+                            setIsMobileDetailActionsOpen(false);
+                            setCancelPopup({
+                              order: detailOrder,
+                              reason: '',
+                              advanceOption: null,
+                              expiryMonths: null,
+                              expiryCustomDate: '',
+                              paybackMode: null,
+                            });
+                          }}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
+                        >
+                          Cancel order
+                        </button>
+                      ) : null}
                     </>
-                  ) : null}
-                  {detailOrder.status === 'INQUIRY' ? (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenConvertInquiry(detailOrder)}
-                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-                    >
-                      Confirm Inquiry
-                    </button>
-                  ) : null}
-                  {(detailOrder.status === 'INQUIRY' ||
-                    detailOrder.status === 'CONFIRMED') ? (
-                    <button
-                      type="button"
-                      onClick={() => openTransferPopup(detailOrder)}
-                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                    >
-                      Transfer
-                    </button>
-                  ) : null}
-                  {(detailOrder.status === 'INQUIRY' ||
-                    detailOrder.status === 'CONFIRMED') ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsDetailOpen(false);
-                        openEditInquiry(detailOrder);
-                      }}
-                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                    >
-                      Edit inquiry
-                    </button>
-                  ) : null}
-                  {(detailOrder.status === 'INQUIRY' ||
-                    detailOrder.status === 'CONFIRMED') ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsDetailOpen(false);
-                        openCategoryChooser(detailOrder);
-                      }}
-                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                    >
-                      {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
-                    </button>
-                  ) : null}
-                  {isCompanyAdmin &&
-                  (detailOrder.status === 'INQUIRY' ||
-                    detailOrder.status === 'CONFIRMED') ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsDetailOpen(false);
-                        setCancelPopup({
-                          order: detailOrder,
-                          reason: '',
-                          advanceOption: null,
-                          expiryMonths: null,
-                          expiryCustomDate: '',
-                          paybackMode: null,
-                        });
-                      }}
-                      className="inline-flex min-w-0 items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-semibold text-red-600 shadow-sm transition hover:bg-red-50"
-                    >
-                      Cancel order
-                    </button>
-                  ) : null}
-                </div>
+                  );
+
+                  return (
+                    <>
+                      <div className="hidden items-center justify-between gap-3 sm:mb-2 sm:flex">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</p>
+                        {detailOrder.status === 'CONFIRMED' ? (
+                          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                            Advance {formatCurrency(detailOrder.advanceAmount)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div
+                        className={`grid gap-2 overflow-hidden transition-[max-height,opacity,margin] duration-200 sm:hidden ${
+                          isMobileDetailActionsOpen
+                            ? 'mb-2 max-h-[420px] grid-cols-2 opacity-100'
+                            : 'mb-0 max-h-0 grid-cols-2 opacity-0'
+                        }`}
+                      >
+                        {isMobileDetailActionsOpen ? renderDetailActionButtons() : null}
+                      </div>
+                      <div className="sm:hidden">
+                        <button
+                          type="button"
+                          aria-label={isMobileDetailActionsOpen ? 'Hide booking actions' : 'Show booking actions'}
+                          aria-expanded={isMobileDetailActionsOpen}
+                          onClick={() => setIsMobileDetailActionsOpen((current) => !current)}
+                          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          <span>Actions</span>
+                          <span className={isMobileDetailActionsOpen ? 'transition-transform' : 'rotate-180 transition-transform'}>
+                            <IconChevronDown />
+                          </span>
+                        </button>
+                      </div>
+                      <div className="hidden grid-cols-2 gap-2 sm:grid min-[520px]:grid-cols-3 md:grid-cols-4">
+                        {renderDetailActionButtons()}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               </div>
             ) : null}
@@ -5831,9 +5929,11 @@ function Field({
 function TimePicker({
   value,
   onChange,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
   hourPlaceholder?: string;
   minutePlaceholder?: string;
 }) {
@@ -5875,12 +5975,13 @@ function TimePicker({
     <div className="grid gap-2 sm:grid-cols-3">
       <select
         value={localHour}
+        disabled={disabled}
         onChange={(e) => {
           const nextHour = e.target.value;
           setLocalHour(nextHour);
           emitTime(nextHour, localMinute, localPeriod);
         }}
-        className={`${inputCls} light-form-field min-h-12 flex-1`}
+        className={`${inputCls} light-form-field min-h-12 flex-1 ${disabled ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
       >
         <option value="">Hour</option>
         {hourOptions.map((hour) => (
@@ -5889,12 +5990,13 @@ function TimePicker({
       </select>
       <select
         value={localMinute}
+        disabled={disabled}
         onChange={(e) => {
           const nextMinute = e.target.value;
           setLocalMinute(nextMinute);
           emitTime(localHour, nextMinute, localPeriod);
         }}
-        className={`${inputCls} light-form-field min-h-12 flex-1`}
+        className={`${inputCls} light-form-field min-h-12 flex-1 ${disabled ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
       >
         {minuteOptions.map((minute) => (
           <option key={minute} value={minute}>{minute}</option>
@@ -5902,12 +6004,13 @@ function TimePicker({
       </select>
       <select
         value={localPeriod}
+        disabled={disabled}
         onChange={(e) => {
           const nextPeriod = e.target.value;
           setLocalPeriod(nextPeriod);
           emitTime(localHour, localMinute, nextPeriod);
         }}
-        className={`${inputCls} light-form-field min-h-12 flex-1`}
+        className={`${inputCls} light-form-field min-h-12 flex-1 ${disabled ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
       >
         <option value="">--</option>
         <option value="AM">AM</option>
