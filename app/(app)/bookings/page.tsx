@@ -330,6 +330,11 @@ export default function BookingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCalendarLoading, setIsCalendarLoading] = useState(true);
   const [isCalendarActionsOpen, setIsCalendarActionsOpen] = useState(false);
+  const [isCalendarSearchOpen, setIsCalendarSearchOpen] = useState(false);
+  const [calendarSearchInput, setCalendarSearchInput] = useState('');
+  const [calendarSearchResults, setCalendarSearchResults] = useState<Order[]>([]);
+  const [isCalendarSearchLoading, setIsCalendarSearchLoading] = useState(false);
+  const [calendarSearchError, setCalendarSearchError] = useState('');
   const [hotDateKeys, setHotDateKeys] = useState<Set<string>>(new Set());
   const loadedHotDateYear = useRef<number | null>(null);
   const [pageError, setPageError] = useState('');
@@ -420,6 +425,7 @@ export default function BookingsPage() {
   const [customMenuPopup, setCustomMenuPopup] = useState<CustomMenuPopupState | null>(null);
   const menuSelectionTrackingRef = useRef<MenuSelectionTrackingState | null>(null);
   const deepLinkedOrderIdRef = useRef<string | null>(null);
+  const calendarSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!toast) {
@@ -667,6 +673,8 @@ export default function BookingsPage() {
     0,
   );
   const grandTotal = baseTotal + addonPrice;
+  const calendarSearchQuery = calendarSearchInput.trim().toLowerCase();
+  const isCalendarSearchActive = calendarSearchQuery.length > 0;
   const filteredCalendarOrders = calendarOrders;
   const monthGrid = useMemo(() => buildMonthGrid(calendarMonth), [calendarMonth]);
   const ordersByDate = useMemo(() => {
@@ -706,6 +714,79 @@ export default function BookingsPage() {
       setPaymentPopupMode(defaultPaymentMode);
     }
   }, [defaultPaymentMode, paymentOptions, paymentPopupMode]);
+
+  useEffect(() => {
+    if (!isCalendarSearchOpen) {
+      return;
+    }
+
+    calendarSearchInputRef.current?.focus();
+  }, [isCalendarSearchOpen]);
+
+  useEffect(() => {
+    if (!accessToken || !calendarSearchQuery) {
+      setCalendarSearchResults([]);
+      setCalendarSearchError('');
+      setIsCalendarSearchLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    const token = accessToken;
+    const timeoutId = window.setTimeout(() => {
+      setIsCalendarSearchLoading(true);
+      setCalendarSearchError('');
+
+      void fetchOrders(token, {
+        page: 1,
+        limit: 1000,
+        search: calendarSearchQuery,
+        status: '',
+      })
+        .then((response) => {
+          if (!isActive) {
+            return;
+          }
+
+          const matchingOrders = response.items.filter((order) => {
+            const customerName = `${order.customer.firstName} ${order.customer.lastName}`
+              .trim()
+              .toLowerCase();
+
+            return customerName.includes(calendarSearchQuery);
+          }).sort((left, right) => {
+            const leftDate = left.eventDate ? new Date(left.eventDate).getTime() : Number.MAX_SAFE_INTEGER;
+            const rightDate = right.eventDate ? new Date(right.eventDate).getTime() : Number.MAX_SAFE_INTEGER;
+
+            return leftDate - rightDate;
+          });
+
+          setCalendarSearchResults(matchingOrders);
+        })
+        .catch((requestError) => {
+          if (!isActive) {
+            return;
+          }
+
+          setCalendarSearchResults([]);
+          setCalendarSearchError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to search bookings.',
+          );
+        })
+        .finally(() => {
+          if (isActive) {
+            setIsCalendarSearchLoading(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [accessToken, calendarSearchQuery]);
 
   useEffect(() => {
     setSelectedCalendarDay(formatDateKey(calendarMonth));
@@ -2383,6 +2464,117 @@ function selectionStatus(order: Order) {
             description={pageError}
             compact
           />
+        ) : isCalendarSearchOpen ? (
+          <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="relative mx-auto w-full max-w-md">
+              <label className="sr-only" htmlFor="booking-global-search">
+                Search bookings by name
+              </label>
+              <input
+                ref={calendarSearchInputRef}
+                id="booking-global-search"
+                type="text"
+                value={calendarSearchInput}
+                onChange={(event) => setCalendarSearchInput(event.target.value)}
+                placeholder="Search by name"
+                className={`${inputCls} h-11 rounded-2xl border-slate-200 bg-white pl-10 pr-10 text-sm`}
+              />
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 3 3" />
+                  <circle cx="8.5" cy="8.5" r="5.5" />
+                </svg>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCalendarSearchOpen(false);
+                  setCalendarSearchInput('');
+                  setCalendarSearchResults([]);
+                  setCalendarSearchError('');
+                }}
+                aria-label="Close booking search"
+                className="absolute right-2.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                  <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
+                </svg>
+              </button>
+            </div>
+
+            {!isCalendarSearchActive ? null : isCalendarSearchLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
+                Searching bookings...
+              </div>
+            ) : calendarSearchError ? (
+              <EmptyState title="Unable to search bookings" description={calendarSearchError} compact />
+            ) : calendarSearchResults.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                No booking found for "{calendarSearchInput.trim()}".
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {calendarSearchResults.map((order) => {
+                  const cardCls =
+                    order.status === 'INQUIRY' && order.inquiryClosed
+                      ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
+                      : order.status === 'CONFIRMED'
+                        ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
+                        : order.status === 'INQUIRY'
+                          ? 'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]'
+                          : 'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]';
+                  return (
+                    <button
+                      type="button"
+                      key={`global-search-${order.id}`}
+                      onClick={() => void openOrderDetail(order.id, order)}
+                      className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${cardCls}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-base font-semibold text-slate-900">
+                            {order.customer.firstName} {order.customer.lastName}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {order.functionName || 'Event pending'}
+                          </p>
+                          <p className="mt-2 text-xs font-semibold text-slate-900">
+                            {order.eventDate ? formatDisplayDate(order.eventDate) : 'Date pending'}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {order.startTime && order.endTime
+                              ? formatTimeRange(order.startTime, order.endTime)
+                              : 'Time pending'}{' '}
+                            • {order.pax ? `${order.pax} pax` : 'Pax pending'}
+                          </p>
+                          {order.serviceSlot ? (
+                            <p className="mt-1 text-xs font-semibold text-slate-900">
+                              Service Slot: {order.serviceSlot}
+                            </p>
+                          ) : null}
+                          {order.hallDetails ? (
+                            <p className="mt-1 text-xs font-semibold text-slate-900">
+                              Hall Details: {order.hallDetails}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-2 text-right">
+                          <span
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(
+                              order.status,
+                              order.inquiryClosed,
+                            )}`}
+                          >
+                            {order.inquiryClosed ? 'CLOSED INQUIRY' : order.status}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         ) : viewMode === 'list' ? (
           <>
             <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -2396,21 +2588,34 @@ function selectionStatus(order: Order) {
                       {formatMonthLabel(calendarMonth)}
                     </h2>
                   </div>
-                  <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                  <div className="flex shrink-0 items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setViewMode('list')}
-                      className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-white transition"
+                      onClick={() => setIsCalendarSearchOpen(true)}
+                      aria-label="Search bookings"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
                     >
-                      List
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 3 3" />
+                        <circle cx="8.5" cy="8.5" r="5.5" />
+                      </svg>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('calendar')}
-                      className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-                    >
-                      Calendar
-                    </button>
+                    <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('list')}
+                        className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-medium text-white transition"
+                      >
+                        List
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('calendar')}
+                        className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                      >
+                        Calendar
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
@@ -2705,7 +2910,7 @@ function selectionStatus(order: Order) {
         ) : (
           <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2 sm:gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
                 <div className="min-w-0 flex-1 pr-2">
                   <h2 className="truncate text-lg font-bold leading-none text-slate-900 sm:text-[2rem]">
                     {formatMonthLabel(calendarMonth)}
@@ -2728,6 +2933,55 @@ function selectionStatus(order: Order) {
                   >
                     <IconGlyph icon="next" />
                   </button>
+                  {isCalendarSearchOpen ? (
+                    <div className="relative w-[150px] shrink-0 sm:w-[220px]">
+                      <label className="sr-only" htmlFor="calendar-booking-search">
+                        Search bookings by name
+                      </label>
+                      <input
+                        ref={calendarSearchInputRef}
+                        id="calendar-booking-search"
+                        type="text"
+                        value={calendarSearchInput}
+                        onChange={(event) => setCalendarSearchInput(event.target.value)}
+                        placeholder="Search"
+                        className={`${inputCls} h-10 rounded-2xl border-slate-200 bg-white pl-9 pr-9 text-sm sm:h-12`}
+                      />
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 3 3" />
+                          <circle cx="8.5" cy="8.5" r="5.5" />
+                        </svg>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCalendarSearchOpen(false);
+                          setCalendarSearchInput('');
+                          setCalendarSearchResults([]);
+                          setCalendarSearchError('');
+                        }}
+                        aria-label="Close booking search"
+                        className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                      >
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                          <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsCalendarSearchOpen(true)}
+                      aria-label="Search bookings"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
+                    >
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 sm:h-5 sm:w-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 3 3" />
+                        <circle cx="8.5" cy="8.5" r="5.5" />
+                      </svg>
+                    </button>
+                  )}
                   <div className="hidden items-center gap-2 sm:flex sm:gap-3">
                     <div className="flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
                       <button
@@ -2764,12 +3018,153 @@ function selectionStatus(order: Order) {
                 </div>
               </div>
             </div>
-            {isCalendarLoading ? (
+            {isCalendarSearchOpen ? (
+              <div className="space-y-4">
+                {!isCalendarSearchActive ? null : isCalendarSearchLoading ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
+                    Searching bookings...
+                  </div>
+                ) : calendarSearchError ? (
+                  <EmptyState title="Unable to search bookings" description={calendarSearchError} compact />
+                ) : calendarSearchResults.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                    No booking found for "{calendarSearchInput.trim()}".
+                  </div>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {calendarSearchResults.map((order) => {
+                      const cardCls =
+                        order.status === 'INQUIRY' && order.inquiryClosed
+                          ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
+                          : order.status === 'CONFIRMED'
+                            ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
+                            : order.status === 'INQUIRY'
+                              ? 'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]'
+                              : 'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]';
+                      return (
+                        <button
+                          type="button"
+                          key={`calendar-search-${order.id}`}
+                          onClick={() => void openOrderDetail(order.id, order)}
+                          className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${cardCls}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-base font-semibold text-slate-900">
+                                {order.customer.firstName} {order.customer.lastName}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-600">
+                                {order.functionName || 'Event pending'}
+                              </p>
+                              <p className="mt-2 text-xs font-semibold text-slate-900">
+                                {order.eventDate ? formatDisplayDate(order.eventDate) : 'Date pending'}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {order.startTime && order.endTime
+                                  ? formatTimeRange(order.startTime, order.endTime)
+                                  : 'Time pending'}{' '}
+                                • {order.pax ? `${order.pax} pax` : 'Pax pending'}
+                              </p>
+                              {order.serviceSlot ? (
+                                <p className="mt-1 text-xs font-semibold text-slate-900">
+                                  Service Slot: {order.serviceSlot}
+                                </p>
+                              ) : null}
+                              {order.hallDetails ? (
+                                <p className="mt-1 text-xs font-semibold text-slate-900">
+                                  Hall Details: {order.hallDetails}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex shrink-0 flex-col items-end gap-2 text-right">
+                              <span
+                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(
+                                  order.status,
+                                  order.inquiryClosed,
+                                )}`}
+                              >
+                                {order.inquiryClosed ? 'CLOSED INQUIRY' : order.status}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : isCalendarLoading ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
                 Loading calendar…
               </div>
             ) : (
                 <div className="space-y-4">
+                  {isCalendarSearchActive ? (
+                    <>
+                      {calendarSearchResults.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                          No booking found for "{calendarSearchInput.trim()}" in {formatMonthLabel(calendarMonth)}.
+                        </div>
+                      ) : (
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {calendarSearchResults.map((calendarOrder) => {
+                            const cardCls =
+                              calendarOrder.status === 'INQUIRY' && calendarOrder.inquiryClosed
+                                ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
+                                : calendarOrder.status === 'CONFIRMED'
+                                  ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
+                                  : calendarOrder.status === 'INQUIRY'
+                                    ? 'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]'
+                                    : 'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]';
+                            return (
+                              <button
+                                type="button"
+                                key={`calendar-search-${calendarOrder.id}`}
+                                onClick={() => void openOrderDetail(calendarOrder.id)}
+                                className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${cardCls}`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-base font-semibold text-slate-900">
+                                      {calendarOrder.customer.firstName} {calendarOrder.customer.lastName}
+                                    </p>
+                                    <p className="mt-1 text-sm text-slate-600">{calendarOrder.functionName || 'Event pending'}</p>
+                                    <p className="mt-2 text-xs font-semibold text-slate-900">
+                                      {calendarOrder.eventDate ? formatDisplayDate(calendarOrder.eventDate) : 'Date pending'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      {formatTimeRange(calendarOrder.startTime, calendarOrder.endTime)} • {calendarOrder.pax} pax
+                                    </p>
+                                    {calendarOrder.serviceSlot ? (
+                                      <p className="mt-1 text-xs font-semibold text-slate-900">
+                                        Service Slot: {calendarOrder.serviceSlot}
+                                      </p>
+                                    ) : null}
+                                    {calendarOrder.hallDetails ? (
+                                      <p className="mt-1 text-xs font-semibold text-slate-900">
+                                        Hall Details: {calendarOrder.hallDetails}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex shrink-0 flex-col items-end gap-2 text-right">
+                                    <span
+                                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(
+                                        calendarOrder.status,
+                                        calendarOrder.inquiryClosed,
+                                      )}`}
+                                    >
+                                      {calendarOrder.inquiryClosed ? 'CLOSED INQUIRY' : calendarOrder.status}
+                                    </span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
                   {calendarOrders.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                       No bookings in this range. You can still browse dates and add a new inquiry.
@@ -2862,6 +3257,8 @@ function selectionStatus(order: Order) {
                       );
                     })}
                   </div>
+                    </>
+                  )}
                 </div>
             )}
           </div>
