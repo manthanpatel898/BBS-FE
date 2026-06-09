@@ -50,11 +50,23 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
         run: npm run build
 
+      - name: Validate deployment configuration
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME || vars.AWS_ROLE_TO_ASSUME }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          test -n "$AWS_REGION" || { echo "AWS_REGION is missing in the production environment variables."; exit 1; }
+          test -n "$AWS_ROLE_TO_ASSUME" || { echo "AWS_ROLE_TO_ASSUME is missing in the production environment secrets or variables."; exit 1; }
+          test -n "$S3_BUCKET" || { echo "S3_BUCKET is missing in the production environment variables."; exit 1; }
+          test -n "$CLOUDFRONT_DISTRIBUTION_ID" || { echo "CLOUDFRONT_DISTRIBUTION_ID is missing in the production environment variables."; exit 1; }
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ vars.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME || vars.AWS_ROLE_TO_ASSUME }}
 
       - name: Upload site to S3
         run: |
