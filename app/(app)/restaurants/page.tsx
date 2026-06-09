@@ -84,6 +84,7 @@ function actionLogBadge(action: string) {
 
 export default function RestaurantsPage() {
   const { accessToken } = useAuth();
+  const [currentTime] = useState(() => Date.now());
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -285,7 +286,7 @@ export default function RestaurantsPage() {
   }
 
   function daysUntil(dateStr: string) {
-    const diff = new Date(dateStr).getTime() - Date.now();
+    const diff = new Date(dateStr).getTime() - currentTime;
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
 
