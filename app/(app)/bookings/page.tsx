@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -516,6 +516,34 @@ export default function BookingsPage() {
     calendarMonth,
   ]);
 
+  const openOrderDetail = useCallback(
+    async (orderId: string, initialOrder?: Order) => {
+      if (!accessToken) {
+        return;
+      }
+
+      setIsDetailOpen(true);
+      setDetailOrder(initialOrder ?? null);
+      setIsDetailLoading(true);
+      setDetailError('');
+      setIsMobileDetailActionsOpen(false);
+
+      try {
+        const order = await fetchOrderById(accessToken, orderId);
+        setDetailOrder(order);
+      } catch (requestError) {
+        setDetailError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to fetch booking details.',
+        );
+      } finally {
+        setIsDetailLoading(false);
+      }
+    },
+    [accessToken],
+  );
+
   useEffect(() => {
     setSelectedEventPlanner(detailOrder?.currentEventPlanner?.plannerName ?? '');
   }, [detailOrder?.currentEventPlanner?.plannerName]);
@@ -529,7 +557,7 @@ export default function BookingsPage() {
 
     deepLinkedOrderIdRef.current = orderId;
     void openOrderDetail(orderId);
-  }, [accessToken, searchParams]);
+  }, [accessToken, openOrderDetail, searchParams]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -589,7 +617,10 @@ export default function BookingsPage() {
   const popupPaymentModeChoices = withCurrentOption(paymentOptions, paymentPopupMode);
   const eventChoices = [...eventOptions, 'Other'];
   const isCustomEventSelected = formState.eventName === EVENT_OTHER_VALUE;
-  const hallDetailOptions = settings?.hallDetails.map((option) => option.label) ?? [];
+  const hallDetailOptions = useMemo(
+    () => settings?.hallDetails.map((option) => option.label) ?? [],
+    [settings?.hallDetails],
+  );
   const generatedHallDetailChoices = useMemo(
     () =>
       filterHiddenHallDetailChoices(
@@ -980,31 +1011,6 @@ export default function BookingsPage() {
       void loadCategories(accessToken).catch(() => {
         setToast({ type: 'error', message: 'Unable to load categories.' });
       });
-    }
-  }
-
-  async function openOrderDetail(orderId: string, initialOrder?: Order) {
-    if (!accessToken) {
-      return;
-    }
-
-    setIsDetailOpen(true);
-    setDetailOrder(initialOrder ?? null);
-    setIsDetailLoading(true);
-    setDetailError('');
-    setIsMobileDetailActionsOpen(false);
-
-    try {
-      const order = await fetchOrderById(accessToken, orderId);
-      setDetailOrder(order);
-    } catch (requestError) {
-      setDetailError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to fetch booking details.',
-      );
-    } finally {
-      setIsDetailLoading(false);
     }
   }
 
@@ -2515,7 +2521,7 @@ function selectionStatus(order: Order) {
               <EmptyState title="Unable to search bookings" description={calendarSearchError} compact />
             ) : calendarSearchResults.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                No booking found for "{calendarSearchInput.trim()}".
+                No booking found for &quot;{calendarSearchInput.trim()}&quot;.
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -3033,7 +3039,7 @@ function selectionStatus(order: Order) {
                   <EmptyState title="Unable to search bookings" description={calendarSearchError} compact />
                 ) : calendarSearchResults.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                    No booking found for "{calendarSearchInput.trim()}".
+                    No booking found for &quot;{calendarSearchInput.trim()}&quot;.
                   </div>
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -3108,7 +3114,7 @@ function selectionStatus(order: Order) {
                     <>
                       {calendarSearchResults.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-                          No booking found for "{calendarSearchInput.trim()}" in {formatMonthLabel(calendarMonth)}.
+                          No booking found for &quot;{calendarSearchInput.trim()}&quot; in {formatMonthLabel(calendarMonth)}.
                         </div>
                       ) : (
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -6012,6 +6018,7 @@ function selectionStatus(order: Order) {
                   })()}
               </div>
               <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
+                {/* eslint-disable-next-line react-hooks/refs */}
                 {(() => {
                   const renderDetailActionButtons = () => (
                     <>

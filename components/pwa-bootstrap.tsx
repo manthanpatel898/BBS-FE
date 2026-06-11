@@ -212,7 +212,6 @@ export function PwaBootstrap({ children }: { children: ReactNode }) {
     if (platform === 'ios') {
       setShowIosHint(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   /* ── requestInstall (called from UI button) ── */

@@ -229,7 +229,6 @@ export default function FollowupsPage() {
   useEffect(() => {
     if (!accessToken) return;
     void loadMonth(accessToken, currentMonth);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, currentMonth]);
 
   async function loadMonth(token: string, month: Date) {
