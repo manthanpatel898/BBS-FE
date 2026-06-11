@@ -8,8 +8,9 @@ function PrintOrderContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id') ?? undefined;
   const copy = searchParams.get('copy') ?? undefined;
+  const type = searchParams.get('type') ?? undefined;
 
-  return <PrintOrderView orderId={id} copyType={copy} />;
+  return <PrintOrderView orderId={id} copyType={copy} orderType={type} />;
 }
 
 export default function PrintOrderPage() {

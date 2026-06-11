@@ -16,6 +16,13 @@ import {
   HotDate,
   ItemSalesReportRow,
   Menu,
+  OdcCategory,
+  OdcCustomer,
+  OdcCalendarOrder,
+  OdcMenu,
+  OdcOrder,
+  OdcOrderStatus,
+  OdcSummaryReport,
   Order,
   OrderSignature,
   OrderReports,
@@ -27,6 +34,10 @@ import {
   PaginatedEmployees,
   PaginatedCategories,
   PaginatedMenus,
+  PaginatedOdcCategories,
+  PaginatedOdcCustomers,
+  PaginatedOdcMenus,
+  PaginatedOdcOrders,
   PaginatedOrders,
   PaginatedRestaurants,
   PendingPaymentReportRow,
@@ -303,7 +314,10 @@ export async function fetchEmployees(
 
 export async function createEmployee(
   accessToken: string,
-  payload: Pick<Employee, 'firstName' | 'lastName' | 'username' | 'contactNo' | 'designation'> & {
+  payload: Pick<
+    Employee,
+    'firstName' | 'lastName' | 'username' | 'contactNo' | 'designation' | 'canAccessOdc'
+  > & {
     password: string;
     role: string;
   },
@@ -319,7 +333,13 @@ export async function updateEmployee(
   employeeId: string,
   payload: Pick<
     Employee,
-    'firstName' | 'lastName' | 'username' | 'contactNo' | 'designation' | 'isActive'
+    | 'firstName'
+    | 'lastName'
+    | 'username'
+    | 'contactNo'
+    | 'designation'
+    | 'isActive'
+    | 'canAccessOdc'
   > & { role: string; password?: string },
 ) {
   return authorizedRequest<Employee>(`/employees/${employeeId}`, accessToken, {
@@ -493,6 +513,424 @@ export async function deleteMenu(accessToken: string, menuId: string) {
   return authorizedRequest<null>(`/menus/${menuId}`, accessToken, {
     method: 'DELETE',
   });
+}
+
+export async function fetchOdcCategories(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search: string;
+    restaurantId?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.restaurantId?.trim()) {
+    query.set('restaurantId', params.restaurantId.trim());
+  }
+
+  return authorizedRequest<PaginatedOdcCategories>(
+    `/odc/categories?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function createOdcCategory(
+  accessToken: string,
+  payload: {
+    name: string;
+    pricePerPlate: number;
+    description: string | null;
+    menuRules: Array<{
+      menuId: string;
+      sectionTitle: string;
+      allowedItems: string[];
+      selectionLimit: number;
+    }>;
+    restaurantId?: string;
+  },
+) {
+  return authorizedRequest<OdcCategory>('/odc/categories', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOdcCategory(
+  accessToken: string,
+  categoryId: string,
+  payload: {
+    name: string;
+    pricePerPlate: number;
+    description: string | null;
+    menuRules: Array<{
+      menuId: string;
+      sectionTitle: string;
+      allowedItems: string[];
+      selectionLimit: number;
+    }>;
+  },
+) {
+  return authorizedRequest<OdcCategory>(`/odc/categories/${categoryId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteOdcCategory(accessToken: string, categoryId: string) {
+  return authorizedRequest<null>(`/odc/categories/${categoryId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchOdcMenus(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search: string;
+    categoryId?: string;
+    restaurantId?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.categoryId?.trim()) {
+    query.set('categoryId', params.categoryId.trim());
+  }
+
+  if (params.restaurantId?.trim()) {
+    query.set('restaurantId', params.restaurantId.trim());
+  }
+
+  return authorizedRequest<PaginatedOdcMenus>(
+    `/odc/menus?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function createOdcMenu(
+  accessToken: string,
+  payload: Pick<OdcMenu, 'title' | 'sections'> & {
+    displayOrder?: number;
+    categoryId?: string;
+    restaurantId?: string;
+  },
+) {
+  return authorizedRequest<OdcMenu>('/odc/menus', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOdcMenu(
+  accessToken: string,
+  menuId: string,
+  payload: Pick<OdcMenu, 'title' | 'sections'> & {
+    displayOrder?: number;
+    categoryId?: string;
+  },
+) {
+  return authorizedRequest<OdcMenu>(`/odc/menus/${menuId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteOdcMenu(accessToken: string, menuId: string) {
+  return authorizedRequest<null>(`/odc/menus/${menuId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
+export async function copyBanquetCatalogToOdc(
+  accessToken: string,
+  payload: { restaurantId: string },
+) {
+  return authorizedRequest<{
+    menusCopied: number;
+    menusSkipped: number;
+    categoriesCopied: number;
+    categoriesSkipped: number;
+  }>('/odc/admin/copy-banquet-catalog', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchOdcCustomers(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search: string;
+    restaurantId?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.restaurantId?.trim()) {
+    query.set('restaurantId', params.restaurantId.trim());
+  }
+
+  return authorizedRequest<PaginatedOdcCustomers>(
+    `/odc/customers?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function createOdcCustomer(
+  accessToken: string,
+  payload: Pick<OdcCustomer, 'firstName' | 'lastName' | 'phone' | 'email' | 'address'> & {
+    restaurantId?: string;
+  },
+) {
+  return authorizedRequest<OdcCustomer>('/odc/customers', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOdcCustomer(
+  accessToken: string,
+  customerId: string,
+  payload: Partial<Pick<OdcCustomer, 'firstName' | 'lastName' | 'phone' | 'email' | 'address'>>,
+) {
+  return authorizedRequest<OdcCustomer>(`/odc/customers/${customerId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchOdcOrders(
+  accessToken: string,
+  params: {
+    page: number;
+    limit: number;
+    search: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    inquiryFrom?: string;
+    inquiryTo?: string;
+    restaurantId?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+
+  if (params.search.trim()) query.set('search', params.search.trim());
+  if (params.status?.trim()) query.set('status', params.status.trim());
+  if (params.from?.trim()) query.set('from', params.from.trim());
+  if (params.to?.trim()) query.set('to', params.to.trim());
+  if (params.inquiryFrom?.trim()) query.set('inquiryFrom', params.inquiryFrom.trim());
+  if (params.inquiryTo?.trim()) query.set('inquiryTo', params.inquiryTo.trim());
+  if (params.restaurantId?.trim()) query.set('restaurantId', params.restaurantId.trim());
+
+  return authorizedRequest<PaginatedOdcOrders>(
+    `/odc/orders?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchOdcCalendarOrders(
+  accessToken: string,
+  params: { from: string; to: string; restaurantId?: string },
+) {
+  const query = new URLSearchParams({
+    from: params.from,
+    to: params.to,
+  });
+
+  if (params.restaurantId?.trim()) {
+    query.set('restaurantId', params.restaurantId.trim());
+  }
+
+  return authorizedRequest<OdcCalendarOrder[]>(
+    `/odc/orders/calendar?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchOdcSummaryReport(
+  accessToken: string,
+  params: { from: string; to: string; restaurantId?: string },
+) {
+  const query = new URLSearchParams({
+    from: params.from,
+    to: params.to,
+  });
+
+  if (params.restaurantId?.trim()) {
+    query.set('restaurantId', params.restaurantId.trim());
+  }
+
+  return authorizedRequest<OdcSummaryReport>(
+    `/odc/orders/reports/summary?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export type OdcOrderPayload = {
+    restaurantId?: string;
+    customerId?: string;
+    customer?: {
+      firstName: string;
+      lastName?: string;
+      phone: string;
+      email?: string;
+      address?: string;
+    };
+    categoryId?: string;
+    status?: OdcOrderStatus;
+    pax?: number;
+    eventName?: string;
+    eventDate?: string;
+    inquiryDate?: string;
+    startTime?: string;
+    endTime?: string;
+    serviceSlot?: string;
+    jainSwaminarayanPax?: number;
+    jainSwaminarayanDetails?: string;
+    eventAddress?: string;
+    area?: string;
+    city?: string;
+    landmark?: string;
+    googleMapsLink?: string;
+    serviceType?: string;
+    venueType?: string;
+    setupRequirement?: string;
+    transportNotes?: string;
+    servingStaffRequirement?: string;
+    packagingRequirement?: string;
+    equipmentRequirement?: string;
+    selectedMenus?: Array<{
+      menuId: string;
+      sections: Array<{ sectionTitle: string; items: string[] }>;
+    }>;
+    pricePerPlate?: number;
+    customPricePerPlate?: number;
+    extraCharges?: number;
+    discountAmount?: number;
+    advanceAmount?: number;
+    paymentMode?: string;
+    advanceDate?: string;
+    assignedStaffMember?: string;
+    notes?: string;
+    menuComment?: string;
+};
+
+export async function createOdcOrder(
+  accessToken: string,
+  payload: OdcOrderPayload,
+) {
+  return authorizedRequest<OdcOrder>('/odc/orders', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOdcOrder(
+  accessToken: string,
+  orderId: string,
+  payload: OdcOrderPayload,
+) {
+  return authorizedRequest<OdcOrder>(`/odc/orders/${orderId}`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchOdcOrderById(accessToken: string, orderId: string) {
+  return authorizedRequest<OdcOrder>(`/odc/orders/${orderId}`, accessToken);
+}
+
+export async function fetchOdcOrderPrint(accessToken: string, orderId: string) {
+  return authorizedRequest<OdcOrder>(`/odc/orders/${orderId}/print`, accessToken);
+}
+
+export async function fetchOdcOrderSignature(accessToken: string, orderId: string) {
+  return authorizedRequest<OrderSignature | null>(`/odc/orders/${orderId}/signature`, accessToken);
+}
+
+export async function saveOdcOrderSignature(
+  accessToken: string,
+  orderId: string,
+  payload: {
+    signatureImage: string;
+    confirmationAccepted: boolean;
+    confirmationText: string;
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    locationPermissionStatus: 'GRANTED' | 'DENIED' | 'UNAVAILABLE';
+  },
+) {
+  return authorizedRequest<OrderSignature>(`/odc/orders/${orderId}/signature`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOdcOrderStatus(
+  accessToken: string,
+  orderId: string,
+  payload: { status: OdcOrderStatus; cancelReason?: string },
+) {
+  return authorizedRequest<OdcOrder>(`/odc/orders/${orderId}/status`, accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addOdcOrderFollowUp(
+  accessToken: string,
+  orderId: string,
+  payload: { note: string; date?: string; nextFollowUpDate?: string },
+) {
+  return authorizedRequest<OdcOrder>(`/odc/orders/${orderId}/follow-ups`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addOdcAdvancePayment(
+  accessToken: string,
+  orderId: string,
+  payload: { amount: number; paymentMode: string; date?: string; remark?: string },
+) {
+  return authorizedRequest<OdcOrder>(
+    `/odc/orders/${orderId}/advance-payments`,
+    accessToken,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function lookupCustomerByPhone(accessToken: string, phone: string) {

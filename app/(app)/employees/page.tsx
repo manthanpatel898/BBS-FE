@@ -56,6 +56,7 @@ type EmployeeFormState = {
   contactNo: string;
   password: string;
   isActive: boolean;
+  canAccessOdc: boolean;
 };
 
 type SignatureModalState = {
@@ -73,6 +74,7 @@ const initialFormState: EmployeeFormState = {
   contactNo: '',
   password: '',
   isActive: true,
+  canAccessOdc: false,
 };
 
 const inputCls =
@@ -150,6 +152,7 @@ export default function EmployeesPage() {
       contactNo: employee.contactNo,
       password: '',
       isActive: employee.isActive,
+      canAccessOdc: employee.canAccessOdc ?? false,
     });
     setIsModalOpen(true);
   }
@@ -197,9 +200,11 @@ export default function EmployeesPage() {
       const { displayRole, ...restFormState } = formState;
       const role = toUserRole(displayRole);
       const designation = displayRole;
+      const canAccessOdc = role === 'employee' ? restFormState.canAccessOdc : false;
       if (editingEmployee) {
         const updatePayload = {
           ...restFormState,
+          canAccessOdc,
           role,
           designation,
           ...(canManagePassword(displayRole) && restFormState.password.trim()
@@ -209,7 +214,7 @@ export default function EmployeesPage() {
         await updateEmployee(token, editingEmployee.id, updatePayload);
         showToast('Employee updated successfully.', 'success');
       } else {
-        await createEmployee(token, { ...restFormState, role, designation });
+        await createEmployee(token, { ...restFormState, canAccessOdc, role, designation });
         showToast('Employee created successfully.', 'success');
       }
 
@@ -717,6 +722,8 @@ export default function EmployeesPage() {
                     setFormState((current) => ({
                       ...current,
                       displayRole: event.target.value as DisplayRole,
+                      canAccessOdc:
+                        event.target.value === 'Manager' ? current.canAccessOdc : false,
                     }))
                   }
                   className={inputCls}
@@ -814,8 +821,36 @@ export default function EmployeesPage() {
                     </p>
                   </div>
                 ) : null}
+                <label
+                  className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm md:col-span-2 ${
+                    formState.displayRole === 'Manager'
+                      ? 'border-cyan-200 bg-cyan-50 text-slate-700'
+                      : 'border-slate-100 bg-slate-50 text-slate-400'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={formState.canAccessOdc}
+                    disabled={formState.displayRole !== 'Manager'}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        canAccessOdc: event.target.checked,
+                      }))
+                    }
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-50"
+                  />
+                  <span>
+                    <span className="block font-medium text-slate-800">
+                      Allow Outdoor Catering (ODC) access
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                      Managers can use ODC only when the restaurant has ODC enabled by super admin.
+                    </span>
+                  </span>
+                </label>
                 {editingEmployee ? (
-                  <label className="md:col-span-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 md:col-span-2">
                     <input
                       type="checkbox"
                       checked={formState.isActive}

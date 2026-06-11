@@ -18,6 +18,7 @@ type NavLinkItem = {
 
 type NavGroupItem = {
   type: 'group';
+  id: string;
   label: string;
   icon: React.ReactNode;
   children: NavLinkItem[];
@@ -31,6 +32,8 @@ type AppPageHeader = {
 } | null;
 
 const AppPageHeaderContext = createContext<React.Dispatch<React.SetStateAction<AppPageHeader>> | null>(null);
+const CONFIGURATION_ROUTES = ['/categories', '/menus', '/employees', '/settings'];
+const ODC_ROUTES = ['/odc/categories', '/odc/menus', '/odc/customers', '/odc/inquiries'];
 
 export function useAppPageHeader(header: AppPageHeader) {
   const setPageHeader = useContext(AppPageHeaderContext);
@@ -206,11 +209,28 @@ function buildNavItems(
   role: string,
   canAccessCancelledBookings?: boolean,
   canAccessVoucherFlow?: boolean,
+  canAccessOdc?: boolean,
 ): NavItem[] {
   if (role === 'super_admin') {
     return [
       { type: 'link', href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
       { type: 'link', href: '/restaurants', label: 'Restaurants', icon: <IconBuilding /> },
+      ...(canAccessOdc
+        ? [
+            {
+              type: 'group' as const,
+              id: 'outdoor-catering',
+              label: 'Outdoor Catering',
+              icon: <IconMenu />,
+              children: [
+                { type: 'link' as const, href: '/odc/inquiries', label: 'ODC Inquiries', icon: <IconCalendar /> },
+                { type: 'link' as const, href: '/odc/customers', label: 'ODC Customers', icon: <IconUsers /> },
+                { type: 'link' as const, href: '/odc/categories', label: 'ODC Categories', icon: <IconTag /> },
+                { type: 'link' as const, href: '/odc/menus', label: 'ODC Menus', icon: <IconMenu /> },
+              ],
+            },
+          ]
+        : []),
       { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
     ];
   }
@@ -231,8 +251,25 @@ function buildNavItems(
           ]
         : []),
       { type: 'link', href: '/reports', label: 'Reports', icon: <IconReport /> },
+      ...(canAccessOdc
+        ? [
+            {
+              type: 'group' as const,
+              id: 'outdoor-catering',
+              label: 'Outdoor Catering',
+              icon: <IconMenu />,
+              children: [
+                { type: 'link' as const, href: '/odc/inquiries', label: 'ODC Inquiries', icon: <IconCalendar /> },
+                { type: 'link' as const, href: '/odc/customers', label: 'ODC Customers', icon: <IconUsers /> },
+                { type: 'link' as const, href: '/odc/categories', label: 'ODC Categories', icon: <IconTag /> },
+                { type: 'link' as const, href: '/odc/menus', label: 'ODC Menus', icon: <IconMenu /> },
+              ],
+            },
+          ]
+        : []),
       {
         type: 'group',
+        id: 'configuration',
         label: 'Configuration',
         icon: <IconSettings />,
         children: [
@@ -251,6 +288,12 @@ function buildNavItems(
   return [
     { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
     { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
+    ...(canAccessOdc
+      ? [
+          { type: 'link' as const, href: '/odc/inquiries', label: 'ODC Inquiries', icon: <IconCalendar /> },
+          { type: 'link' as const, href: '/odc/customers', label: 'ODC Customers', icon: <IconUsers /> },
+        ]
+      : []),
   ];
 }
 
@@ -268,6 +311,24 @@ function formatContactNumbers(restaurant: Restaurant | null) {
   return restaurant.contactNumbers?.filter(Boolean).join(', ') || restaurant.contactPersonNumber || 'Not available';
 }
 
+function matchesAnyRoute(pathname: string, routes: string[]) {
+  return routes.some((href) => pathname === href || pathname.startsWith(`${href}/`));
+}
+
+function getActiveGroupIds(pathname: string) {
+  const groupIds: string[] = [];
+
+  if (matchesAnyRoute(pathname, CONFIGURATION_ROUTES)) {
+    groupIds.push('configuration');
+  }
+
+  if (matchesAnyRoute(pathname, ODC_ROUTES)) {
+    groupIds.push('outdoor-catering');
+  }
+
+  return groupIds;
+}
+
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -275,9 +336,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [pageHeader, setPageHeader] = useState<AppPageHeader>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(true);
-  const [configOpen, setConfigOpen] = useState(() =>
-    ['/categories', '/menus', '/employees', '/settings'].some((href) => pathname === href || pathname.startsWith(`${href}/`)),
-  );
+  const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>(() => getActiveGroupIds(pathname));
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileUser, setProfileUser] = useState<AuthUser | null>(null);
@@ -294,11 +353,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     user?.canAccessVoucherFlow ??
     ((sidebarRestaurant?.enableCancelledBookings ?? false) &&
       (sidebarRestaurant?.enableVoucherFlow ?? false));
+  const canAccessOdc = user?.canAccessOdc ?? false;
   const isAdminUser = user?.role === 'super_admin' || user?.role === 'company_admin';
 
   const navItems = useMemo(
-    () => buildNavItems(user?.role ?? '', canAccessCancelledBookings, canAccessVoucherFlow),
-    [canAccessCancelledBookings, canAccessVoucherFlow, user?.role],
+    () => buildNavItems(user?.role ?? '', canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc),
+    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, user?.role],
   );
 
   useEffect(() => {
@@ -317,8 +377,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSidebarOpen(false);
     setDesktopSidebarCollapsed(true);
-    if (['/categories', '/menus', '/employees', '/settings'].some((href) => pathname === href || pathname.startsWith(`${href}/`))) {
-      setConfigOpen(true);
+    const activeGroupIds = getActiveGroupIds(pathname);
+    if (activeGroupIds.length > 0) {
+      setExpandedGroupIds((current) => Array.from(new Set([...current, ...activeGroupIds])));
     }
   }, [pathname]);
 
@@ -401,14 +462,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function handleConfigToggle(isMobile: boolean) {
+  function handleGroupToggle(groupId: string, isMobile: boolean) {
     if (!isMobile && desktopSidebarCollapsed) {
       setDesktopSidebarCollapsed(false);
-      setConfigOpen(true);
+      setExpandedGroupIds((current) =>
+        current.includes(groupId) ? current : [...current, groupId],
+      );
       return;
     }
 
-    setConfigOpen((current) => !current);
+    setExpandedGroupIds((current) =>
+      current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [...current, groupId],
+    );
   }
 
   function renderNavItem(item: NavItem, isMobile: boolean) {
@@ -439,13 +506,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     const groupActive = isGroupActive(item.children);
-    const showChildren = isMobile || !desktopSidebarCollapsed ? configOpen : false;
+    const groupOpen = expandedGroupIds.includes(item.id);
+    const showChildren = isMobile || !desktopSidebarCollapsed ? groupOpen : false;
 
     return (
-      <div key={item.label} className="space-y-1">
+      <div key={item.id} className="space-y-1">
         <button
           type="button"
-          onClick={() => handleConfigToggle(isMobile)}
+          onClick={() => handleGroupToggle(item.id, isMobile)}
           className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition-colors ${
             groupActive
               ? 'border border-amber-300 bg-amber-50 text-slate-900'
@@ -459,7 +527,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <>
               <span className="min-w-0 flex-1">{item.label}</span>
               <span className="text-slate-400">
-                {configOpen ? <IconChevronDown /> : <IconChevronRight />}
+                {groupOpen ? <IconChevronDown /> : <IconChevronRight />}
               </span>
             </>
           ) : null}

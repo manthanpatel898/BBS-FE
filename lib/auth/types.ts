@@ -12,6 +12,7 @@ export interface AuthUser {
   canAccessCancelledBookings?: boolean;
   canUseAdvancedCancelManagement?: boolean;
   canAccessVoucherFlow?: boolean;
+  canAccessOdc?: boolean;
   restaurantLogoUrl?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
   acceptedTerms?: {
@@ -70,6 +71,7 @@ export interface Restaurant {
   enableAdvancedCancelManagement?: boolean;
   enableVoucherFlow?: boolean;
   enableWhatsappNotifications?: boolean;
+  enableOdc?: boolean;
   isActive?: boolean;
   subscriptionStatus?: SubscriptionStatus | null;
   notes?: string | null;
@@ -131,6 +133,7 @@ export interface Employee {
   restaurantId: string | null;
   isFirstLogin: boolean;
   isActive: boolean;
+  canAccessOdc?: boolean;
   signatureSummary: {
     id: string;
     signedByName: string;
@@ -186,6 +189,18 @@ export interface PaginatedCategories {
   };
 }
 
+export type OdcCategory = Category;
+
+export interface PaginatedOdcCategories {
+  items: OdcCategory[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface MenuSection {
   sectionTitle: string;
   items: string[];
@@ -222,6 +237,18 @@ export interface PaginatedMenus {
   };
 }
 
+export type OdcMenu = Menu;
+
+export interface PaginatedOdcMenus {
+  items: OdcMenu[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface Customer {
   id: string;
   restaurantId: string;
@@ -229,11 +256,33 @@ export interface Customer {
   lastName: string;
   phone: string;
   email: string | null;
+  address?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export type OdcCustomer = Customer & {
+  address: string | null;
+};
+
+export interface PaginatedOdcCustomers {
+  items: OdcCustomer[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export type OrderStatus = 'INQUIRY' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+export type OdcOrderStatus =
+  | 'INQUIRY'
+  | 'QUOTATION_SENT'
+  | 'FOLLOW_UP'
+  | 'CONFIRMED'
+  | 'COMPLETED'
+  | 'CANCELLED';
 export type PaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
 export type PaymentMode = string;
 
@@ -268,6 +317,134 @@ export interface OrderMenuSelectionSnapshot {
   menuId: string;
   title: string;
   sections: MenuSection[];
+}
+
+export interface OdcCustomerSnapshot {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string | null;
+}
+
+export interface OdcMenuSelectionSnapshot {
+  menuId: string;
+  title: string;
+  sections: Array<{
+    sectionTitle: string;
+    items: string[];
+  }>;
+}
+
+export interface OdcOrder {
+  id: string;
+  restaurantId: string;
+  customerId: string;
+  customerSnapshot: OdcCustomerSnapshot;
+  orderId: string;
+  orderNumber: number;
+  status: OdcOrderStatus;
+  pax: number | null;
+  eventName: string | null;
+  eventDate: string | null;
+  inquiryDate: string | null;
+  confirmedAt: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  serviceSlot: string | null;
+  jainSwaminarayanPax: number | null;
+  jainSwaminarayanDetails: string | null;
+  eventAddress: string | null;
+  area: string | null;
+  city: string | null;
+  landmark: string | null;
+  googleMapsLink: string | null;
+  serviceType: string | null;
+  venueType: string | null;
+  setupRequirement: string | null;
+  transportNotes: string | null;
+  servingStaffRequirement: string | null;
+  packagingRequirement: string | null;
+  equipmentRequirement: string | null;
+  categorySnapshot: OrderCategorySnapshot | null;
+  menuSelectionSnapshot: OdcMenuSelectionSnapshot[];
+  pricePerPlate: number;
+  customPricePerPlate: number | null;
+  baseTotal: number;
+  extraCharges: number;
+  discountAmount: number;
+  grandTotal: number;
+  advanceAmount: number;
+  pendingAmount: number;
+  paymentStatus: PaymentStatus;
+  advancePayments: OrderAdvancePayment[];
+  followUps: OrderFollowUp[];
+  menuComment: string | null;
+  nextFollowUpDate: string | null;
+  assignedStaffMember: string | null;
+  notes: string | null;
+  cancelReason: string | null;
+  activeSignature: OrderSignature | null;
+  bookingTakenBy: string;
+  bookingTakenBySignature: UserSignature | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OdcCalendarOrder {
+  id: string;
+  orderId: string;
+  status: OdcOrderStatus;
+  eventName: string | null;
+  eventDate: string | null;
+  inquiryDate: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  serviceSlot: string | null;
+  jainSwaminarayanPax: number | null;
+  jainSwaminarayanDetails: string | null;
+  pax: number | null;
+  city: string | null;
+  area: string | null;
+  serviceType: string | null;
+  venueType: string | null;
+  hasMenuSelection: boolean;
+  customerName: string;
+  customerPhone: string;
+  grandTotal: number;
+  pendingAmount: number;
+  nextFollowUpDate: string | null;
+}
+
+export interface PaginatedOdcOrders {
+  items: OdcOrder[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface OdcSummaryReport {
+  from: string;
+  to: string;
+  totalOrders: number;
+  totalPax: number;
+  grandTotal: number;
+  advanceAmount: number;
+  pendingAmount: number;
+  statusCounts: Record<OdcOrderStatus, number>;
+  paymentStatusCounts: Record<PaymentStatus, number>;
+  upcomingFollowUps: Array<{
+    id: string;
+    orderId: string;
+    eventName: string | null;
+    customerName: string;
+    customerPhone: string;
+    eventDate: string | null;
+    nextFollowUpDate: string | null;
+    status: OdcOrderStatus;
+  }>;
 }
 
 export interface OrderAddonServiceSnapshot {

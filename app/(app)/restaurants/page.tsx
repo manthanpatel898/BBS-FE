@@ -34,6 +34,7 @@ type RestaurantFormState = {
   enableAdvancedCancelManagement: boolean;
   enableVoucherFlow: boolean;
   enableWhatsappNotifications: boolean;
+  enableOdc: boolean;
 };
 
 const initialFormState: RestaurantFormState = {
@@ -52,6 +53,7 @@ const initialFormState: RestaurantFormState = {
   enableAdvancedCancelManagement: false,
   enableVoucherFlow: false,
   enableWhatsappNotifications: false,
+  enableOdc: false,
 };
 
 const inputCls =
@@ -180,6 +182,7 @@ export default function RestaurantsPage() {
       enableAdvancedCancelManagement: restaurant.enableAdvancedCancelManagement ?? false,
       enableVoucherFlow: restaurant.enableVoucherFlow ?? false,
       enableWhatsappNotifications: restaurant.enableWhatsappNotifications ?? false,
+      enableOdc: restaurant.enableOdc ?? false,
     });
     setActiveModalTab('info');
     setError('');
@@ -302,6 +305,18 @@ export default function RestaurantsPage() {
       return <span className="inline-flex rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-600">Exp. in {days}d</span>;
     }
     return <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">Active</span>;
+  }
+
+  function odcBadge(restaurant: Restaurant) {
+    return restaurant.enableOdc ? (
+      <span className="inline-flex rounded-full bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700">
+        ODC enabled
+      </span>
+    ) : (
+      <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+        ODC off
+      </span>
+    );
   }
 
   function ActionButtons({ r, size = 8 }: { r: Restaurant; size?: number }) {
@@ -459,16 +474,17 @@ export default function RestaurantsPage() {
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Contact</th>
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Prefix</th>
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Dates</th>
+                  <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Access</th>
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
                   <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
-                  <TableLoader colSpan={6} message="Loading restaurants…" />
+                  <TableLoader colSpan={7} message="Loading restaurants…" />
                 ) : restaurants.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
+                    <td colSpan={7} className="px-5 py-8 text-center text-sm text-slate-400">
                       No restaurants found.
                     </td>
                   </tr>
@@ -493,6 +509,7 @@ export default function RestaurantsPage() {
                         <p>{r.startDate.slice(0, 10)}</p>
                         <p className="mt-0.5 text-xs text-slate-400">to {r.endDate.slice(0, 10)}</p>
                       </td>
+                      <td className="px-5 py-4">{odcBadge(r)}</td>
                       <td className="px-5 py-4">{statusBadge(r)}</td>
                       <td className="px-5 py-4">
                         <ActionButtons r={r} />
@@ -521,7 +538,10 @@ export default function RestaurantsPage() {
                     <p className="font-semibold text-slate-900">{r.name}</p>
                     <p className="mt-0.5 text-xs text-slate-400">{r.address}</p>
                   </div>
-                  {statusBadge(r)}
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    {statusBadge(r)}
+                    {odcBadge(r)}
+                  </div>
                 </div>
                 <div className="mt-3 space-y-0.5 text-xs text-slate-500">
                   <p>{r.contactPersonName} · {r.contactPersonEmail}</p>
@@ -809,6 +829,27 @@ export default function RestaurantsPage() {
                       className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
                     />
                     <span>Enable WhatsApp notifications for this restaurant</span>
+                  </label>
+                  <label className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-slate-700 md:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={formState.enableOdc}
+                      onChange={(e) =>
+                        setFormState((s) => ({
+                          ...s,
+                          enableOdc: e.target.checked,
+                        }))
+                      }
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    <span>
+                      <span className="block font-medium text-slate-800">
+                        Enable Outdoor Catering (ODC)
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                        Allows this restaurant to use the separate ODC module when ODC screens and APIs are enabled.
+                      </span>
+                    </span>
                   </label>
                   <div className="flex flex-col-reverse gap-3 md:col-span-2 sm:flex-row sm:justify-end">
                     <button
