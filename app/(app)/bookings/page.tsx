@@ -700,7 +700,12 @@ export default function BookingsPage() {
     [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || 'Current user';
   const isCompanyAdmin = user?.role === 'company_admin';
   const isProtectedBookingEditLocked = !isCompanyAdmin && Boolean(editingOrder);
+  const hasSavedMenuSelection = (editingOrder?.menuSelectionSnapshot.length ?? 0) > 0;
+  const isMenuSelectionDependentEditLocked =
+    !isCompanyAdmin && Boolean(editingOrder) && hasSavedMenuSelection;
   const companyAdminOnlyEditMessage = 'Contact company admin to update this detail.';
+  const menuSelectionLockedEditMessage =
+    'Contact company admin to update this detail after menu selection.';
   const isServiceSlotLocked = isProtectedBookingEditLocked;
 
   useEffect(() => {
@@ -3468,12 +3473,12 @@ function selectionStatus(order: Order) {
                         startTime: value,
                       }))
                     }
-                    disabled={isProtectedBookingEditLocked}
+                    disabled={isMenuSelectionDependentEditLocked}
                     hourPlaceholder="Hour"
                     minutePlaceholder="Min"
                   />
-                  {isProtectedBookingEditLocked ? (
-                    <p className="mt-2 text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                  {isMenuSelectionDependentEditLocked ? (
+                    <p className="mt-2 text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                   ) : null}
                 </Field>
                 <Field label="Function End Time" required>
@@ -3485,12 +3490,12 @@ function selectionStatus(order: Order) {
                         endTime: value,
                       }))
                     }
-                    disabled={isProtectedBookingEditLocked}
+                    disabled={isMenuSelectionDependentEditLocked}
                     hourPlaceholder="Hour"
                     minutePlaceholder="Min"
                   />
-                  {isProtectedBookingEditLocked ? (
-                    <p className="mt-2 text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                  {isMenuSelectionDependentEditLocked ? (
+                    <p className="mt-2 text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                   ) : null}
                 </Field>
               </div>
@@ -3629,12 +3634,12 @@ function selectionStatus(order: Order) {
                           inquiryCustomPrice: event.target.value,
                         }))
                       }
-                      disabled={isProtectedBookingEditLocked}
+                      disabled={isMenuSelectionDependentEditLocked}
                       placeholder="Optional custom price"
-                      className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                      className={`${inputCls} min-h-12 ${isMenuSelectionDependentEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     />
-                    {isProtectedBookingEditLocked ? (
-                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                    {isMenuSelectionDependentEditLocked ? (
+                      <p className="text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                     ) : null}
                   </div>
                 </Field>
@@ -4037,11 +4042,11 @@ function selectionStatus(order: Order) {
                                     customPricePerPlate: event.target.value,
                                   }))
                                 }
-                                disabled={isProtectedBookingEditLocked}
-                                className={`${inputCls} ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                                disabled={isMenuSelectionDependentEditLocked}
+                                className={`${inputCls} ${isMenuSelectionDependentEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                               />
-                              {isProtectedBookingEditLocked ? (
-                                <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                              {isMenuSelectionDependentEditLocked ? (
+                                <p className="text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                               ) : null}
                             </div>
                           </Field>
