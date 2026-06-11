@@ -65,25 +65,60 @@ function SkeletonCard() {
 
 interface StatCardProps {
   label: string;
-  value: number | string;
+  value: React.ReactNode;
   icon: React.ReactNode;
   iconBg: string;
   iconColor: string;
   sub?: string;
+  detail?: string;
+  progressPercent?: number;
   delay?: string;
   onClick?: () => void;
 }
 
-function StatCard({ label, value, icon, iconBg, iconColor, sub, delay = '', onClick }: StatCardProps) {
+function StatCard({
+  label,
+  value,
+  icon,
+  iconBg,
+  iconColor,
+  sub,
+  detail,
+  progressPercent,
+  delay = '',
+  onClick,
+}: StatCardProps) {
   const content = (
-    <>
-      <div className={`inline-flex items-center justify-center rounded-xl p-2.5 ${iconBg}`}>
-        <span className={iconColor}>{icon}</span>
+    <div className="flex min-h-[78px] items-center gap-3 sm:gap-4">
+      <div className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] sm:h-14 sm:w-14 ${iconBg}`}>
+        <span className={`${iconColor} [&>svg]:h-5 [&>svg]:w-5 sm:[&>svg]:h-6 sm:[&>svg]:w-6`}>
+          {icon}
+        </span>
       </div>
-      <p className="mt-4 text-3xl font-bold text-slate-900">{value}</p>
-      <p className="mt-1 text-sm font-medium text-slate-500">{label}</p>
-      {sub ? <p className="mt-1 text-xs text-slate-400">{sub}</p> : null}
-    </>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold leading-tight text-slate-400 sm:text-base">
+          {label}
+        </p>
+        <p className="mt-1 text-2xl font-extrabold leading-none text-slate-900 sm:text-3xl">
+          {value}
+        </p>
+        {sub ? <p className="mt-1.5 text-xs font-medium text-slate-400">{sub}</p> : null}
+        {detail ? (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-xs font-semibold text-slate-700">{detail}</p>
+          {typeof progressPercent === 'number' ? (
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-amber-400"
+                style={{ width: `${Math.min(Math.max(progressPercent, 0), 100)}%` }}
+              />
+            </div>
+          ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 
   if (onClick) {
@@ -91,7 +126,7 @@ function StatCard({ label, value, icon, iconBg, iconColor, sub, delay = '', onCl
       <button
         type="button"
         onClick={onClick}
-        className={`zb-fade-up-1 min-h-36 rounded-2xl border border-slate-100 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-300 ${delay}`}
+        className={`zb-fade-up-1 rounded-2xl border border-slate-100 bg-white p-3.5 text-left shadow-[0_10px_28px_rgba(15,23,42,0.055)] transition hover:-translate-y-0.5 hover:border-amber-200 hover:shadow-[0_14px_34px_rgba(15,23,42,0.09)] focus:outline-none focus:ring-2 focus:ring-amber-300 sm:p-4 ${delay}`}
       >
         {content}
       </button>
@@ -100,7 +135,7 @@ function StatCard({ label, value, icon, iconBg, iconColor, sub, delay = '', onCl
 
   return (
     <div
-      className={`zb-fade-up-1 min-h-36 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md ${delay}`}
+      className={`zb-fade-up-1 rounded-2xl border border-slate-100 bg-white p-3.5 shadow-[0_10px_28px_rgba(15,23,42,0.055)] transition-shadow hover:shadow-[0_14px_34px_rgba(15,23,42,0.09)] sm:p-4 ${delay}`}
     >
       {content}
     </div>
@@ -872,9 +907,9 @@ const dashboardRecordMeta: Record<DashboardRecordType, {
     label: 'Follow Ups Due Today',
     subtitle: 'Due today, overdue, or waiting for a next date',
     empty: 'No follow ups are due today.',
-    statusLabel: 'FOLLOW UP',
-    cardClassName: 'border-sky-300 bg-sky-50/45',
-    badgeClassName: 'border-sky-300 bg-sky-50 text-sky-700',
+    statusLabel: 'FOLLOW UP PENDING',
+    cardClassName: 'border-slate-200 bg-white',
+    badgeClassName: 'border-amber-300 bg-amber-50 text-amber-700',
   },
   cancelled: {
     label: 'Cancelled Inquiries',
@@ -901,6 +936,19 @@ function getRecordDate(order: Order) {
 function getDateKey(value: string | null) {
   if (!value) return 'unknown';
   return value.slice(0, 10);
+}
+
+function hasFollowUpTakenToday(order: Order) {
+  const todayKey = new Date().toISOString().slice(0, 10);
+  return order.followUps.some((followUp) => followUp.date.slice(0, 10) === todayKey);
+}
+
+function getFollowUpDueDate(order: Order) {
+  const latestFollowUp = [...order.followUps].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )[0];
+
+  return latestFollowUp?.nextFollowUpDate ?? order.eventDate ?? order.inquiryDate ?? order.createdAt;
 }
 
 function formatRecordDate(dateKey: string) {
@@ -1006,9 +1054,9 @@ function DetailField({ label, value }: { label: string; value: string | number |
   );
 }
 
-function groupOrdersByDate(orders: Order[]) {
+function groupOrdersByDate(orders: Order[], type: DashboardRecordType) {
   return orders.reduce<Array<{ dateKey: string; orders: Order[] }>>((groups, order) => {
-    const dateKey = getDateKey(getRecordDate(order));
+    const dateKey = getDateKey(type === 'followups' ? getFollowUpDueDate(order) : getRecordDate(order));
     const existing = groups.find((group) => group.dateKey === dateKey);
 
     if (existing) {
@@ -1032,7 +1080,15 @@ function DashboardRecordCard({
 }) {
   const meta = dashboardRecordMeta[type];
   const statusLabel =
-    order.status === 'INQUIRY' && order.inquiryClosed ? 'CLOSED INQUIRY' : meta.statusLabel;
+    order.status === 'INQUIRY' && order.inquiryClosed
+      ? 'CLOSED INQUIRY'
+      : type === 'followups' && hasFollowUpTakenToday(order)
+        ? 'FOLLOW UP TAKEN'
+        : meta.statusLabel;
+  const badgeClassName =
+    type === 'followups' && hasFollowUpTakenToday(order)
+      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+      : meta.badgeClassName;
   const hasMenuSelection = order.menuSelectionSnapshot.length > 0;
   const eventLabel = order.functionName?.trim() || order.eventType?.trim() || 'Event details pending';
 
@@ -1052,7 +1108,7 @@ function DashboardRecordCard({
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-1.5 sm:max-w-[180px] sm:justify-end">
-          <span className={`inline-flex min-h-7 items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${meta.badgeClassName}`}>
+          <span className={`inline-flex min-h-7 items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${badgeClassName}`}>
             {statusLabel}
           </span>
           {hasMenuSelection ? (
@@ -1391,7 +1447,10 @@ function DashboardRecordsPanel({
   onOpenOrder: (orderId: string) => void;
 }) {
   const meta = dashboardRecordMeta[selectedType];
-  const groups = useMemo(() => groupOrdersByDate(records?.items ?? []), [records?.items]);
+  const groups = useMemo(
+    () => groupOrdersByDate(records?.items ?? [], selectedType),
+    [records?.items, selectedType],
+  );
   const pagination = records?.pagination;
   const totalPages = pagination?.totalPages ?? 1;
 
@@ -1526,6 +1585,8 @@ function CompanyAdminDashboard({
     stats.upcomingConfirmedAdvance ??
     upcomingConfirmedAdvanceByPaymentMethod.reduce((sum, item) => sum + item.amount, 0);
   const dashboardCounts = stats.dashboardRecords;
+  const followUpsTakenToday = stats.followUpsTakenToday ?? 0;
+  const followUpsDueTotalToday = stats.followUpsDueTotalToday ?? stats.followUps;
 
   return (
     <div className="space-y-6">
@@ -1601,7 +1662,6 @@ function CompanyAdminDashboard({
           icon={<InboxIcon />}
           iconBg="bg-purple-50"
           iconColor="text-purple-600"
-          sub="Current inquiry count"
           delay="zb-fade-up-1"
           onClick={() => onSelectRecordType('inquiries')}
         />
@@ -1611,17 +1671,24 @@ function CompanyAdminDashboard({
           icon={<CheckCircleIcon />}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          sub="Confirmed bookings"
           delay="zb-fade-up-2"
           onClick={() => onSelectRecordType('confirmed')}
         />
         <StatCard
-          label="Follow Ups Due Today"
-          value={dashboardCounts?.followups ?? stats.followUps}
+          label="Follow Ups"
+          value={
+            followUpsDueTotalToday > 0
+              ? (
+                <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+                  <span>{followUpsTakenToday}/{followUpsDueTotalToday}</span>
+                  <span className="text-base font-bold text-slate-500 sm:text-lg">completed</span>
+                </span>
+              )
+              : '0'
+          }
           icon={<InboxIcon />}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
-          sub="Due today, overdue, or no next date"
           delay="zb-fade-up-3"
           onClick={() => onSelectRecordType('followups')}
         />
@@ -1631,7 +1698,6 @@ function CompanyAdminDashboard({
           icon={<XCircleIcon />}
           iconBg="bg-red-50"
           iconColor="text-red-500"
-          sub="Cancelled records"
           delay="zb-fade-up-4"
           onClick={() => onSelectRecordType('cancelled')}
         />
@@ -1641,7 +1707,6 @@ function CompanyAdminDashboard({
           icon={<CheckCircleIcon />}
           iconBg="bg-slate-100"
           iconColor="text-slate-700"
-          sub="Past completed functions"
           delay="zb-fade-up-4"
           onClick={() => onSelectRecordType('completed')}
         />
@@ -1813,17 +1878,22 @@ function DashboardHeader({
 }) {
   const meta = selectedRecordType ? dashboardRecordMeta[selectedRecordType] : null;
   const pagination = dashboardRecords?.pagination;
+  const currentHour = new Date().getHours();
+  const greeting =
+    currentHour < 12
+      ? 'Good morning'
+      : currentHour < 17
+        ? 'Good noon'
+        : 'Good evening';
+  const greetingName = userFirstName?.trim() || 'there';
 
   return (
     <div className="rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-sm backdrop-blur sm:p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">
-            Dashboard
-          </p>
           {meta ? (
             <>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={onBackToDashboard}
@@ -1842,8 +1912,8 @@ function DashboardHeader({
               </p>
             </>
           ) : (
-            <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
-              {userFirstName ? `${userFirstName}'s Dashboard` : 'Dashboard'}
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              {greeting}, {greetingName}
             </h1>
           )}
         </div>

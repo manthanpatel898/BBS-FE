@@ -671,6 +671,9 @@ export interface OrderStats {
   cancelled: number;
   completed: number;
   followUps: number;
+  followUpsPendingToday?: number;
+  followUpsTakenToday?: number;
+  followUpsDueTotalToday?: number;
   monthRevenue: number;
   monthAdvance: number;
   monthAdvanceByPaymentMethod: Array<{

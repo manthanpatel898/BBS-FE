@@ -4,7 +4,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { addOrderFollowUp, fetchOrderById, fetchOrders } from '@/lib/auth/api';
+import { addOrderFollowUp, fetchDashboardRecords, fetchOrderById, fetchOrders } from '@/lib/auth/api';
 import { Order, OrderFollowUp, OrderStatus } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
 
@@ -98,18 +98,60 @@ function monthDotClasses(status: OrderStatus) {
   }
 }
 
-function hasFollowUpToday(order: Order, todayKey: string): boolean {
-  return order.followUps.some((fu) => formatDateKey(fu.date) === todayKey);
+function hasFollowUpTakenToday(order: Order) {
+  const todayKey = toDateInputValue(new Date());
+  return order.followUps.some((followUp) => formatDateKey(followUp.date) === todayKey);
+}
+
+function isFollowUpCoveredUntilNextDate(order: Order, todayKey = toDateInputValue(new Date())) {
+  if (hasFollowUpTakenToday(order)) {
+    return true;
+  }
+
+  const latestFollowUp = getLatestFollowUp(order);
+
+  return Boolean(
+    latestFollowUp?.nextFollowUpDate &&
+      formatDateKey(latestFollowUp.nextFollowUpDate) > todayKey,
+  );
+}
+
+function followUpBadgeClasses(order: Order) {
+  return isFollowUpCoveredUntilNextDate(order)
+    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+    : 'border-amber-300 bg-amber-50 text-amber-700';
+}
+
+function followUpBadgeLabel(order: Order) {
+  return isFollowUpCoveredUntilNextDate(order) ? 'FOLLOW UP TAKEN' : 'FOLLOW UP PENDING';
 }
 
 function inquiryDotClass(order: Order, todayKey: string): string {
   if (order.status !== 'INQUIRY') return monthDotClasses(order.status);
-  return hasFollowUpToday(order, todayKey)
+  return isFollowUpCoveredUntilNextDate(order, todayKey)
     ? 'bg-emerald-500'   // followed up today → green
     : 'bg-amber-400';    // not yet followed up → amber
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function getLatestFollowUp(order: Order): OrderFollowUp | null {
+  return [...order.followUps].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  )[0] ?? null;
+}
+
+function getFollowUpDisplayDateKey(order: Order) {
+  if (order.eventDate) {
+    return formatDateKey(order.eventDate);
+  }
+
+  if (order.inquiryDate) {
+    return formatDateKey(order.inquiryDate);
+  }
+
+  return formatDateKey(order.createdAt);
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -196,12 +238,12 @@ export default function FollowupsPage() {
   const [currentMonth, setCurrentMonth] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
+  const [followUpRangeMode, setFollowUpRangeMode] = useState<'month' | 'upcoming'>('month');
 
   // dateKey → Order[]
   const [inquiryMap, setInquiryMap] = useState<Record<string, Order[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [pageError, setPageError] = useState('');
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   // Left sidebar (date click)
   const [dayPanel, setDayPanel] = useState<{ dateKey: string; orders: Order[] } | null>(null);
@@ -228,34 +270,60 @@ export default function FollowupsPage() {
 
   useEffect(() => {
     if (!accessToken) return;
-    void loadMonth(accessToken, currentMonth);
+    void loadFollowUps(accessToken, currentMonth, followUpRangeMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, currentMonth]);
+  }, [accessToken, currentMonth, followUpRangeMode]);
 
-  async function loadMonth(token: string, month: Date) {
+  async function loadFollowUps(token: string, month: Date, mode: 'month' | 'upcoming') {
     const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
     const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-    // from/to filters by eventDate on the backend — show upcoming functions only
-    const effectiveFrom = monthStart > today ? monthStart : today;
+    const todayKey = toDateInputValue(today);
+    const monthStartKey = toDateInputValue(monthStart);
+    const monthEndKey = toDateInputValue(monthEnd);
+    const isCurrentMonthView =
+      mode === 'upcoming' ||
+      (month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth());
     try {
       setIsLoading(true);
       setPageError('');
-      const response = await fetchOrders(token, {
-        page: 1,
-        limit: 500,
-        search: '',
-        status: 'INQUIRY',
-        from: toDateInputValue(effectiveFrom),
-        to: toDateInputValue(monthEnd),
-      });
+      const allOrders: Order[] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      if (isCurrentMonthView) {
+        do {
+          const response = await fetchDashboardRecords(token, {
+            type: 'followups',
+            page,
+            limit: 50,
+          });
+
+          allOrders.push(...response.items);
+          totalPages = response.pagination.totalPages;
+          page += 1;
+        } while (page <= totalPages);
+      } else {
+        do {
+          const response = await fetchOrders(token, {
+            page,
+            limit: 1000,
+            search: '',
+            status: 'INQUIRY',
+            from: monthStartKey,
+            to: monthEndKey,
+            sortBy: 'reportDate',
+            sortDirection: 'asc',
+            dateBasis: 'followUpDueDate',
+          });
+
+          allOrders.push(...response.items);
+          totalPages = response.pagination.totalPages;
+          page += 1;
+        } while (page <= totalPages);
+      }
       const map: Record<string, Order[]> = {};
-      for (const order of response.items.filter((item) => !item.inquiryClosed)) {
-        // Group by eventDate (function date); fall back to inquiryDate if not set
-        const key = order.eventDate
-          ? formatDateKey(order.eventDate)
-          : order.inquiryDate
-            ? formatDateKey(order.inquiryDate)
-            : formatDateKey(order.createdAt);
+      for (const order of allOrders.filter((item) => !item.inquiryClosed)) {
+        const key = getFollowUpDisplayDateKey(order);
         if (!map[key]) map[key] = [];
         map[key].push(order);
       }
@@ -304,18 +372,25 @@ export default function FollowupsPage() {
           ? 'Follow up added and inquiry closed successfully.'
           : 'Follow up added successfully.',
       });
-      if (updatedOrder.inquiryClosed) {
-        setDayPanel((current) =>
-          current
-            ? {
-                ...current,
-                orders: current.orders.filter((order) => order.id !== updatedOrder.id),
-              }
-            : current,
-        );
-      }
+      setDayPanel((current) => {
+        if (!current) return current;
+
+        if (updatedOrder.inquiryClosed) {
+          return {
+            ...current,
+            orders: current.orders.filter((order) => order.id !== updatedOrder.id),
+          };
+        }
+
+        return {
+          ...current,
+          orders: current.orders.map((order) =>
+            order.id === updatedOrder.id ? updatedOrder : order,
+          ),
+        };
+      });
       if (isDetailOpen) setDetailOrder(updatedOrder);
-      void loadMonth(accessToken, currentMonth);
+      void loadFollowUps(accessToken, currentMonth, followUpRangeMode);
     } catch (err) {
       setToast({
         type: 'error',
@@ -327,6 +402,59 @@ export default function FollowupsPage() {
   }
 
   const todayKey = toDateInputValue(today);
+  const inquiryEntries = useMemo(
+    () => Object.entries(inquiryMap).sort(([a], [b]) => a.localeCompare(b)),
+    [inquiryMap],
+  );
+  const inquiryMonthGroups = useMemo(() => {
+    const groups = new Map<string, Array<[string, Order[]]>>();
+
+    for (const entry of inquiryEntries) {
+      const monthKey = entry[0].slice(0, 7);
+      groups.set(monthKey, [...(groups.get(monthKey) ?? []), entry]);
+    }
+
+    return Array.from(groups.entries());
+  }, [inquiryEntries]);
+
+  function renderInquiryDateCard(dayKey: string, dayOrders: Order[]) {
+    const day = new Date(dayKey + 'T00:00:00');
+
+    return (
+      <button
+        key={dayKey}
+        type="button"
+        onClick={() => {
+          setDayPanel({ dateKey: dayKey, orders: dayOrders });
+        }}
+        className="w-[calc(50%-6px)] min-h-24 rounded-[20px] border border-slate-200 bg-white p-2.5 text-left transition hover:border-slate-300 sm:w-[calc(33.333%-8px)] md:w-[calc(25%-9px)] lg:w-[calc(20%-10px)]"
+      >
+        <div className="flex items-center justify-between">
+          <span
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-semibold text-slate-900"
+          >
+            {day.getDate()}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+            {dayOrders.length}
+          </span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {dayOrders.slice(0, 6).map((order) => (
+            <span
+              key={order.id}
+              className={`h-2.5 w-2.5 rounded-full ${inquiryDotClass(order, todayKey)}`}
+            />
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500">
+          <span>
+            {dayOrders.length} inquiry{dayOrders.length > 1 ? 's' : ''}
+          </span>
+        </div>
+      </button>
+    );
+  }
 
   return (
     <section className="space-y-6">
@@ -336,12 +464,18 @@ export default function FollowupsPage() {
           {/* <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
             Follow Ups
           </p> */}
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">{formatMonthLabel(currentMonth)}</h2>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">
+            {followUpRangeMode === 'upcoming' ? 'Upcoming Follow Ups' : formatMonthLabel(currentMonth)}
+          </h2>
         </div>
         <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 md:justify-end">
           <button
             type="button"
-            onClick={() => setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+            onClick={() => {
+              setFollowUpRangeMode('month');
+              setDayPanel(null);
+              setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+            }}
             className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
           >
             <span className="inline-flex items-center gap-2">
@@ -353,14 +487,22 @@ export default function FollowupsPage() {
           </button>
           <button
             type="button"
-            onClick={() => setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1))}
+            onClick={() => {
+              setFollowUpRangeMode('upcoming');
+              setDayPanel(null);
+              setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+            }}
             className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
           >
             Today
           </button>
           <button
             type="button"
-            onClick={() => setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+            onClick={() => {
+              setFollowUpRangeMode('month');
+              setDayPanel(null);
+              setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1));
+            }}
             className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
           >
             <span className="inline-flex items-center gap-2">
@@ -395,65 +537,34 @@ export default function FollowupsPage() {
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">All caught up!</h3>
                 <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">
-                  No pending inquiries for {formatMonthLabel(currentMonth)}. Check another month or wait for new inquiries to come in.
+                  {followUpRangeMode === 'upcoming'
+                    ? 'No upcoming inquiries need follow up right now.'
+                    : `No pending inquiries for ${formatMonthLabel(currentMonth)}. Check another month or wait for new inquiries to come in.`}
                 </p>
               </div>
             </div>
           )}
 
           {/* Inquiry date cards — only dates with inquiries, side by side */}
-          {Object.keys(inquiryMap).length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              {Object.entries(inquiryMap)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([dayKey, dayOrders]) => {
-                  const day = new Date(dayKey + 'T00:00:00');
-                  const isToday = dayKey === todayKey;
-                  const isSelectedDay = selectedDay === dayKey;
-
-                  return (
-                    <button
-                      key={dayKey}
-                      type="button"
-                      onClick={() => {
-                        setSelectedDay(dayKey);
-                        setDayPanel({ dateKey: dayKey, orders: dayOrders });
-                      }}
-                      className={`w-[calc(50%-6px)] min-h-24 rounded-[20px] border p-2.5 text-left transition sm:w-[calc(33.333%-8px)] md:w-[calc(25%-9px)] lg:w-[calc(20%-10px)] ${
-                        isSelectedDay
-                          ? 'border-amber-200 bg-amber-50'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-semibold ${
-                            isToday ? 'bg-amber-400 text-white' : 'text-slate-900'
-                          }`}
-                        >
-                          {day.getDate()}
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                          {dayOrders.length}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {dayOrders.slice(0, 6).map((order) => (
-                          <span
-                            key={order.id}
-                            className={`h-2.5 w-2.5 rounded-full ${inquiryDotClass(order, todayKey)}`}
-                          />
-                        ))}
-                      </div>
-                      <div className="mt-3 flex items-center justify-between text-[10px] text-slate-500">
-                        <span>
-                          {dayOrders.length} inquiry{dayOrders.length > 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-            </div>
+          {inquiryEntries.length > 0 && (
+            followUpRangeMode === 'upcoming' ? (
+              <div className="space-y-6">
+                {inquiryMonthGroups.map(([monthKey, entries]) => (
+                  <section key={monthKey} className="space-y-3">
+                    <h3 className="inline-flex border-b-2 border-amber-300 pb-1 text-lg font-bold text-slate-900">
+                      {formatMonthLabel(new Date(`${monthKey}-01T00:00:00`))}
+                    </h3>
+                    <div className="flex flex-wrap gap-3">
+                      {entries.map(([dayKey, dayOrders]) => renderInquiryDateCard(dayKey, dayOrders))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {inquiryEntries.map(([dayKey, dayOrders]) => renderInquiryDateCard(dayKey, dayOrders))}
+              </div>
+            )
           )}
         </div>
       )}
@@ -537,9 +648,9 @@ export default function FollowupsPage() {
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                           <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusClasses(order.status)}`}
+                            className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${followUpBadgeClasses(order)}`}
                           >
-                            {order.status}
+                            {followUpBadgeLabel(order)}
                           </span>
                           <a
                             href={`tel:${order.customer.phone}`}
