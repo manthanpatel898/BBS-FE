@@ -11,6 +11,11 @@ type PrintTagItem = {
   itemName: string;
 };
 
+type PrintTagRequest = {
+  orderId?: string;
+  selectedItemIds: string;
+};
+
 export function PrintTagsView({
   orderId,
   selectedItemIds,
@@ -19,6 +24,11 @@ export function PrintTagsView({
   selectedItemIds: string;
 }) {
   const { accessToken } = useAuth();
+  const [printRequest, setPrintRequest] = useState<PrintTagRequest>({
+    orderId,
+    selectedItemIds,
+  });
+  const [isResolvingRequest, setIsResolvingRequest] = useState(!orderId);
   const [order, setOrder] = useState<Order | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,11 +36,11 @@ export function PrintTagsView({
 
   const requestedIds = useMemo(
     () =>
-      selectedItemIds
+      printRequest.selectedItemIds
         .split('|')
         .map((item) => item.trim())
         .filter(Boolean),
-    [selectedItemIds],
+    [printRequest.selectedItemIds],
   );
 
   const selectedItems = useMemo(() => {
@@ -42,14 +52,51 @@ export function PrintTagsView({
   const pages = useMemo(() => chunkItems(selectedItems, 3), [selectedItems]);
 
   useEffect(() => {
-    if (!accessToken || !orderId) {
+    if (orderId) {
+      setPrintRequest({ orderId, selectedItemIds });
+      setIsResolvingRequest(false);
+      return;
+    }
+
+    const requestKey = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('request');
+    if (!requestKey) {
+      setIsResolvingRequest(false);
+      return;
+    }
+
+    try {
+      const storedRequest = localStorage.getItem(requestKey);
+      if (!storedRequest) {
+        setIsResolvingRequest(false);
+        return;
+      }
+
+      const parsedRequest = JSON.parse(storedRequest) as PrintTagRequest;
+      setPrintRequest({
+        orderId: parsedRequest.orderId,
+        selectedItemIds: parsedRequest.selectedItemIds || '',
+      });
+      localStorage.removeItem(requestKey);
+    } catch {
+      setPrintRequest({ orderId: undefined, selectedItemIds: '' });
+    } finally {
+      setIsResolvingRequest(false);
+    }
+  }, [orderId, selectedItemIds]);
+
+  useEffect(() => {
+    if (isResolvingRequest) {
+      return;
+    }
+
+    if (!accessToken || !printRequest.orderId) {
       setIsLoading(false);
-      setError(orderId ? 'Missing session token.' : 'Missing order id.');
+      setError(printRequest.orderId ? 'Missing session token.' : 'Missing order id.');
       return;
     }
 
     const token = accessToken;
-    const requestedOrderId = orderId;
+    const requestedOrderId = printRequest.orderId;
 
     async function loadPrintTags() {
       try {
@@ -73,7 +120,7 @@ export function PrintTagsView({
     }
 
     void loadPrintTags();
-  }, [accessToken, orderId]);
+  }, [accessToken, isResolvingRequest, printRequest.orderId]);
 
   const printTagLogoUrl = settings?.printTagLogoUrl ?? '';
 

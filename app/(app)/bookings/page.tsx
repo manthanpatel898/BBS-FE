@@ -5681,11 +5681,19 @@ function selectionStatus(order: Order) {
                   type="button"
                   disabled={printTagPopup.selectedIds.length === 0}
                   onClick={() => {
-                    const params = new URLSearchParams({
-                      id: printTagPopup.order.id,
-                      items: printTagPopup.selectedIds.join('|'),
-                    });
-                    window.open(`/print/tags?${params.toString()}`, '_blank', 'noopener,noreferrer');
+                    const requestKey = `print-tags:${printTagPopup.order.id}:${Date.now()}`;
+                    localStorage.setItem(
+                      requestKey,
+                      JSON.stringify({
+                        orderId: printTagPopup.order.id,
+                        selectedItemIds: printTagPopup.selectedIds.join('|'),
+                      }),
+                    );
+                    window.open(
+                      `/print/tags/#request=${encodeURIComponent(requestKey)}`,
+                      '_blank',
+                      'noopener,noreferrer',
+                    );
                   }}
                   className={`${primaryButtonCls} disabled:cursor-not-allowed`}
                 >
