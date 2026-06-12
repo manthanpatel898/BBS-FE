@@ -149,15 +149,28 @@ export function PrintTagsView({
           html,
           body {
             background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
           .no-print {
             display: none !important;
           }
 
+          .print-tag-wrapper {
+            margin: 0 !important;
+            max-width: none !important;
+            padding: 0 !important;
+          }
+
           .print-tag-page {
+            break-inside: avoid;
             break-after: page;
             box-shadow: none !important;
+            height: 285mm !important;
+            margin: 0 auto !important;
+            overflow: hidden !important;
+            width: 200mm !important;
           }
 
           .print-tag-page:last-child {
@@ -167,7 +180,7 @@ export function PrintTagsView({
       `}</style>
 
       <section className="min-h-screen bg-stone-100 px-4 py-8 text-stone-900 print:bg-white print:px-0 print:py-0">
-        <div className="mx-auto max-w-[220mm] space-y-6">
+        <div className="print-tag-wrapper mx-auto max-w-[220mm] space-y-6">
           <div className="no-print flex flex-col gap-4 rounded-[28px] bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.35em] text-amber-600">
@@ -205,7 +218,7 @@ export function PrintTagsView({
               {pages.map((pageItems, pageIndex) => (
                 <section
                   key={pageIndex}
-                  className="print-tag-page mx-auto grid h-[297mm] w-[210mm] grid-rows-3 bg-white shadow-sm"
+                  className="print-tag-page mx-auto grid h-[285mm] w-[200mm] grid-rows-3 bg-white shadow-sm"
                 >
                   {pageItems.map((item) => (
                     <article
@@ -229,9 +242,6 @@ export function PrintTagsView({
                         {item.itemName.toLocaleUpperCase('en-IN')}
                       </p>
                     </article>
-                  ))}
-                  {Array.from({ length: 3 - pageItems.length }).map((_, index) => (
-                    <div key={`blank-${pageIndex}-${index}`} />
                   ))}
                 </section>
               ))}
