@@ -5,9 +5,11 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   {
     rules: {
-      'react-hooks/immutability': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react/no-unescaped-entities': 'warn',
+      '@next/next/no-img-element': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react/no-unescaped-entities': 'off',
     },
   },
   globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),

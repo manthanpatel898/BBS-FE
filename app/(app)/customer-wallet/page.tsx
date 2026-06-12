@@ -719,7 +719,6 @@ export default function CustomerWalletPage() {
   useEffect(() => {
     void loadWallet(1, search, statusFilter);
     setPage(1);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, search, statusFilter]);
 
   function handleSearch(e: FormEvent) {
