@@ -22,6 +22,10 @@ function formatPrintDate(value: Date) {
   }).format(value);
 }
 
+function sanitizeDocumentTitle(value: string) {
+  return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+}
+
 export function PrintReportsView() {
   const { accessToken, user } = useAuth();
   const [reports, setReports] = useState<OrderReports | null>(null);
@@ -62,6 +66,18 @@ export function PrintReportsView() {
 
     void loadReports();
   }, [accessToken, user?.restaurantId, user?.role]);
+
+  useEffect(() => {
+    if (!reports) return;
+
+    document.title = sanitizeDocumentTitle(
+      [
+        'Reports Print',
+        restaurant?.name || 'Restaurant',
+        formatPrintDate(new Date()),
+      ].join(' - '),
+    );
+  }, [reports, restaurant?.name]);
 
   return (
     <BookingsRoute>

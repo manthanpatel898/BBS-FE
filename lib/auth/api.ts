@@ -1266,6 +1266,16 @@ export async function updateHallBookingInformationVisibility(
   });
 }
 
+export async function updatePrintTagSettings(
+  accessToken: string,
+  payload: { enablePrintTag: boolean; printTagLogoUrl: string | null },
+) {
+  return authorizedRequest<AppSettings>('/settings/print-tag', accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function hideHallDetailCombination(
   accessToken: string,
   label: string,

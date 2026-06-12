@@ -251,6 +251,8 @@ export interface AppSettings {
   hallDetails: SettingOption[];
   hiddenHallDetailCombinations: string[];
   showHallBookingInformation?: boolean;
+  enablePrintTag?: boolean;
+  printTagLogoUrl?: string | null;
   banquetRules: SettingOption[];
   addonServices: SettingOption[];
   createdAt: string;

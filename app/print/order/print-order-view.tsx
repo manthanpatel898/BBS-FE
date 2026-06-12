@@ -102,6 +102,27 @@ export function PrintOrderView({
     void loadOrder();
   }, [accessToken, orderId]);
 
+  useEffect(() => {
+    if (!order) return;
+
+    const copyLabel =
+      resolvedCopyType === 'kitchen'
+        ? 'Kitchen Print'
+        : resolvedCopyType === 'manager'
+          ? 'Manager Print'
+          : resolvedCopyType === 'customer'
+            ? 'Customer Print'
+            : 'Booking Print';
+    const titleParts = [
+      copyLabel,
+      order.orderId,
+      fullName(order) || 'Guest',
+      order.eventDate ? formatTitleDate(order.eventDate) : null,
+    ].filter(Boolean);
+
+    document.title = sanitizeDocumentTitle(titleParts.join(' - '));
+  }, [order, resolvedCopyType]);
+
   return (
     <BookingsRoute>
       <section className="min-h-screen bg-stone-100 px-4 py-8 text-stone-900 print:bg-white print:px-0 print:py-0">
@@ -665,6 +686,18 @@ function formatSlashDate(value: string) {
   const year = date.getFullYear();
 
   return `${day}/${month}/${year}`;
+}
+
+function formatTitleDate(value: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+function sanitizeDocumentTitle(value: string) {
+  return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
 }
 
 function formatEventDateTime(order: Order) {
