@@ -4,7 +4,7 @@ import { useMemo, useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { addOrderFollowUp, fetchDashboardRecords, fetchOrderById, fetchOrders } from '@/lib/auth/api';
+import { addOrderFollowUp, fetchDashboardRecords, fetchOrderById } from '@/lib/auth/api';
 import { Order, OrderFollowUp, OrderStatus } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
 
@@ -17,9 +17,6 @@ const dateTimeInputCls = `${inputCls} text-slate-900 [color-scheme:light] [--tw-
 
 const ghostButtonCls =
   'rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900';
-
-const primaryButtonCls =
-  'rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-60';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,10 +43,6 @@ function formatDisplayDate(value: string | Date) {
   }).format(new Date(value));
 }
 
-function formatMonthLabel(value: Date) {
-  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(value);
-}
-
 function formatFollowUpDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -64,19 +57,6 @@ function formatCurrency(value: number) {
     currency: 'INR',
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function buildMonthGrid(month: Date) {
-  const start = new Date(month.getFullYear(), month.getMonth(), 1);
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const leadingEmptyDays = start.getDay();
-  const totalCells = Math.ceil((leadingEmptyDays + daysInMonth) / 7) * 7;
-
-  return Array.from({ length: totalCells }, (_, index) => {
-    const dayNumber = index - leadingEmptyDays + 1;
-    if (dayNumber < 1 || dayNumber > daysInMonth) return null;
-    return new Date(month.getFullYear(), month.getMonth(), dayNumber);
-  });
 }
 
 function statusClasses(status: string) {
@@ -235,11 +215,6 @@ export default function FollowupsPage() {
   const { accessToken } = useAuth();
   const today = new Date();
 
-  const [currentMonth, setCurrentMonth] = useState(
-    new Date(today.getFullYear(), today.getMonth(), 1),
-  );
-  const [followUpRangeMode, setFollowUpRangeMode] = useState<'month' | 'upcoming'>('month');
-
   // dateKey → Order[]
   const [inquiryMap, setInquiryMap] = useState<Record<string, Order[]>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -260,8 +235,6 @@ export default function FollowupsPage() {
 
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  const monthGrid = useMemo(() => buildMonthGrid(currentMonth), [currentMonth]);
-
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 3200);
@@ -270,19 +243,10 @@ export default function FollowupsPage() {
 
   useEffect(() => {
     if (!accessToken) return;
-    void loadFollowUps(accessToken, currentMonth, followUpRangeMode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, currentMonth, followUpRangeMode]);
+    void loadFollowUps(accessToken);
+  }, [accessToken]);
 
-  async function loadFollowUps(token: string, month: Date, mode: 'month' | 'upcoming') {
-    const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
-    const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-    const todayKey = toDateInputValue(today);
-    const monthStartKey = toDateInputValue(monthStart);
-    const monthEndKey = toDateInputValue(monthEnd);
-    const isCurrentMonthView =
-      mode === 'upcoming' ||
-      (month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth());
+  async function loadFollowUps(token: string) {
     try {
       setIsLoading(true);
       setPageError('');
@@ -290,37 +254,18 @@ export default function FollowupsPage() {
       let page = 1;
       let totalPages = 1;
 
-      if (isCurrentMonthView) {
-        do {
-          const response = await fetchDashboardRecords(token, {
-            type: 'followups',
-            page,
-            limit: 50,
-          });
+      do {
+        const response = await fetchDashboardRecords(token, {
+          type: 'followups',
+          page,
+          limit: 50,
+        });
 
-          allOrders.push(...response.items);
-          totalPages = response.pagination.totalPages;
-          page += 1;
-        } while (page <= totalPages);
-      } else {
-        do {
-          const response = await fetchOrders(token, {
-            page,
-            limit: 1000,
-            search: '',
-            status: 'INQUIRY',
-            from: monthStartKey,
-            to: monthEndKey,
-            sortBy: 'reportDate',
-            sortDirection: 'asc',
-            dateBasis: 'followUpDueDate',
-          });
+        allOrders.push(...response.items);
+        totalPages = response.pagination.totalPages;
+        page += 1;
+      } while (page <= totalPages);
 
-          allOrders.push(...response.items);
-          totalPages = response.pagination.totalPages;
-          page += 1;
-        } while (page <= totalPages);
-      }
       const map: Record<string, Order[]> = {};
       for (const order of allOrders.filter((item) => !item.inquiryClosed)) {
         const key = getFollowUpDisplayDateKey(order);
@@ -390,7 +335,7 @@ export default function FollowupsPage() {
         };
       });
       if (isDetailOpen) setDetailOrder(updatedOrder);
-      void loadFollowUps(accessToken, currentMonth, followUpRangeMode);
+      void loadFollowUps(accessToken);
     } catch (err) {
       setToast({
         type: 'error',
@@ -458,64 +403,20 @@ export default function FollowupsPage() {
 
   return (
     <section className="space-y-6">
-      {/* Month navigation */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
         <div>
           {/* <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
             Follow Ups
           </p> */}
           <h2 className="mt-2 text-2xl font-bold text-slate-900">
-            {followUpRangeMode === 'upcoming' ? 'Upcoming Follow Ups' : formatMonthLabel(currentMonth)}
+            Required Follow Ups
           </h2>
-        </div>
-        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 md:justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              setFollowUpRangeMode('month');
-              setDayPanel(null);
-              setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1));
-            }}
-            className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
-          >
-            <span className="inline-flex items-center gap-2">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-4 w-4">
-                <path d="m12.5 4.5-5 5 5 5" />
-              </svg>
-              {formatMonthLabel(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFollowUpRangeMode('upcoming');
-              setDayPanel(null);
-              setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
-            }}
-            className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFollowUpRangeMode('month');
-              setDayPanel(null);
-              setCurrentMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1));
-            }}
-            className={`${ghostButtonCls} shrink-0 whitespace-nowrap`}
-          >
-            <span className="inline-flex items-center gap-2">
-              {formatMonthLabel(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-4 w-4">
-                <path d="m7.5 4.5 5 5-5 5" />
-              </svg>
-            </span>
-          </button>
+          <p className="mt-2 text-sm text-slate-500">
+            Open inquiries with follow ups due now for today and future bookings.
+          </p>
         </div>
       </div>
 
-      {/* Calendar */}
       {pageError ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
           <h3 className="text-xl font-semibold text-slate-900">Failed to load</h3>
@@ -525,7 +426,6 @@ export default function FollowupsPage() {
         <PageLoader message="Loading follow-ups…" />
       ) : (
         <div className="space-y-4">
-          {/* Empty state — no inquiries for the month */}
           {Object.keys(inquiryMap).length === 0 && (
             <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50">
@@ -537,34 +437,27 @@ export default function FollowupsPage() {
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">All caught up!</h3>
                 <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">
-                  {followUpRangeMode === 'upcoming'
-                    ? 'No upcoming inquiries need follow up right now.'
-                    : `No pending inquiries for ${formatMonthLabel(currentMonth)}. Check another month or wait for new inquiries to come in.`}
+                  No required follow ups for today or future bookings right now.
                 </p>
               </div>
             </div>
           )}
 
-          {/* Inquiry date cards — only dates with inquiries, side by side */}
           {inquiryEntries.length > 0 && (
-            followUpRangeMode === 'upcoming' ? (
-              <div className="space-y-6">
-                {inquiryMonthGroups.map(([monthKey, entries]) => (
-                  <section key={monthKey} className="space-y-3">
-                    <h3 className="inline-flex border-b-2 border-amber-300 pb-1 text-lg font-bold text-slate-900">
-                      {formatMonthLabel(new Date(`${monthKey}-01T00:00:00`))}
-                    </h3>
-                    <div className="flex flex-wrap gap-3">
-                      {entries.map(([dayKey, dayOrders]) => renderInquiryDateCard(dayKey, dayOrders))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {inquiryEntries.map(([dayKey, dayOrders]) => renderInquiryDateCard(dayKey, dayOrders))}
-              </div>
-            )
+            <div className="space-y-6">
+              {inquiryMonthGroups.map(([monthKey, entries]) => (
+                <section key={monthKey} className="space-y-3">
+                  <h3 className="inline-flex border-b-2 border-amber-300 pb-1 text-lg font-bold text-slate-900">
+                    {new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(
+                      new Date(`${monthKey}-01T00:00:00`),
+                    )}
+                  </h3>
+                  <div className="flex flex-wrap gap-3">
+                    {entries.map(([dayKey, dayOrders]) => renderInquiryDateCard(dayKey, dayOrders))}
+                  </div>
+                </section>
+              ))}
+            </div>
           )}
         </div>
       )}
