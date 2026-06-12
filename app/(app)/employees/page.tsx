@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import Image from 'next/image';
 import { CompanyAdminRoute } from '@/components/auth/company-admin-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
@@ -133,7 +134,7 @@ export default function EmployeesPage() {
     }
 
     void loadEmployees();
-  }, [accessToken, limit, page, search]);
+  }, [accessToken, limit, page, search, showToast]);
 
   function openCreateModal() {
     setEditingEmployee(null);
@@ -912,13 +913,15 @@ export default function EmployeesPage() {
                         Current signature
                       </p>
                       <div className="mt-3 flex min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3">
-                        <img
+                        <Image
                           src={
                             signatureModal.signature.signatureUrl ??
                             signatureModal.signature.signatureImage
                           }
                           alt={`${employeeName(signatureModal.employee)} signature`}
-                          className="max-h-28 max-w-full object-contain"
+                          width={360}
+                          height={112}
+                          className="h-auto max-h-28 w-auto max-w-full object-contain"
                         />
                       </div>
                     </div>

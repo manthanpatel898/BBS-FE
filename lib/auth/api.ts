@@ -1081,6 +1081,7 @@ export async function createOrder(
     addonServiceId?: string;
     addonServices?: Array<{ id?: string; label: string; price: number }>;
     customPricePerPlate?: number;
+    inquiryCustomPrice?: number;
     selectedMenus?: Array<{
       menuId: string;
       sections: Array<{
