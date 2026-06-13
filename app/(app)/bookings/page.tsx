@@ -122,6 +122,13 @@ type TransferPopupState = {
   endTime: string;
 };
 
+type PrintTagItem = {
+  id: string;
+  menuTitle: string;
+  sectionTitle: string;
+  itemName: string;
+};
+
 const initialFormState: BookingFormState = {
   inquiryDate: toDateInputValue(new Date()),
   customerName: '',
@@ -395,6 +402,11 @@ export default function BookingsPage() {
   const isDrawingSignatureRef = useRef(false);
   const [transferPopup, setTransferPopup] = useState<TransferPopupState | null>(null);
   const [isTransferSubmitting, setIsTransferSubmitting] = useState(false);
+  const [printTagPopup, setPrintTagPopup] = useState<{
+    order: Order;
+    items: PrintTagItem[];
+    selectedIds: string[];
+  } | null>(null);
   const [paymentPopup, setPaymentPopup] = useState<{ orderId: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentPopupMode, setPaymentPopupMode] = useState<PaymentMode>('Cash');
@@ -5540,6 +5552,158 @@ function selectionStatus(order: Order) {
           </>
         ) : null}
 
+        {printTagPopup ? (
+          <ModalShell
+            title="Print Tag"
+            eyebrow="Selected Items"
+            onClose={() => setPrintTagPopup(null)}
+            widthClassName="max-w-3xl"
+            zIndexClassName="z-[60]"
+          >
+            <div className="mt-6 space-y-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {printTagPopup.order.orderId}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {printTagPopup.selectedIds.length} of {printTagPopup.items.length} item
+                      {printTagPopup.items.length === 1 ? '' : 's'} selected
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPrintTagPopup((current) =>
+                          current
+                            ? {
+                                ...current,
+                                selectedIds: current.items.map((item) => item.id),
+                              }
+                            : current,
+                        )
+                      }
+                      className={ghostButtonCls}
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPrintTagPopup((current) =>
+                          current ? { ...current, selectedIds: [] } : current,
+                        )
+                      }
+                      className={ghostButtonCls}
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="max-h-[52vh] space-y-4 overflow-y-auto pr-1">
+                {Array.from(
+                  printTagPopup.items.reduce((groups, item) => {
+                    const key = `${item.menuTitle}::${item.sectionTitle}`;
+                    const existing = groups.get(key);
+                    if (existing) {
+                      existing.items.push(item);
+                    } else {
+                      groups.set(key, {
+                        menuTitle: item.menuTitle,
+                        sectionTitle: item.sectionTitle,
+                        items: [item],
+                      });
+                    }
+                    return groups;
+                  }, new Map<string, { menuTitle: string; sectionTitle: string; items: PrintTagItem[] }>()),
+                ).map(([key, group]) => (
+                  <section key={key} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        {group.menuTitle}
+                      </p>
+                      <h3 className="mt-1 text-sm font-semibold text-slate-900">
+                        {group.sectionTitle}
+                      </h3>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {group.items.map((item) => {
+                        const checked = printTagPopup.selectedIds.includes(item.id);
+
+                        return (
+                          <label
+                            key={item.id}
+                            className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${
+                              checked
+                                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                const isChecked = event.target.checked;
+                                setPrintTagPopup((current) => {
+                                  if (!current) return current;
+                                  const selectedIds = isChecked
+                                    ? [...current.selectedIds, item.id]
+                                    : current.selectedIds.filter((id) => id !== item.id);
+                                  return { ...current, selectedIds };
+                                });
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                            />
+                            <span className="min-w-0 flex-1 font-medium">
+                              {item.itemName}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setPrintTagPopup(null)}
+                  className={ghostButtonCls}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={printTagPopup.selectedIds.length === 0}
+                  onClick={() => {
+                    const requestKey = `print-tags:${printTagPopup.order.id}:${Date.now()}`;
+                    localStorage.setItem(
+                      requestKey,
+                      JSON.stringify({
+                        orderId: printTagPopup.order.id,
+                        selectedItemIds: printTagPopup.selectedIds.join('|'),
+                      }),
+                    );
+                    window.open(
+                      `/print/tags/#request=${encodeURIComponent(requestKey)}`,
+                      '_blank',
+                      'noopener,noreferrer',
+                    );
+                  }}
+                  className={`${primaryButtonCls} disabled:cursor-not-allowed`}
+                >
+                  Print
+                </button>
+              </div>
+            </div>
+          </ModalShell>
+        ) : null}
+
         {isDetailOpen ? (
           <ModalShell
             title="Event Detail"
@@ -5549,6 +5713,7 @@ function selectionStatus(order: Order) {
               setDetailOrder(null);
               setDetailError('');
               setIsMobileDetailActionsOpen(false);
+              setPrintTagPopup(null);
             }}
             widthClassName="max-w-4xl"
             panelClassName="flex flex-col !pb-0"
@@ -6018,7 +6183,6 @@ function selectionStatus(order: Order) {
                   })()}
               </div>
               <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
-                {/* eslint-disable-next-line react-hooks/refs */}
                 {(() => {
                   const renderDetailActionButtons = () => (
                     <>
@@ -6038,6 +6202,24 @@ function selectionStatus(order: Order) {
                           >
                             Kitchen Print
                           </Link>
+                          {settings?.enablePrintTag &&
+                          settings.printTagLogoUrl &&
+                          detailOrder.menuSelectionSnapshot.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const items = buildPrintTagItems(detailOrder);
+                                setPrintTagPopup({
+                                  order: detailOrder,
+                                  items,
+                                  selectedIds: items.map((item) => item.id),
+                                });
+                              }}
+                              className="inline-flex min-w-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
+                            >
+                              Print Tag
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => {
@@ -6578,6 +6760,19 @@ function getMonthTileStatusCounts(orders: CalendarOrder[]) {
       return counts;
     },
     { inquiry: 0, booked: 0, cancelled: 0, closed: 0 },
+  );
+}
+
+function buildPrintTagItems(order: Order): PrintTagItem[] {
+  return order.menuSelectionSnapshot.flatMap((menu, menuIndex) =>
+    menu.sections.flatMap((section, sectionIndex) =>
+      section.items.map((itemName, itemIndex) => ({
+        id: `${menuIndex}:${sectionIndex}:${itemIndex}`,
+        menuTitle: menu.title,
+        sectionTitle: section.sectionTitle,
+        itemName,
+      })),
+    ),
   );
 }
 

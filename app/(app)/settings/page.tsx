@@ -37,6 +37,7 @@ import {
   updateHallBookingInformationVisibility,
   updateMyRestaurantBranding,
   updatePaymentOption,
+  updatePrintTagSettings,
   uploadLogo,
 } from '@/lib/auth/api';
 import { AppSettings, Restaurant, SettingOption, UserSignature } from '@/lib/auth/types';
@@ -52,6 +53,7 @@ type SettingsTabKey =
   | 'hallDetails'
   | 'banquetRules'
   | 'addonServices'
+  | 'printTag'
   | 'hotDates'
   | 'mySignature';
 
@@ -465,6 +467,7 @@ function SettingsTabs({
     { key: 'hallDetails', label: 'Hall Details' },
     { key: 'banquetRules', label: 'Banquet Rules' },
     { key: 'addonServices', label: 'Addon Services' },
+    { key: 'printTag', label: 'Print Tag' },
     { key: 'hotDates', label: 'Hot Dates' },
     { key: 'mySignature', label: 'My Signature' },
   ];
@@ -548,6 +551,14 @@ function getTabMeta(tab: SettingsTabKey) {
         addButtonLabel: 'Add addon',
         emptyMessage: 'No addon services configured yet.',
       };
+    case 'printTag':
+      return {
+        title: 'Print Tag',
+        description: 'Configure item tag printing for confirmed banquet bookings.',
+        addPlaceholder: '',
+        addButtonLabel: '',
+        emptyMessage: '',
+      };
     case 'hotDates':
       return {
         title: 'Hot Dates',
@@ -575,6 +586,8 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isBrandingSaving, setIsBrandingSaving] = useState(false);
   const [isLogoUploading, setIsLogoUploading] = useState(false);
+  const [isPrintTagSaving, setIsPrintTagSaving] = useState(false);
+  const [isPrintTagLogoUploading, setIsPrintTagLogoUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTabKey>('paymentOptions');
   const [paymentValue, setPaymentValue] = useState('');
   const [eventValue, setEventValue] = useState('');
@@ -597,6 +610,7 @@ export default function SettingsPage() {
   const [brandingName, setBrandingName] = useState('');
   const [brandingLogoUrl, setBrandingLogoUrl] = useState('');
   const [brandingContactNumbers, setBrandingContactNumbers] = useState('');
+  const [printTagLogoUrl, setPrintTagLogoUrl] = useState('');
   const [mySignature, setMySignature] = useState<UserSignature | null>(null);
   const [hasDrawnSignature, setHasDrawnSignature] = useState(false);
   const [isSignatureSaving, setIsSignatureSaving] = useState(false);
@@ -613,6 +627,7 @@ export default function SettingsPage() {
       'hallDetails',
       'banquetRules',
       'addonServices',
+      'printTag',
       'hotDates',
       'mySignature',
         ]
@@ -646,6 +661,7 @@ export default function SettingsPage() {
         setBrandingName(restaurantResponse.name);
         setBrandingLogoUrl(restaurantResponse.logoUrl ?? '');
         setBrandingContactNumbers((restaurantResponse.contactNumbers ?? []).join('\n'));
+        setPrintTagLogoUrl(response.printTagLogoUrl ?? '');
       } catch (error) {
         showToast(
           error instanceof Error ? error.message : 'Unable to load settings.',
@@ -823,6 +839,32 @@ export default function SettingsPage() {
       );
     } finally {
       setIsBrandingSaving(false);
+    }
+  }
+
+  async function handleSavePrintTagSettings(
+    enablePrintTag: boolean,
+    logoUrl = printTagLogoUrl,
+  ) {
+    const token = requireToken();
+    if (!token) return;
+
+    try {
+      setIsPrintTagSaving(true);
+      const nextSettings = await updatePrintTagSettings(token, {
+        enablePrintTag,
+        printTagLogoUrl: logoUrl.trim() || null,
+      });
+      setSettings(nextSettings);
+      setPrintTagLogoUrl(nextSettings.printTagLogoUrl ?? '');
+      showToast('Print Tag settings updated successfully.', 'success');
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'Unable to save Print Tag settings.',
+        'error',
+      );
+    } finally {
+      setIsPrintTagSaving(false);
     }
   }
 
@@ -1358,6 +1400,127 @@ export default function SettingsPage() {
                   >
                     Save signature
                   </LoadingButton>
+                </div>
+              </section>
+            ) : activeTab === 'printTag' ? (
+              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+                      Print Tag
+                    </p>
+                    <h2 className="mt-1 text-xl font-semibold text-slate-900">Serving Item Tags</h2>
+                    <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                      Enable item tag printing for confirmed banquet bookings and upload the logo used on each tag.
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(settings.enablePrintTag)}
+                      disabled={isPrintTagSaving}
+                      onChange={(event) =>
+                        void handleSavePrintTagSettings(event.target.checked)
+                      }
+                      className="h-5 w-5 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                    />
+                    Enable Print Tag
+                  </label>
+                </div>
+
+                <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Print Tag Logo
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 transition hover:border-amber-400 hover:text-amber-600 ${isPrintTagLogoUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
+                        </svg>
+                        {isPrintTagLogoUploading ? 'Uploading…' : printTagLogoUrl ? 'Change logo' : 'Upload logo'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          className="sr-only"
+                          disabled={isPrintTagLogoUploading}
+                          onChange={async (event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = '';
+                            if (!file) return;
+                            if (file.size > 5 * 1024 * 1024) {
+                              showToast('Image must be under 5 MB.', 'error');
+                              return;
+                            }
+                            const token = requireToken();
+                            if (!token) return;
+                            try {
+                              setIsPrintTagLogoUploading(true);
+                              const url = await uploadLogo(token, file);
+                              setPrintTagLogoUrl(url);
+                              await handleSavePrintTagSettings(Boolean(settings.enablePrintTag), url);
+                            } catch (err) {
+                              showToast(err instanceof Error ? err.message : 'Upload failed.', 'error');
+                            } finally {
+                              setIsPrintTagLogoUploading(false);
+                            }
+                          }}
+                        />
+                      </label>
+                      {printTagLogoUrl ? (
+                        <button
+                          type="button"
+                          disabled={isPrintTagSaving}
+                          onClick={() => {
+                            setPrintTagLogoUrl('');
+                            void handleSavePrintTagSettings(false, '');
+                          }}
+                          className="text-xs text-slate-400 transition hover:text-red-500 disabled:opacity-60"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-slate-400">JPEG, PNG, WebP or GIF · max 5 MB</p>
+                    {!printTagLogoUrl && settings.enablePrintTag ? (
+                      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                        Upload a Print Tag logo before this action appears on confirmed bookings.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Preview
+                    </p>
+                    <div className="mt-3 grid h-[420px] grid-rows-3 rounded-xl bg-white shadow-inner">
+                      {[0, 1, 2].map((index) => (
+                        <div key={index} className="flex flex-col items-center justify-center px-4 text-center">
+                          {printTagLogoUrl ? (
+                            <img
+                              src={printTagLogoUrl}
+                              alt=""
+                              className="mb-3 max-h-14 max-w-[170px] object-contain"
+                            />
+                          ) : (
+                            <div className="mb-3 flex h-14 w-28 items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs font-semibold text-slate-400">
+                              Logo
+                            </div>
+                          )}
+                          <p
+                            className="font-bold uppercase"
+                            style={{
+                              color: '#7a0b0b',
+                              fontFamily: 'Calibri, Arial, sans-serif',
+                              fontSize: 26,
+                            }}
+                          >
+                            RAJBHOG ICE-CREAM
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </section>
             ) : (
