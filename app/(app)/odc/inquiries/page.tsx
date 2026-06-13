@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { ReactNode } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { BookingModeToggle } from '@/components/bookings/booking-mode-toggle';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { CommonModal } from '@/components/ui/common-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
@@ -478,8 +479,8 @@ function Field({
 
 export default function OdcInquiriesPage() {
   useAppPageHeader({
-    eyebrow: 'Outdoor Catering',
-    title: 'ODC Inquiries',
+    eyebrow: 'ODC Booking',
+    title: 'ODC Booking',
   });
 
   const { accessToken, user } = useAuth();
@@ -495,6 +496,12 @@ export default function OdcInquiriesPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
+  const [isCalendarActionsOpen, setIsCalendarActionsOpen] = useState(false);
+  const [isCalendarSearchOpen, setIsCalendarSearchOpen] = useState(false);
+  const [calendarSearchInput, setCalendarSearchInput] = useState('');
+  const [calendarSearchResults, setCalendarSearchResults] = useState<OdcOrder[]>([]);
+  const [isCalendarSearchLoading, setIsCalendarSearchLoading] = useState(false);
+  const [calendarSearchError, setCalendarSearchError] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -545,6 +552,7 @@ export default function OdcInquiriesPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const calendarSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isCompanyAdmin = user?.role === 'company_admin';
@@ -568,6 +576,8 @@ export default function OdcInquiriesPage() {
     }
     return groups;
   }, [calendarOrders]);
+  const calendarSearchQuery = calendarSearchInput.trim().toLowerCase();
+  const isCalendarSearchActive = calendarSearchQuery.length > 0;
   const calendarDays = useMemo(() => buildMonthGrid(calendarMonth), [calendarMonth]);
   const todayKey = toDateInputValue(new Date());
 
@@ -590,6 +600,76 @@ export default function OdcInquiriesPage() {
     document.addEventListener('mousedown', handleDocumentClick);
     return () => document.removeEventListener('mousedown', handleDocumentClick);
   }, [subitemDescriptionKey]);
+
+  useEffect(() => {
+    if (!isCalendarSearchOpen) {
+      return;
+    }
+
+    calendarSearchInputRef.current?.focus();
+  }, [isCalendarSearchOpen]);
+
+  useEffect(() => {
+    if (!accessToken || !hasOdcAccess || !effectiveRestaurantId || !calendarSearchQuery) {
+      setCalendarSearchResults([]);
+      setCalendarSearchError('');
+      setIsCalendarSearchLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    const token = accessToken;
+    const restaurantScope = isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {};
+
+    const timeoutId = window.setTimeout(() => {
+      setIsCalendarSearchLoading(true);
+      setCalendarSearchError('');
+
+      void fetchOdcOrders(token, {
+        page: 1,
+        limit: 1000,
+        search: calendarSearchQuery,
+        status: '',
+        ...restaurantScope,
+      })
+        .then((response) => {
+          if (!isActive) {
+            return;
+          }
+
+          const matchingOrders = response.items.sort((left, right) => {
+            const leftDate = left.eventDate ? new Date(left.eventDate).getTime() : Number.MAX_SAFE_INTEGER;
+            const rightDate = right.eventDate ? new Date(right.eventDate).getTime() : Number.MAX_SAFE_INTEGER;
+
+            return leftDate - rightDate;
+          });
+
+          setCalendarSearchResults(matchingOrders);
+        })
+        .catch((requestError) => {
+          if (!isActive) {
+            return;
+          }
+
+          setCalendarSearchResults([]);
+          setCalendarSearchError(
+            requestError instanceof Error
+              ? requestError.message
+              : 'Unable to search ODC bookings.',
+          );
+        })
+        .finally(() => {
+          if (isActive) {
+            setIsCalendarSearchLoading(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [accessToken, calendarSearchQuery, effectiveRestaurantId, hasOdcAccess, isSuperAdmin]);
 
   useEffect(() => {
     if (!accessToken || !isSuperAdmin) return;
@@ -1983,57 +2063,182 @@ export default function OdcInquiriesPage() {
         <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-              <div className="min-w-0 flex-1 pr-2">
-                <h2 className="truncate text-lg font-bold leading-none text-slate-900 sm:text-[2rem]">
-                  {formatMonthLabel(calendarMonth)}
-                </h2>
-              </div>
-              <div className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => goToCalendarMonth(shiftMonth(calendarMonth, -1))}
-                  aria-label="Previous month"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
-                >
-                  <IconGlyph icon="previous" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => goToCalendarMonth(shiftMonth(calendarMonth, 1))}
-                  aria-label="Next month"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
-                >
-                  <IconGlyph icon="next" />
-                </button>
-                <div className="hidden items-center gap-2 sm:flex sm:gap-3">
-                  <div className="flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+              {isCalendarSearchOpen ? null : (
+                <div className="min-w-0 flex-1 pr-2">
+                  <h2 className="truncate text-lg font-bold leading-none text-slate-900 sm:text-[2rem]">
+                    {formatMonthLabel(calendarMonth)}
+                  </h2>
+                </div>
+              )}
+              <div
+                data-booking-calendar-toolbar
+                className={
+                  isCalendarSearchOpen
+                    ? 'w-full'
+                    : 'flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-3'
+                }
+              >
+                {isCalendarSearchOpen ? null : (
+                  <>
                     <button
                       type="button"
-                      onClick={() => setViewMode('list')}
-                      className="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:px-5"
+                      onClick={() => goToCalendarMonth(shiftMonth(calendarMonth, -1))}
+                      aria-label="Previous month"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
                     >
-                      List
+                      <IconGlyph icon="previous" />
                     </button>
                     <button
                       type="button"
-                      onClick={() => setViewMode('calendar')}
-                      className="rounded-xl bg-amber-400 px-3 py-2 text-sm font-medium text-white transition sm:px-5"
+                      onClick={() => goToCalendarMonth(shiftMonth(calendarMonth, 1))}
+                      aria-label="Next month"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
                     >
-                      Calendar
+                      <IconGlyph icon="next" />
+                    </button>
+                  </>
+                )}
+                {isCalendarSearchOpen ? (
+                  <div className="relative mx-auto w-full max-w-md">
+                    <label className="sr-only" htmlFor="odc-calendar-search">
+                      Search ODC bookings by name
+                    </label>
+                    <input
+                      ref={calendarSearchInputRef}
+                      id="odc-calendar-search"
+                      type="text"
+                      value={calendarSearchInput}
+                      onChange={(event) => setCalendarSearchInput(event.target.value)}
+                      placeholder="Search by name"
+                      className={`${inputCls} h-11 rounded-2xl border-slate-200 bg-white pl-10 pr-10 text-sm`}
+                    />
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 3 3" />
+                        <circle cx="8.5" cy="8.5" r="5.5" />
+                      </svg>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCalendarSearchOpen(false);
+                        setCalendarSearchInput('');
+                        setCalendarSearchResults([]);
+                        setCalendarSearchError('');
+                      }}
+                      aria-label="Close ODC inquiry search"
+                      className="absolute right-2.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                        <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
+                      </svg>
                     </button>
                   </div>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => goToCalendarMonth(new Date())}
-                    className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 sm:px-5"
+                    onClick={() => setIsCalendarSearchOpen(true)}
+                    aria-label="Search ODC inquiries"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:h-12 sm:w-12"
                   >
-                    Today
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 sm:h-5 sm:w-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m14.5 14.5 3 3" />
+                      <circle cx="8.5" cy="8.5" r="5.5" />
+                    </svg>
                   </button>
-                </div>
+                )}
+                {isCalendarSearchOpen ? null : (
+                  <div className="hidden items-center gap-2 sm:flex sm:gap-3">
+                    <BookingModeToggle activeMode="odc" />
+                    <div className="flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('list')}
+                        className="rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:px-5"
+                      >
+                        List
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('calendar')}
+                        className="rounded-xl bg-amber-400 px-3 py-2 text-sm font-medium text-white transition sm:px-5"
+                      >
+                        Calendar
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => goToCalendarMonth(new Date())}
+                      className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 sm:px-5"
+                    >
+                      Today
+                    </button>
+                  </div>
+                )}
+                {isCalendarSearchOpen ? null : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCalendarActionsOpen(true)}
+                    aria-label="Open calendar actions"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 shadow-sm transition hover:bg-amber-100 sm:hidden"
+                  >
+                    <IconChevronDown />
+                  </button>
+                )}
               </div>
             </div>
           </div>
-          {isLoading ? (
+          {isCalendarSearchOpen ? (
+            <div className="space-y-4">
+              {!isCalendarSearchActive ? null : isCalendarSearchLoading ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
+                  Searching ODC bookings...
+                </div>
+              ) : calendarSearchError ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-8 text-center text-sm text-red-600">
+                  {calendarSearchError}
+                </div>
+              ) : calendarSearchResults.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  No ODC booking found for &quot;{calendarSearchInput.trim()}&quot;.
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {calendarSearchResults.map((order) => (
+                    <button
+                      type="button"
+                      key={`odc-calendar-search-${order.id}`}
+                      onClick={() => void openOrderDetail(order.id, order)}
+                      className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${odcCalendarCardClass(order.status)}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {`${order.customerSnapshot.firstName} ${order.customerSnapshot.lastName}`.trim() || 'Customer pending'}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-600">{order.eventName || 'Outdoor event'}</p>
+                          <p className="mt-2 text-xs font-semibold text-slate-900">
+                            {formatDate(order.eventDate)}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {formatTimeRange(order.startTime, order.endTime)} • {order.pax ?? 0} pax
+                          </p>
+                          {order.city || order.area ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {[order.area, order.city].filter(Boolean).join(', ')}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] ${statusBadgeClass(order.status)}`}>
+                          {compactStatus(order.status)}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : isLoading ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
               Loading calendar...
             </div>
@@ -2309,6 +2514,65 @@ export default function OdcInquiriesPage() {
           <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-xl border border-slate-200 px-3 py-2 font-medium text-slate-600 disabled:opacity-40">Next</button>
         </div>
       </div>
+      ) : null}
+
+      {viewMode === 'calendar' && isCalendarActionsOpen ? (
+        <>
+          <div
+            className="fixed inset-0 z-[70] bg-slate-900/35 sm:hidden"
+            onClick={() => setIsCalendarActionsOpen(false)}
+          />
+          <div className="fixed inset-x-0 bottom-0 z-[71] rounded-t-[28px] border border-slate-200 bg-white p-5 shadow-[0_-12px_36px_rgba(15,23,42,0.16)] sm:hidden">
+            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200" />
+            <div className="space-y-2">
+              <div className="flex">
+                <BookingModeToggle activeMode="odc" />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCalendarSearchOpen(true);
+                  setIsCalendarActionsOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                <span>Search</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('list');
+                  setIsCalendarActionsOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                <span>List View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('calendar');
+                  setIsCalendarActionsOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm font-medium text-amber-700 transition"
+              >
+                <span>Calendar View</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">Active</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  goToCalendarMonth(new Date());
+                  setIsCalendarActionsOpen(false);
+                }}
+                className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                <span>Today</span>
+                <span className="text-xs text-slate-400">{formatMonthLabel(new Date())}</span>
+              </button>
+            </div>
+          </div>
+        </>
       ) : null}
 
       {dayRecordsPopup ? (

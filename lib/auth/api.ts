@@ -17,7 +17,6 @@ import {
   ItemSalesReportRow,
   Menu,
   OdcCategory,
-  OdcCustomer,
   OdcCalendarOrder,
   OdcMenu,
   OdcOrder,
@@ -35,7 +34,6 @@ import {
   PaginatedCategories,
   PaginatedMenus,
   PaginatedOdcCategories,
-  PaginatedOdcCustomers,
   PaginatedOdcMenus,
   PaginatedOdcOrders,
   PaginatedOrders,
@@ -669,57 +667,6 @@ export async function copyBanquetCatalogToOdc(
     categoriesSkipped: number;
   }>('/odc/admin/copy-banquet-catalog', accessToken, {
     method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function fetchOdcCustomers(
-  accessToken: string,
-  params: {
-    page: number;
-    limit: number;
-    search: string;
-    restaurantId?: string;
-  },
-) {
-  const query = new URLSearchParams({
-    page: String(params.page),
-    limit: String(params.limit),
-  });
-
-  if (params.search.trim()) {
-    query.set('search', params.search.trim());
-  }
-
-  if (params.restaurantId?.trim()) {
-    query.set('restaurantId', params.restaurantId.trim());
-  }
-
-  return authorizedRequest<PaginatedOdcCustomers>(
-    `/odc/customers?${query.toString()}`,
-    accessToken,
-  );
-}
-
-export async function createOdcCustomer(
-  accessToken: string,
-  payload: Pick<OdcCustomer, 'firstName' | 'lastName' | 'phone' | 'email' | 'address'> & {
-    restaurantId?: string;
-  },
-) {
-  return authorizedRequest<OdcCustomer>('/odc/customers', accessToken, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function updateOdcCustomer(
-  accessToken: string,
-  customerId: string,
-  payload: Partial<Pick<OdcCustomer, 'firstName' | 'lastName' | 'phone' | 'email' | 'address'>>,
-) {
-  return authorizedRequest<OdcCustomer>(`/odc/customers/${customerId}`, accessToken, {
-    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }

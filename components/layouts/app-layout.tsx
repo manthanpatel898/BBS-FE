@@ -33,7 +33,7 @@ type AppPageHeader = {
 
 const AppPageHeaderContext = createContext<React.Dispatch<React.SetStateAction<AppPageHeader>> | null>(null);
 const CONFIGURATION_ROUTES = ['/categories', '/menus', '/employees', '/settings'];
-const ODC_ROUTES = ['/odc/categories', '/odc/menus', '/odc/customers', '/odc/inquiries'];
+const ODC_ROUTES = ['/odc/categories', '/odc/menus'];
 
 export function useAppPageHeader(header: AppPageHeader) {
   const setPageHeader = useContext(AppPageHeaderContext);
@@ -223,8 +223,6 @@ function buildNavItems(
               label: 'Outdoor Catering',
               icon: <IconMenu />,
               children: [
-                { type: 'link' as const, href: '/odc/inquiries', label: 'ODC Inquiries', icon: <IconCalendar /> },
-                { type: 'link' as const, href: '/odc/customers', label: 'ODC Customers', icon: <IconUsers /> },
                 { type: 'link' as const, href: '/odc/categories', label: 'ODC Categories', icon: <IconTag /> },
                 { type: 'link' as const, href: '/odc/menus', label: 'ODC Menus', icon: <IconMenu /> },
               ],
@@ -259,8 +257,6 @@ function buildNavItems(
               label: 'Outdoor Catering',
               icon: <IconMenu />,
               children: [
-                { type: 'link' as const, href: '/odc/inquiries', label: 'ODC Inquiries', icon: <IconCalendar /> },
-                { type: 'link' as const, href: '/odc/customers', label: 'ODC Customers', icon: <IconUsers /> },
                 { type: 'link' as const, href: '/odc/categories', label: 'ODC Categories', icon: <IconTag /> },
                 { type: 'link' as const, href: '/odc/menus', label: 'ODC Menus', icon: <IconMenu /> },
               ],
@@ -288,12 +284,6 @@ function buildNavItems(
   return [
     { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
     { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
-    ...(canAccessOdc
-      ? [
-          { type: 'link' as const, href: '/odc/inquiries', label: 'ODC Inquiries', icon: <IconCalendar /> },
-          { type: 'link' as const, href: '/odc/customers', label: 'ODC Customers', icon: <IconUsers /> },
-        ]
-      : []),
   ];
 }
 
@@ -425,6 +415,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   function checkActive(href: string) {
     if (href === '/dashboard') return pathname === '/dashboard';
+    if (href === '/bookings' && pathname.startsWith('/odc/inquiries')) return true;
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 

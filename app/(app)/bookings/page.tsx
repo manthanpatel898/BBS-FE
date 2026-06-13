@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { BookingModeToggle } from '@/components/bookings/booking-mode-toggle';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import {
   addAdvancePayment,
@@ -317,8 +318,8 @@ export default function BookingsPage() {
   const { accessToken, user } = useAuth();
   const searchParams = useSearchParams();
   useAppPageHeader({
-    eyebrow: 'Bookings',
-    title: 'Bookings',
+    eyebrow: 'Banquate Booking',
+    title: 'Banquate Booking',
   });
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -2939,7 +2940,7 @@ function selectionStatus(order: Order) {
                     {formatMonthLabel(calendarMonth)}
                   </h2>
                 </div>
-                <div className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-3">
+                <div data-booking-calendar-toolbar className="flex shrink-0 flex-nowrap items-center justify-end gap-1.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setCalendarMonth((current) => shiftMonth(current, -1))}
@@ -3006,6 +3007,7 @@ function selectionStatus(order: Order) {
                     </button>
                   )}
                   <div className="hidden items-center gap-2 sm:flex sm:gap-3">
+                    <BookingModeToggle activeMode="banquet" showOdc={Boolean(user?.canAccessOdc)} />
                     <div className="flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
                       <button
                         type="button"
@@ -3296,6 +3298,19 @@ function selectionStatus(order: Order) {
             <div className="fixed inset-x-0 bottom-0 z-[71] rounded-t-[28px] border border-slate-200 bg-white p-5 shadow-[0_-12px_36px_rgba(15,23,42,0.16)] sm:hidden">
               <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-slate-200" />
               <div className="space-y-2">
+                <div className="flex">
+                  <BookingModeToggle activeMode="banquet" showOdc={Boolean(user?.canAccessOdc)} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCalendarSearchOpen(true);
+                    setIsCalendarActionsOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  <span>Search</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {

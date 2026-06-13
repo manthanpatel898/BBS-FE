@@ -261,20 +261,6 @@ export interface Customer {
   updatedAt: string;
 }
 
-export type OdcCustomer = Customer & {
-  address: string | null;
-};
-
-export interface PaginatedOdcCustomers {
-  items: OdcCustomer[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
 export type OrderStatus = 'INQUIRY' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
 export type OdcOrderStatus =
   | 'INQUIRY'
