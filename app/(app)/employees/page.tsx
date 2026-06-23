@@ -114,7 +114,6 @@ export default function EmployeesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [signatureModal, setSignatureModal] = useState<SignatureModalState | null>(null);
   const [isSignatureSaving, setIsSignatureSaving] = useState(false);
@@ -161,6 +160,23 @@ export default function EmployeesPage() {
 
     void loadEmployees();
   }, [accessToken, limit, page, search, showToast]);
+
+  useEffect(() => {
+    const value = searchInput.trim();
+
+    if (value.length > 0 && value.length < 3) {
+      setPage(1);
+      setSearch('');
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPage(1);
+      setSearch(value);
+    }, 450);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
 
   function openCreateModal() {
     setEditingEmployee(null);
@@ -773,13 +789,6 @@ export default function EmployeesPage() {
           <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
             <button
               type="button"
-              onClick={() => setIsFiltersOpen((current) => !current)}
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-            >
-              {isFiltersOpen ? 'Hide search' : 'Search'}
-            </button>
-            <button
-              type="button"
               onClick={openCreateModal}
               className="ml-auto rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500"
             >
@@ -788,35 +797,35 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        {isFiltersOpen ? (
         <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs text-slate-500">Total employees</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{totalItems}</p>
           </div>
-          <form
-            className="flex w-full max-w-xl gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setPage(1);
-              setSearch(searchInput);
-            }}
-          >
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by name, username, or contact number"
-              className={inputCls}
-            />
-            <button
-              type="submit"
-              className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500"
-            >
-              Search
-            </button>
-          </form>
+          <div className="w-full max-w-xl">
+            <div className="relative">
+              <input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Search by name, username, or contact number"
+                className={`${inputCls} pr-11`}
+              />
+              {searchInput ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchInput('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Clear employee search"
+                >
+                  X
+                </button>
+              ) : null}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Search starts after 3 characters. Clear the field to show all employees.
+            </p>
+          </div>
         </div>
-        ) : null}
 
         <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
           <div className="overflow-x-auto">
