@@ -15,9 +15,9 @@ import {
   fetchEmployeePermissions,
   fetchEmployeeSignature,
   fetchEmployees,
-  fetchPermissionRegistry,
   saveEmployeeSignature,
   updateEmployee,
+  updateEmployeePermissions,
 } from '@/lib/auth/api';
 import { Employee, PermissionModuleDefinition, UserSignature } from '@/lib/auth/types';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
@@ -71,6 +71,13 @@ type SignatureModalState = {
   hasDrawnSignature: boolean;
 };
 
+type PermissionEditorState = {
+  employee: Employee;
+  permissions: string[];
+  effectivePermissions: string[];
+  registry: PermissionModuleDefinition[];
+};
+
 const initialFormState: EmployeeFormState = {
   firstName: '',
   lastName: '',
@@ -111,12 +118,13 @@ export default function EmployeesPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [signatureModal, setSignatureModal] = useState<SignatureModalState | null>(null);
   const [isSignatureSaving, setIsSignatureSaving] = useState(false);
-  const [permissionRegistry, setPermissionRegistry] = useState<PermissionModuleDefinition[]>([]);
+  const [permissionEditor, setPermissionEditor] = useState<PermissionEditorState | null>(null);
   const [permissionSearch, setPermissionSearch] = useState('');
   const [expandedPermissionModules, setExpandedPermissionModules] = useState<Set<string>>(
     () => new Set(['bookings']),
   );
   const [isPermissionLoading, setIsPermissionLoading] = useState(false);
+  const [isPermissionSaving, setIsPermissionSaving] = useState(false);
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingSignatureRef = useRef(false);
   const canViewPermissions =
@@ -159,7 +167,6 @@ export default function EmployeesPage() {
     setFormState(initialFormState);
     setShowPassword(false);
     setIsModalOpen(true);
-    void loadPermissionRegistryForModal(null);
   }
 
   function openEditModal(employee: Employee) {
@@ -176,28 +183,31 @@ export default function EmployeesPage() {
       permissions: employee.permissions ?? [],
     });
     setIsModalOpen(true);
-    void loadPermissionRegistryForModal(employee);
   }
 
-  async function loadPermissionRegistryForModal(employee: Employee | null) {
+  async function openPermissionsModal(employee: Employee) {
     if (!accessToken || !canViewPermissions) {
       return;
     }
 
     try {
       setIsPermissionLoading(true);
-      if (employee) {
-        const response = await fetchEmployeePermissions(accessToken, employee.id);
-        setPermissionRegistry(response.registry);
-        setFormState((current) => ({
-          ...current,
-          permissions: response.permissions,
-        }));
-      } else {
-        const response = await fetchPermissionRegistry(accessToken);
-        setPermissionRegistry(response);
-      }
+      setPermissionSearch('');
+      setPermissionEditor({
+        employee,
+        permissions: employee.permissions ?? [],
+        effectivePermissions: employee.effectivePermissions ?? [],
+        registry: [],
+      });
+      const response = await fetchEmployeePermissions(accessToken, employee.id);
+      setPermissionEditor({
+        employee,
+        permissions: response.permissions,
+        effectivePermissions: response.effectivePermissions,
+        registry: response.registry,
+      });
     } catch (requestError) {
+      setPermissionEditor(null);
       showToast(
         requestError instanceof Error ? requestError.message : 'Unable to load permissions.',
         'error',
@@ -247,18 +257,16 @@ export default function EmployeesPage() {
     try {
       setIsSubmitting(true);
 
-      const { displayRole, permissions: selectedPermissions, ...restFormState } = formState;
+      const { displayRole, permissions: _permissions, ...restFormState } = formState;
       const role = toUserRole(displayRole);
       const designation = displayRole;
       const canAccessOdc = role === 'employee' ? restFormState.canAccessOdc : false;
-      const permissions = canManagePermissions ? selectedPermissions : undefined;
       if (editingEmployee) {
         const updatePayload = {
           ...restFormState,
           canAccessOdc,
           role,
           designation,
-          ...(permissions ? { permissions } : {}),
           ...(canManagePassword(displayRole) && restFormState.password.trim()
             ? { password: restFormState.password.trim() }
             : {}),
@@ -271,7 +279,6 @@ export default function EmployeesPage() {
           canAccessOdc,
           role,
           designation,
-          ...(permissions ? { permissions } : {}),
         });
         showToast('Employee created successfully.', 'success');
       }
@@ -313,6 +320,51 @@ export default function EmployeesPage() {
     }
   }
 
+  async function handleSavePermissions() {
+    if (!accessToken || !permissionEditor) {
+      return;
+    }
+
+    try {
+      setIsPermissionSaving(true);
+      const response = await updateEmployeePermissions(
+        accessToken,
+        permissionEditor.employee.id,
+        permissionEditor.permissions,
+      );
+      setPermissionEditor((current) =>
+        current
+          ? {
+              ...current,
+              permissions: response.permissions,
+              effectivePermissions: response.effectivePermissions,
+              registry: response.registry,
+            }
+          : current,
+      );
+      setEmployees((current) =>
+        current.map((employee) =>
+          employee.id === permissionEditor.employee.id
+            ? {
+                ...employee,
+                permissions: response.permissions,
+                effectivePermissions: response.effectivePermissions,
+              }
+            : employee,
+        ),
+      );
+      showToast('Permissions updated successfully.', 'success');
+      setPermissionEditor(null);
+    } catch (requestError) {
+      showToast(
+        requestError instanceof Error ? requestError.message : 'Unable to update permissions.',
+        'error',
+      );
+    } finally {
+      setIsPermissionSaving(false);
+    }
+  }
+
   function permissionKeysForModule(module: PermissionModuleDefinition) {
     return module.groups.flatMap((group) =>
       group.permissions.map((permission) => permission.key),
@@ -320,7 +372,8 @@ export default function EmployeesPage() {
   }
 
   function togglePermission(permissionKey: string, checked: boolean) {
-    setFormState((current) => {
+    setPermissionEditor((current) => {
+      if (!current) return current;
       const next = new Set(current.permissions);
       if (checked) {
         next.add(permissionKey);
@@ -334,9 +387,17 @@ export default function EmployeesPage() {
 
   function togglePermissionModule(module: PermissionModuleDefinition, checked: boolean) {
     const keys = permissionKeysForModule(module);
-    setFormState((current) => {
+    setPermissionEditor((current) => {
+      if (!current) return current;
       const next = new Set(current.permissions);
       for (const key of keys) {
+        const isBasePermission =
+          current.effectivePermissions.includes(key) &&
+          !current.permissions.includes(key);
+        if (isBasePermission) {
+          continue;
+        }
+
         if (checked) {
           next.add(key);
         } else {
@@ -363,11 +424,12 @@ export default function EmployeesPage() {
 
   function filteredPermissionRegistry() {
     const query = permissionSearch.trim().toLowerCase();
+    const registry = permissionEditor?.registry ?? [];
     if (!query) {
-      return permissionRegistry;
+      return registry;
     }
 
-    return permissionRegistry
+    return registry
       .map((module) => ({
         ...module,
         groups: module.groups
@@ -386,28 +448,32 @@ export default function EmployeesPage() {
   }
 
   function renderPermissionAccessPanel() {
-    if (!canViewPermissions) {
+    if (!canViewPermissions || !permissionEditor) {
       return null;
     }
 
     const registry = filteredPermissionRegistry();
-    const isSelfEdit = Boolean(editingEmployee && editingEmployee.id === user?.id);
+    const isSelfEdit = permissionEditor.employee.id === user?.id;
     const isReadOnly = !canManagePermissions || isSelfEdit;
-    const selected = new Set(formState.permissions);
+    const overrideSelected = new Set(permissionEditor.permissions);
+    const effectiveSelected = new Set([
+      ...permissionEditor.effectivePermissions,
+      ...permissionEditor.permissions,
+    ]);
 
     return (
-      <section className="md:col-span-2">
+      <section>
         <div className="rounded-2xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Access</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Checked items add access beyond the selected base role.
+                  Role-default access is checked automatically. Extra checked items are custom overrides.
                 </p>
               </div>
               <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {formState.permissions.length} custom
+                {permissionEditor.permissions.length} custom
               </span>
             </div>
             {isReadOnly ? (
@@ -433,7 +499,7 @@ export default function EmployeesPage() {
             <div className="divide-y divide-slate-100">
               {registry.map((module) => {
                 const keys = permissionKeysForModule(module);
-                const selectedCount = keys.filter((key) => selected.has(key)).length;
+                const selectedCount = keys.filter((key) => effectiveSelected.has(key)).length;
                 const expanded = expandedPermissionModules.has(module.key);
 
                 return (
@@ -473,33 +539,40 @@ export default function EmployeesPage() {
                               {group.label}
                             </p>
                             <div className="space-y-2">
-                              {group.permissions.map((permission) => (
-                                <label
-                                  key={permission.key}
-                                  className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-700"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selected.has(permission.key)}
-                                    disabled={isReadOnly}
-                                    onChange={(event) =>
-                                      togglePermission(
-                                        permission.key,
-                                        event.target.checked,
-                                      )
-                                    }
-                                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 disabled:opacity-50"
-                                  />
-                                  <span className="min-w-0">
-                                    <span className="block font-medium text-slate-800">
-                                      {permission.label}
+                              {group.permissions.map((permission) => {
+                                const isBasePermission =
+                                  effectiveSelected.has(permission.key) &&
+                                  !overrideSelected.has(permission.key);
+                                const checked = effectiveSelected.has(permission.key);
+
+                                return (
+                                  <label
+                                    key={permission.key}
+                                    className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-700"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      disabled={isReadOnly || isBasePermission}
+                                      onChange={(event) =>
+                                        togglePermission(
+                                          permission.key,
+                                          event.target.checked,
+                                        )
+                                      }
+                                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 disabled:opacity-50"
+                                    />
+                                    <span className="min-w-0">
+                                      <span className="block font-medium text-slate-800">
+                                        {permission.label}
+                                      </span>
+                                      <span className="mt-0.5 block break-all text-xs text-slate-400">
+                                        {isBasePermission ? 'Included by role' : permission.key}
+                                      </span>
                                     </span>
-                                    <span className="mt-0.5 block break-all text-xs text-slate-400">
-                                      {permission.key}
-                                    </span>
-                                  </span>
-                                </label>
-                              ))}
+                                  </label>
+                                );
+                              })}
                             </div>
                           </div>
                         ))}
@@ -825,6 +898,15 @@ export default function EmployeesPage() {
                           >
                             Edit
                           </button>
+                          {canViewPermissions ? (
+                            <button
+                              type="button"
+                              onClick={() => void openPermissionsModal(employee)}
+                              className="rounded-xl border border-cyan-200 px-3 py-2 text-sm font-medium text-cyan-700 transition hover:bg-cyan-50"
+                            >
+                              Permissions
+                            </button>
+                          ) : null}
                           {user?.id !== employee.id ? (
                             <button
                               type="button"
@@ -894,6 +976,15 @@ export default function EmployeesPage() {
                   >
                     Edit
                   </button>
+                  {canViewPermissions ? (
+                    <button
+                      type="button"
+                      onClick={() => void openPermissionsModal(employee)}
+                      className="rounded-xl border border-cyan-200 px-3 py-2 text-xs font-medium text-cyan-700"
+                    >
+                      Permissions
+                    </button>
+                  ) : null}
                   {user?.id !== employee.id ? (
                     <button
                       type="button"
@@ -1124,7 +1215,6 @@ export default function EmployeesPage() {
                     Employee is active
                   </label>
                 ) : null}
-                {renderPermissionAccessPanel()}
                 <div className="flex flex-col-reverse gap-3 md:col-span-2 sm:flex-row sm:justify-end">
                   <button
                     type="button"
@@ -1143,6 +1233,56 @@ export default function EmployeesPage() {
                   </LoadingButton>
                 </div>
             </form>
+          </CommonModal>
+        ) : null}
+
+        {permissionEditor ? (
+          <CommonModal
+            title={`Permissions - ${employeeName(permissionEditor.employee)}`}
+            description="View role-default access and manage custom permission overrides for this user."
+            onClose={() => setPermissionEditor(null)}
+            widthClassName="max-w-3xl"
+          >
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {employeeName(permissionEditor.employee)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {toDisplayRole(permissionEditor.employee.role)} · @{permissionEditor.employee.username}
+                    </p>
+                  </div>
+                  <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                    {permissionEditor.effectivePermissions.length} effective
+                  </span>
+                </div>
+              </div>
+
+              {renderPermissionAccessPanel()}
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setPermissionEditor(null)}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
+                >
+                  Close
+                </button>
+                {canManagePermissions && permissionEditor.employee.id !== user?.id ? (
+                  <LoadingButton
+                    type="button"
+                    disabled={isPermissionSaving}
+                    isLoading={isPermissionSaving}
+                    onClick={() => void handleSavePermissions()}
+                    className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
+                  >
+                    Save permissions
+                  </LoadingButton>
+                ) : null}
+              </div>
+            </div>
           </CommonModal>
         ) : null}
 
