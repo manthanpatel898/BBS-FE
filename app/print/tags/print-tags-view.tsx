@@ -8,12 +8,20 @@ import { AppSettings, Order } from '@/lib/auth/types';
 
 type PrintTagItem = {
   id: string;
+  groupId: string;
   itemName: string;
 };
 
 type PrintTagRequest = {
   orderId?: string;
   selectedItemIds: string;
+  combinedGroupIds?: string;
+  customTags?: string[];
+};
+
+type PrintableTag = {
+  id: string;
+  label: string;
 };
 
 export function PrintTagsView({
@@ -43,13 +51,32 @@ export function PrintTagsView({
     [printRequest.selectedItemIds],
   );
 
+  const combinedGroupIds = useMemo(
+    () =>
+      (printRequest.combinedGroupIds ?? '')
+        .split('|')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [printRequest.combinedGroupIds],
+  );
+
   const selectedItems = useMemo(() => {
     if (!order) return [];
     const requestedIdSet = new Set(requestedIds);
     return buildPrintTagItems(order).filter((item) => requestedIdSet.has(item.id));
   }, [order, requestedIds]);
 
-  const pages = useMemo(() => chunkItems(selectedItems, 3), [selectedItems]);
+  const printableTags = useMemo(
+    () =>
+      buildPrintableTags({
+        selectedItems,
+        combinedGroupIds,
+        customTags: printRequest.customTags ?? [],
+      }),
+    [combinedGroupIds, printRequest.customTags, selectedItems],
+  );
+
+  const pages = useMemo(() => chunkItems(printableTags, 3), [printableTags]);
 
   useEffect(() => {
     if (orderId) {
@@ -75,6 +102,10 @@ export function PrintTagsView({
       setPrintRequest({
         orderId: parsedRequest.orderId,
         selectedItemIds: parsedRequest.selectedItemIds || '',
+        combinedGroupIds: parsedRequest.combinedGroupIds || '',
+        customTags: Array.isArray(parsedRequest.customTags)
+          ? parsedRequest.customTags
+          : [],
       });
       localStorage.removeItem(requestKey);
     } catch {
@@ -131,11 +162,11 @@ export function PrintTagsView({
       'Print Tags',
       order.orderId,
       order.eventDate ? formatTitleDate(order.eventDate) : null,
-      selectedItems.length ? `${selectedItems.length} Items` : null,
+      printableTags.length ? `${printableTags.length} Items` : null,
     ].filter(Boolean);
 
     document.title = sanitizeDocumentTitle(titleParts.join(' - '));
-  }, [order, selectedItems.length]);
+  }, [order, printableTags.length]);
 
   return (
     <BookingsRoute>
@@ -188,13 +219,13 @@ export function PrintTagsView({
               </p>
               <h1 className="mt-2 text-3xl font-semibold">Serving Item Tags</h1>
               <p className="mt-2 text-sm text-stone-500">
-                {selectedItems.length} selected item{selectedItems.length === 1 ? '' : 's'}
+                {printableTags.length} selected tag{printableTags.length === 1 ? '' : 's'}
               </p>
             </div>
             <button
               type="button"
               onClick={() => window.print()}
-              disabled={!selectedItems.length || !printTagLogoUrl}
+              disabled={!printableTags.length || !printTagLogoUrl}
               className="rounded-2xl bg-stone-900 px-5 py-3 font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
             >
               Print / Save PDF
@@ -211,8 +242,8 @@ export function PrintTagsView({
             <PrintStatus message="Print Tag is disabled in settings." tone="error" />
           ) : !printTagLogoUrl ? (
             <PrintStatus message="Upload a Print Tag logo in settings before printing tags." tone="error" />
-          ) : selectedItems.length === 0 ? (
-            <PrintStatus message="No selected menu items were found for this print request." tone="error" />
+          ) : printableTags.length === 0 ? (
+            <PrintStatus message="No selected tags were found for this print request." tone="error" />
           ) : (
             <div className="space-y-6 print:space-y-0">
               {pages.map((pageItems, pageIndex) => (
@@ -235,11 +266,13 @@ export function PrintTagsView({
                         style={{
                           color: '#7a0b0b',
                           fontFamily: 'Calibri, Arial, sans-serif',
-                          fontSize: 26,
-                          lineHeight: 1.2,
+                          fontSize: getTagFontSize(item.label),
+                          lineHeight: 1.25,
+                          overflowWrap: 'anywhere',
+                          maxWidth: '100%',
                         }}
                       >
-                        {item.itemName.toLocaleUpperCase('en-IN')}
+                        {item.label.toLocaleUpperCase('en-IN')}
                       </p>
                     </article>
                   ))}
@@ -276,18 +309,71 @@ function buildPrintTagItems(order: Order): PrintTagItem[] {
     menu.sections.flatMap((section, sectionIndex) =>
       section.items.map((itemName, itemIndex) => ({
         id: `${menuIndex}:${sectionIndex}:${itemIndex}`,
+        groupId: `${menuIndex}:${sectionIndex}`,
         itemName,
       })),
     ),
   );
 }
 
-function chunkItems(items: PrintTagItem[], size: number) {
-  const chunks: PrintTagItem[][] = [];
+function buildPrintableTags(input: {
+  selectedItems: PrintTagItem[];
+  combinedGroupIds: string[];
+  customTags: string[];
+}): PrintableTag[] {
+  const combinedGroups = new Set(input.combinedGroupIds);
+  const itemsByGroup = input.selectedItems.reduce((groups, item) => {
+    const items = groups.get(item.groupId) ?? [];
+    items.push(item);
+    groups.set(item.groupId, items);
+    return groups;
+  }, new Map<string, PrintTagItem[]>());
+  const printableTags: PrintableTag[] = [];
+
+  for (const item of input.selectedItems) {
+    if (combinedGroups.has(item.groupId)) {
+      const groupItems = itemsByGroup.get(item.groupId) ?? [];
+      if (groupItems[0]?.id !== item.id) {
+        continue;
+      }
+
+      printableTags.push({
+        id: `combined:${item.groupId}`,
+        label: groupItems.map((groupItem) => groupItem.itemName).join(' / '),
+      });
+      continue;
+    }
+
+    printableTags.push({ id: item.id, label: item.itemName });
+  }
+
+  input.customTags
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .forEach((tag, index) => {
+      printableTags.push({
+        id: `custom:${index}:${tag}`,
+        label: tag,
+      });
+    });
+
+  return printableTags;
+}
+
+function chunkItems(items: PrintableTag[], size: number) {
+  const chunks: PrintableTag[][] = [];
   for (let index = 0; index < items.length; index += size) {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+}
+
+function getTagFontSize(label: string) {
+  if (label.length <= 24) return 26;
+  if (label.length <= 45) return 22;
+  if (label.length <= 70) return 18;
+  if (label.length <= 100) return 15;
+  return 13;
 }
 
 function formatTitleDate(value: string) {
