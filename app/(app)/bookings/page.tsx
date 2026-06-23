@@ -41,6 +41,7 @@ import {
   SignatureLocationPermissionStatus,
 } from '@/lib/auth/types';
 import { filterHiddenHallDetailChoices } from '@/lib/hall-detail-combinations';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
@@ -629,7 +630,7 @@ export default function BookingsPage() {
     settings?.eventOptions.map((option) => option.label) ?? fallbackEventOptions;
   const defaultPaymentMode = paymentOptions[0] ?? 'Cash';
   const paymentModeChoices = withCurrentOption(paymentOptions, paymentMode);
-  const canUseAdvancedCancelManagement = user?.canUseAdvancedCancelManagement ?? false;
+  const hasLegacyCancelAdvanceManagement = user?.canUseAdvancedCancelManagement ?? false;
   const popupPaymentModeChoices = withCurrentOption(paymentOptions, paymentPopupMode);
   const eventChoices = [...eventOptions, 'Other'];
   const isCustomEventSelected = formState.eventName === EVENT_OTHER_VALUE;
@@ -746,14 +747,56 @@ export default function BookingsPage() {
   const bookingCreatedBy =
     [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || 'Current user';
   const isCompanyAdmin = user?.role === 'company_admin';
-  const isProtectedBookingEditLocked = !isCompanyAdmin && Boolean(editingOrder);
+  const canEditCustomerName =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_CUSTOMER_NAME_UPDATE);
+  const canEditEventName =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_EVENT_NAME_UPDATE);
+  const canEditFunctionDate =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_FUNCTION_DATE_UPDATE);
+  const canEditFunctionTimeAfterMenu =
+    isCompanyAdmin ||
+    hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_FUNCTION_TIME_AFTER_MENU_UPDATE);
+  const canEditServiceSlot =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_SERVICE_SLOT_UPDATE);
+  const canEditCustomPriceAfterMenu =
+    isCompanyAdmin ||
+    hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_CUSTOM_PRICE_AFTER_MENU_UPDATE);
+  const canEditBookingStatus =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_STATUS_UPDATE);
+  const canDeleteBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_DELETE);
+  const canPrintBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_PRINT);
+  const canCancelBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CANCEL);
+  const canConfirmBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CONFIRM);
+  const canSaveBookingSignature =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_SIGNATURE_SAVE);
+  const canManageBookingFollowUps =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FOLLOWUPS_MANAGE);
+  const canAssignEventPlanner =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_EVENT_PLANNER_ASSIGN);
+  const canAddAdvancePayment =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_ADVANCE_PAYMENTS_ADD);
+  const canEditAdvancePayment =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_ADVANCE_PAYMENTS_EDIT);
+  const canDeleteAdvancePayment =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_ADVANCE_PAYMENTS_DELETE);
+  const canManageCancelAdvance =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CANCEL_ADVANCE_MANAGE);
+  const canUseAdvancedCancelManagement =
+    hasLegacyCancelAdvanceManagement || canManageCancelAdvance;
+  const canTransferBooking =
+    canEditFunctionDate || canEditServiceSlot || canEditFunctionTimeAfterMenu;
   const hasSavedMenuSelection = (editingOrder?.menuSelectionSnapshot.length ?? 0) > 0;
-  const isMenuSelectionDependentEditLocked =
-    !isCompanyAdmin && Boolean(editingOrder) && hasSavedMenuSelection;
-  const companyAdminOnlyEditMessage = 'Contact company admin to update this detail.';
+  const permissionRequiredEditMessage = 'You do not have permission to update this detail.';
   const menuSelectionLockedEditMessage =
-    'Contact company admin to update this detail after menu selection.';
-  const isServiceSlotLocked = isProtectedBookingEditLocked;
+    'You do not have permission to update this detail after menu selection.';
+  const isCustomerNameLocked = Boolean(editingOrder) && !canEditCustomerName;
+  const isEventNameLocked = Boolean(editingOrder) && !canEditEventName;
+  const isFunctionDateLocked = Boolean(editingOrder) && !canEditFunctionDate;
+  const isServiceSlotLocked = Boolean(editingOrder) && !canEditServiceSlot;
+  const isFunctionTimeLocked =
+    Boolean(editingOrder) && hasSavedMenuSelection && !canEditFunctionTimeAfterMenu;
+  const isCustomPriceLocked =
+    Boolean(editingOrder) && hasSavedMenuSelection && !canEditCustomPriceAfterMenu;
 
   useEffect(() => {
     if (!paymentOptions.includes(paymentMode)) {
@@ -1032,6 +1075,10 @@ export default function BookingsPage() {
 
   async function handleAssignEventPlanner() {
     if (!accessToken || !detailOrder) {
+      return;
+    }
+    if (!canAssignEventPlanner) {
+      setToast({ type: 'error', message: 'You do not have permission to assign event planners.' });
       return;
     }
 
@@ -1355,6 +1402,10 @@ export default function BookingsPage() {
   }
 
   function handleOpenConvertInquiry(order: Order) {
+    if (!canConfirmBooking) {
+      setToast({ type: 'error', message: 'You do not have permission to confirm inquiries.' });
+      return;
+    }
     setIsDetailOpen(false);
     setDetailOrder(null);
     setDetailError('');
@@ -1753,6 +1804,10 @@ export default function BookingsPage() {
     paybackMode?: 'CASH' | 'ONLINE' | null,
   ) {
     if (!accessToken) return;
+    if (!canCancelBooking) {
+      setToast({ type: 'error', message: 'You do not have permission to cancel bookings.' });
+      return;
+    }
     const trimmedReason = reason?.trim() ?? '';
     if (canUseAdvancedCancelManagement && !trimmedReason) {
       setToast({ type: 'error', message: 'Cancellation reason is required.' });
@@ -1793,6 +1848,13 @@ export default function BookingsPage() {
 
   async function handleReverseAdvancePayment(order: Order, paymentId: string) {
     if (!accessToken) {
+      return;
+    }
+    if (!canManageCancelAdvance) {
+      setToast({
+        type: 'error',
+        message: 'You do not have permission to manage cancelled advance.',
+      });
       return;
     }
 
@@ -1862,6 +1924,10 @@ export default function BookingsPage() {
     if (!accessToken) {
       return;
     }
+    if (!canDeleteBooking) {
+      setToast({ type: 'error', message: 'You do not have permission to delete bookings.' });
+      return;
+    }
 
     try {
       setIsDeleteSubmitting(true);
@@ -1888,6 +1954,10 @@ export default function BookingsPage() {
 
   async function handleAddFollowUp() {
     if (!accessToken || !followUpPopup) {
+      return;
+    }
+    if (!canManageBookingFollowUps) {
+      setToast({ type: 'error', message: 'You do not have permission to manage follow ups.' });
       return;
     }
 
@@ -2062,6 +2132,10 @@ export default function BookingsPage() {
 
   async function handleSaveSignature() {
     if (!accessToken || !signaturePopup) return;
+    if (!canSaveBookingSignature) {
+      setToast({ type: 'error', message: 'You do not have permission to save signatures.' });
+      return;
+    }
 
     if (!signaturePopup.confirmationAccepted) {
       setToast({ type: 'error', message: 'Confirm the booking details before signing.' });
@@ -2120,8 +2194,8 @@ export default function BookingsPage() {
   }
 
   function openTransferPopup(order: Order) {
-    if (!isCompanyAdmin) {
-      setToast({ type: 'error', message: 'Contact company admin to transfer this booking.' });
+    if (!canTransferBooking) {
+      setToast({ type: 'error', message: 'You do not have permission to transfer this booking.' });
       return;
     }
 
@@ -2141,8 +2215,8 @@ export default function BookingsPage() {
       return;
     }
 
-    if (!isCompanyAdmin) {
-      setToast({ type: 'error', message: 'Contact company admin to transfer this booking.' });
+    if (!canTransferBooking) {
+      setToast({ type: 'error', message: 'You do not have permission to transfer this booking.' });
       return;
     }
 
@@ -2202,6 +2276,10 @@ export default function BookingsPage() {
 
   async function handleAddAdvancePayment() {
     if (!accessToken || !paymentPopup) return;
+    if (!canAddAdvancePayment) {
+      setToast({ type: 'error', message: 'You do not have permission to add advance payments.' });
+      return;
+    }
 
     const amount = Number(paymentAmount);
     if (!amount || amount < 1) {
@@ -2237,6 +2315,10 @@ export default function BookingsPage() {
 
   async function handleSaveAdvancePayment() {
     if (!accessToken || !paymentPopup || !paymentEditor?.paymentId) return;
+    if (!canEditAdvancePayment) {
+      setToast({ type: 'error', message: 'You do not have permission to edit advance payments.' });
+      return;
+    }
 
     const amount = Number(paymentAmount);
     if (!amount || amount < 1) {
@@ -2277,6 +2359,10 @@ export default function BookingsPage() {
 
   async function handleDeleteAdvancePayment(orderId: string, paymentId: string) {
     if (!accessToken) return;
+    if (!canDeleteAdvancePayment) {
+      setToast({ type: 'error', message: 'You do not have permission to delete advance payments.' });
+      return;
+    }
 
     try {
       const updatedOrder = await deleteAdvancePayment(accessToken, orderId, paymentId);
@@ -2356,6 +2442,10 @@ export default function BookingsPage() {
     if (!accessToken) {
       return;
     }
+    if (!canCancelBooking) {
+      setToast({ type: 'error', message: 'You do not have permission to cancel bookings.' });
+      return;
+    }
 
     try {
       const order = await fetchOrderById(accessToken, orderId);
@@ -2374,6 +2464,10 @@ export default function BookingsPage() {
 
   async function handleMarkCompleted(order: Order) {
     if (!accessToken) {
+      return;
+    }
+    if (!canEditBookingStatus) {
+      setToast({ type: 'error', message: 'You do not have permission to update booking status.' });
       return;
     }
 
@@ -2775,7 +2869,7 @@ function selectionStatus(order: Order) {
                                 onClick={() => void openOrderDetail(order.id, order)}
                                 icon="view"
                               />
-                              {isCompanyAdmin ? (
+                              {canDeleteBooking ? (
                                 <IconActionButton
                                   label="Delete inquiry"
                                   onClick={() => setDeletePopup(order)}
@@ -2783,7 +2877,7 @@ function selectionStatus(order: Order) {
                                   tone="danger"
                                 />
                               ) : null}
-                              {order.status === 'INQUIRY' ? (
+                              {order.status === 'INQUIRY' && canConfirmBooking ? (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenConvertInquiry(order)}
@@ -2792,7 +2886,7 @@ function selectionStatus(order: Order) {
                                   Convert
                                 </button>
                               ) : null}
-                              {isCompanyAdmin &&
+                              {canCancelBooking &&
                               (order.status === 'INQUIRY' ||
                                 order.status === 'CONFIRMED') ? (
                                 <IconActionButton
@@ -2802,7 +2896,7 @@ function selectionStatus(order: Order) {
                                   tone="danger"
                                 />
                               ) : null}
-                              {order.status === 'CONFIRMED' ? (
+                              {order.status === 'CONFIRMED' && canEditBookingStatus ? (
                                 <IconActionButton
                                   label="Mark completed"
                                   onClick={() => void handleMarkCompleted(order)}
@@ -2895,7 +2989,7 @@ function selectionStatus(order: Order) {
                         icon="view"
                         compact
                       />
-                      {isCompanyAdmin ? (
+                      {canDeleteBooking ? (
                         <IconActionButton
                           label="Delete inquiry"
                           onClick={() => setDeletePopup(order)}
@@ -2904,7 +2998,7 @@ function selectionStatus(order: Order) {
                           compact
                         />
                       ) : null}
-                      {order.status === 'INQUIRY' ? (
+                      {order.status === 'INQUIRY' && canConfirmBooking ? (
                         <button
                           type="button"
                           onClick={() => handleOpenConvertInquiry(order)}
@@ -2913,7 +3007,7 @@ function selectionStatus(order: Order) {
                           Convert
                         </button>
                       ) : null}
-                      {isCompanyAdmin &&
+                      {canCancelBooking &&
                       (order.status === 'INQUIRY' || order.status === 'CONFIRMED') ? (
                         <IconActionButton
                           label="Cancel booking"
@@ -3375,12 +3469,12 @@ function selectionStatus(order: Order) {
                           customerName: event.target.value,
                         }))
                       }
-                      disabled={isProtectedBookingEditLocked}
+                      disabled={isCustomerNameLocked}
                       placeholder="Enter customer name"
-                      className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                      className={`${inputCls} min-h-12 ${isCustomerNameLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     />
-                    {isProtectedBookingEditLocked ? (
-                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                    {isCustomerNameLocked ? (
+                      <p className="text-xs text-slate-500">{permissionRequiredEditMessage}</p>
                     ) : null}
                   </div>
                 </Field>
@@ -3424,7 +3518,7 @@ function selectionStatus(order: Order) {
                     </select>
                     {isServiceSlotLocked ? (
                       <p className="text-xs text-slate-500">
-                        {companyAdminOnlyEditMessage}
+                        {permissionRequiredEditMessage}
                       </p>
                     ) : null}
                   </div>
@@ -3446,8 +3540,8 @@ function selectionStatus(order: Order) {
                           setCustomEventName('');
                         }
                       }}
-                      disabled={isProtectedBookingEditLocked}
-                      className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                      disabled={isEventNameLocked}
+                      className={`${inputCls} min-h-12 ${isEventNameLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     >
                       <option value="">Select event option</option>
                       {eventChoices.map((option) => (
@@ -3463,13 +3557,13 @@ function selectionStatus(order: Order) {
                       <input
                         value={customEventName}
                         onChange={(event) => setCustomEventName(event.target.value)}
-                        disabled={isProtectedBookingEditLocked}
+                        disabled={isEventNameLocked}
                         placeholder="Enter event name"
-                        className={`${inputCls} min-h-12 ${isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                        className={`${inputCls} min-h-12 ${isEventNameLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                       />
                     ) : null}
-                    {isProtectedBookingEditLocked ? (
-                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                    {isEventNameLocked ? (
+                      <p className="text-xs text-slate-500">{permissionRequiredEditMessage}</p>
                     ) : null}
                   </div>
                 </Field>
@@ -3485,15 +3579,15 @@ function selectionStatus(order: Order) {
                           functionDate: event.target.value,
                         }))
                       }
-                      disabled={!editingOrder || isProtectedBookingEditLocked}
-                      className={`${dateTimeInputCls} min-h-12 ${!editingOrder || isProtectedBookingEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                      disabled={!editingOrder || isFunctionDateLocked}
+                      className={`${dateTimeInputCls} min-h-12 ${!editingOrder || isFunctionDateLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     />
                     {!editingOrder ? (
                       <p className="text-xs text-slate-500">
                         Function date is fixed from the selected calendar day while creating an inquiry.
                       </p>
-                    ) : isProtectedBookingEditLocked ? (
-                      <p className="text-xs text-slate-500">{companyAdminOnlyEditMessage}</p>
+                    ) : isFunctionDateLocked ? (
+                      <p className="text-xs text-slate-500">{permissionRequiredEditMessage}</p>
                     ) : null}
                   </div>
                 </Field>
@@ -3509,11 +3603,11 @@ function selectionStatus(order: Order) {
                         startTime: value,
                       }))
                     }
-                    disabled={isMenuSelectionDependentEditLocked}
+                    disabled={isFunctionTimeLocked}
                     hourPlaceholder="Hour"
                     minutePlaceholder="Min"
                   />
-                  {isMenuSelectionDependentEditLocked ? (
+                  {isFunctionTimeLocked ? (
                     <p className="mt-2 text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                   ) : null}
                 </Field>
@@ -3526,11 +3620,11 @@ function selectionStatus(order: Order) {
                         endTime: value,
                       }))
                     }
-                    disabled={isMenuSelectionDependentEditLocked}
+                    disabled={isFunctionTimeLocked}
                     hourPlaceholder="Hour"
                     minutePlaceholder="Min"
                   />
-                  {isMenuSelectionDependentEditLocked ? (
+                  {isFunctionTimeLocked ? (
                     <p className="mt-2 text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                   ) : null}
                 </Field>
@@ -3670,11 +3764,11 @@ function selectionStatus(order: Order) {
                           inquiryCustomPrice: event.target.value,
                         }))
                       }
-                      disabled={isMenuSelectionDependentEditLocked}
+                      disabled={isCustomPriceLocked}
                       placeholder="Optional custom price"
-                      className={`${inputCls} min-h-12 ${isMenuSelectionDependentEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                      className={`${inputCls} min-h-12 ${isCustomPriceLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     />
-                    {isMenuSelectionDependentEditLocked ? (
+                    {isCustomPriceLocked ? (
                       <p className="text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                     ) : null}
                   </div>
@@ -4078,10 +4172,10 @@ function selectionStatus(order: Order) {
                                     customPricePerPlate: event.target.value,
                                   }))
                                 }
-                                disabled={isMenuSelectionDependentEditLocked}
-                                className={`${inputCls} ${isMenuSelectionDependentEditLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                                disabled={isCustomPriceLocked}
+                                className={`${inputCls} ${isCustomPriceLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                               />
-                              {isMenuSelectionDependentEditLocked ? (
+                              {isCustomPriceLocked ? (
                                 <p className="text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
                               ) : null}
                             </div>
@@ -6045,7 +6139,8 @@ function selectionStatus(order: Order) {
                               <select
                                 value={selectedEventPlanner}
                                 onChange={(event) => setSelectedEventPlanner(event.target.value)}
-                                className={inputCls}
+                                disabled={!canAssignEventPlanner}
+                                className={`${inputCls} ${!canAssignEventPlanner ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                               >
                                 <option value="">Select event planner</option>
                                 {(settings?.eventPlanners ?? []).map((planner) => (
@@ -6058,6 +6153,7 @@ function selectionStatus(order: Order) {
                                 type="button"
                                 disabled={
                                   isAssigningEventPlanner ||
+                                  !canAssignEventPlanner ||
                                   !selectedEventPlanner.trim() ||
                                   selectedEventPlanner ===
                                     (detailOrder.currentEventPlanner?.plannerName ?? '')
@@ -6108,7 +6204,9 @@ function selectionStatus(order: Order) {
                               ) : null}
                               <th className="px-3 py-2 font-medium">Remarks</th>
                               <th className="px-3 py-2 font-medium">Recorded By</th>
-                              {isCompanyAdmin ? (
+                              {(detailOrder.status === 'CONFIRMED' &&
+                                (canEditAdvancePayment || canDeleteAdvancePayment)) ||
+                              (detailOrder.status === 'CANCELLED' && canManageCancelAdvance) ? (
                                 <th className="px-3 py-2 font-medium text-right">Actions</th>
                               ) : null}
                             </tr>
@@ -6128,7 +6226,7 @@ function selectionStatus(order: Order) {
                                   detailOrder.cancelAdvanceManagement?.remainingBalance ?? 0,
                                 );
                                 const canReverse =
-                                  isCompanyAdmin &&
+                                  canManageCancelAdvance &&
                                   detailOrder.status === 'CANCELLED' &&
                                   detailOrder.cancelAdvanceManagement?.option === 'PAY_BACK' &&
                                   detailOrder.cancelAdvanceManagement.status === 'ACTIVE' &&
@@ -6146,9 +6244,11 @@ function selectionStatus(order: Order) {
                                     ) : null}
                                     <td className="px-3 py-3 text-slate-700">{payment.remark || '-'}</td>
                                     <td className="px-3 py-3 text-slate-700">{payment.recordedByName}</td>
-                                    {isCompanyAdmin && detailOrder.status === 'CONFIRMED' ? (
+                                    {(canEditAdvancePayment || canDeleteAdvancePayment) &&
+                                    detailOrder.status === 'CONFIRMED' ? (
                                     <td className="px-3 py-3">
                                       <div className="flex justify-end gap-2">
+                                        {canEditAdvancePayment ? (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -6165,6 +6265,8 @@ function selectionStatus(order: Order) {
                                         >
                                           Edit
                                         </button>
+                                        ) : null}
+                                        {canDeleteAdvancePayment ? (
                                         <button
                                           type="button"
                                           onClick={() =>
@@ -6174,9 +6276,10 @@ function selectionStatus(order: Order) {
                                         >
                                           Delete
                                         </button>
+                                        ) : null}
                                       </div>
                                     </td>
-                                    ) : isCompanyAdmin ? (
+                                    ) : canManageCancelAdvance ? (
                                       <td className="px-3 py-3 text-right">
                                         {canReverse ? (
                                           <LoadingButton
@@ -6245,22 +6348,24 @@ function selectionStatus(order: Order) {
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Follow Ups
                     </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFollowUpPopup({
-                          orderId: detailOrder.id,
-                          orderName: `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`.trim(),
-                          note: '',
-                          date: toDateInputValue(new Date()),
-                          nextFollowUpDate: '',
-                          closeInquiry: false,
-                        })
-                      }
-                      className={ghostButtonCls}
-                    >
-                      Add follow up
-                    </button>
+                    {canManageBookingFollowUps ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFollowUpPopup({
+                            orderId: detailOrder.id,
+                            orderName: `${detailOrder.customer.firstName} ${detailOrder.customer.lastName}`.trim(),
+                            note: '',
+                            date: toDateInputValue(new Date()),
+                            nextFollowUpDate: '',
+                            closeInquiry: false,
+                          })
+                        }
+                        className={ghostButtonCls}
+                      >
+                        Add follow up
+                      </button>
+                    ) : null}
                   </div>
                   {detailOrder.followUps.length === 0 ? (
                     <p className="mt-4 text-sm text-slate-500">No follow ups added yet.</p>
@@ -6301,6 +6406,7 @@ function selectionStatus(order: Order) {
                     <>
                       {detailOrder.status === 'CONFIRMED' ? (
                         <>
+                          {canPrintBooking ? (
                           <Link
                             href={`/print/order?id=${detailOrder.id}`}
                             target="_blank"
@@ -6308,6 +6414,8 @@ function selectionStatus(order: Order) {
                           >
                             Print
                           </Link>
+                          ) : null}
+                          {canPrintBooking ? (
                           <Link
                             href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
                             target="_blank"
@@ -6315,7 +6423,9 @@ function selectionStatus(order: Order) {
                           >
                             Kitchen Print
                           </Link>
-                          {settings?.enablePrintTag &&
+                          ) : null}
+                          {canPrintBooking &&
+                          settings?.enablePrintTag &&
                           settings.printTagLogoUrl &&
                           detailOrder.menuSelectionSnapshot.length > 0 ? (
                             <button
@@ -6335,6 +6445,7 @@ function selectionStatus(order: Order) {
                               Print Tag
                             </button>
                           ) : null}
+                          {canAddAdvancePayment ? (
                           <button
                             type="button"
                             onClick={() => {
@@ -6348,7 +6459,8 @@ function selectionStatus(order: Order) {
                           >
                             Add Advance
                           </button>
-                          {detailOrder.activeSignature && !isCompanyAdmin ? (
+                          ) : null}
+                          {detailOrder.activeSignature && !canSaveBookingSignature ? (
                             <button
                               type="button"
                               disabled
@@ -6356,7 +6468,7 @@ function selectionStatus(order: Order) {
                             >
                               Signed
                             </button>
-                          ) : (
+                          ) : canSaveBookingSignature ? (
                             <button
                               type="button"
                               onClick={() => openSignaturePopup(detailOrder)}
@@ -6364,10 +6476,10 @@ function selectionStatus(order: Order) {
                             >
                               {detailOrder.activeSignature ? 'Re-sign' : 'Sign'}
                             </button>
-                          )}
+                          ) : null}
                         </>
                       ) : null}
-                      {detailOrder.status === 'INQUIRY' ? (
+                      {detailOrder.status === 'INQUIRY' && canConfirmBooking ? (
                         <button
                           type="button"
                           onClick={() => handleOpenConvertInquiry(detailOrder)}
@@ -6376,7 +6488,7 @@ function selectionStatus(order: Order) {
                           Confirm Inquiry
                         </button>
                       ) : null}
-                      {isCompanyAdmin &&
+                      {canTransferBooking &&
                       (detailOrder.status === 'INQUIRY' ||
                         detailOrder.status === 'CONFIRMED') ? (
                         <button
@@ -6415,7 +6527,7 @@ function selectionStatus(order: Order) {
                           {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
                         </button>
                       ) : null}
-                      {isCompanyAdmin &&
+                      {canCancelBooking &&
                       (detailOrder.status === 'INQUIRY' ||
                         detailOrder.status === 'CONFIRMED') ? (
                         <button
