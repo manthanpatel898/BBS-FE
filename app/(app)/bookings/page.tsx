@@ -126,7 +126,6 @@ type TransferPopupState = {
 
 type PrintTagItem = {
   id: string;
-  groupId: string;
   menuTitle: string;
   sectionTitle: string;
   itemName: string;
@@ -409,8 +408,6 @@ export default function BookingsPage() {
     order: Order;
     items: PrintTagItem[];
     selectedIds: string[];
-    combinedGroupIds: string[];
-    customTags: string[];
   } | null>(null);
   const [paymentPopup, setPaymentPopup] = useState<{ orderId: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -5719,49 +5716,28 @@ function selectionStatus(order: Order) {
               <div className="max-h-[52vh] space-y-4 overflow-y-auto pr-1">
                 {Array.from(
                   printTagPopup.items.reduce((groups, item) => {
-                    const key = item.groupId;
+                    const key = `${item.menuTitle}::${item.sectionTitle}`;
                     const existing = groups.get(key);
                     if (existing) {
                       existing.items.push(item);
                     } else {
                       groups.set(key, {
-                        groupId: item.groupId,
                         menuTitle: item.menuTitle,
                         sectionTitle: item.sectionTitle,
                         items: [item],
                       });
                     }
                     return groups;
-                  }, new Map<string, { groupId: string; menuTitle: string; sectionTitle: string; items: PrintTagItem[] }>()),
+                  }, new Map<string, { menuTitle: string; sectionTitle: string; items: PrintTagItem[] }>()),
                 ).map(([key, group]) => (
                   <section key={key} className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                          {group.menuTitle}
-                        </p>
-                        <h3 className="mt-1 text-sm font-semibold text-slate-900">
-                          {group.sectionTitle}
-                        </h3>
-                      </div>
-                      <label className="flex w-full items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 sm:w-auto">
-                        <input
-                          type="checkbox"
-                          checked={printTagPopup.combinedGroupIds.includes(group.groupId)}
-                          onChange={(event) => {
-                            const isChecked = event.target.checked;
-                            setPrintTagPopup((current) => {
-                              if (!current) return current;
-                              const combinedGroupIds = isChecked
-                                ? [...new Set([...current.combinedGroupIds, group.groupId])]
-                                : current.combinedGroupIds.filter((id) => id !== group.groupId);
-                              return { ...current, combinedGroupIds };
-                            });
-                          }}
-                          className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-500 focus:ring-amber-400"
-                        />
-                        <span className="leading-5">Combine selected sub-items into one tag</span>
-                      </label>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        {group.menuTitle}
+                      </p>
+                      <h3 className="mt-1 text-sm font-semibold text-slate-900">
+                        {group.sectionTitle}
+                      </h3>
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       {group.items.map((item) => {
@@ -5802,72 +5778,6 @@ function selectionStatus(order: Order) {
                 ))}
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-semibold text-slate-900">Custom Tags</p>
-                  <p className="text-xs leading-5 text-slate-500">
-                    Add extra tags that are not available in the selected menu snapshot.
-                  </p>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {printTagPopup.customTags.map((tag, index) => (
-                    <div key={index} className="flex flex-col gap-2 sm:flex-row">
-                      <input
-                        value={tag}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setPrintTagPopup((current) => {
-                            if (!current) return current;
-                            const customTags = [...current.customTags];
-                            customTags[index] = value;
-                            return { ...current, customTags };
-                          });
-                        }}
-                        placeholder="Enter custom tag text"
-                        className={`${inputCls} min-h-11 flex-1`}
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPrintTagPopup((current) =>
-                              current
-                                ? { ...current, customTags: [...current.customTags, ''] }
-                                : current,
-                            )
-                          }
-                          className="inline-flex h-11 min-w-11 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 text-lg font-semibold text-amber-700 transition hover:bg-amber-100"
-                          aria-label="Add custom tag"
-                        >
-                          +
-                        </button>
-                        {printTagPopup.customTags.length > 1 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPrintTagPopup((current) => {
-                                if (!current) return current;
-                                const customTags = current.customTags.filter(
-                                  (_item, itemIndex) => itemIndex !== index,
-                                );
-                                return {
-                                  ...current,
-                                  customTags: customTags.length ? customTags : [''],
-                                };
-                              })
-                            }
-                            className="inline-flex h-11 min-w-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-lg font-semibold text-red-600 transition hover:bg-red-100"
-                            aria-label="Remove custom tag"
-                          >
-                            -
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
                 <button
                   type="button"
@@ -5878,22 +5788,14 @@ function selectionStatus(order: Order) {
                 </button>
                 <button
                   type="button"
-                  disabled={
-                    printTagPopup.selectedIds.length === 0 &&
-                    printTagPopup.customTags.every((tag) => !tag.trim())
-                  }
+                  disabled={printTagPopup.selectedIds.length === 0}
                   onClick={() => {
                     const requestKey = `print-tags:${printTagPopup.order.id}:${Date.now()}`;
-                    const customTags = printTagPopup.customTags
-                      .map((tag) => tag.trim())
-                      .filter(Boolean);
                     localStorage.setItem(
                       requestKey,
                       JSON.stringify({
                         orderId: printTagPopup.order.id,
                         selectedItemIds: printTagPopup.selectedIds.join('|'),
-                        combinedGroupIds: printTagPopup.combinedGroupIds.join('|'),
-                        customTags,
                       }),
                     );
                     window.open(
@@ -6436,8 +6338,6 @@ function selectionStatus(order: Order) {
                                   order: detailOrder,
                                   items,
                                   selectedIds: items.map((item) => item.id),
-                                  combinedGroupIds: [],
-                                  customTags: [''],
                                 });
                               }}
                               className="inline-flex min-w-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
@@ -6995,7 +6895,6 @@ function buildPrintTagItems(order: Order): PrintTagItem[] {
     menu.sections.flatMap((section, sectionIndex) =>
       section.items.map((itemName, itemIndex) => ({
         id: `${menuIndex}:${sectionIndex}:${itemIndex}`,
-        groupId: `${menuIndex}:${sectionIndex}`,
         menuTitle: menu.title,
         sectionTitle: section.sectionTitle,
         itemName,
