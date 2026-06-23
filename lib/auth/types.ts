@@ -21,6 +21,8 @@ export interface AuthUser {
   } | null;
   isFirstLogin: boolean;
   isActive: boolean;
+  permissions?: string[];
+  effectivePermissions?: string[];
 }
 
 export interface AuthSession {
@@ -134,12 +136,40 @@ export interface Employee {
   isFirstLogin: boolean;
   isActive: boolean;
   canAccessOdc?: boolean;
+  permissions?: string[];
+  effectivePermissions?: string[];
   signatureSummary: {
     id: string;
     signedByName: string;
     signedAt: string;
     updatedAt: string;
   } | null;
+}
+
+export interface PermissionDefinition {
+  key: string;
+  label: string;
+  description?: string;
+  companyAdminOnly?: boolean;
+  superAdminOnly?: boolean;
+}
+
+export interface PermissionGroupDefinition {
+  key: string;
+  label: string;
+  permissions: PermissionDefinition[];
+}
+
+export interface PermissionModuleDefinition {
+  key: string;
+  label: string;
+  groups: PermissionGroupDefinition[];
+}
+
+export interface EmployeePermissionsResponse {
+  permissions: string[];
+  effectivePermissions: string[];
+  registry: PermissionModuleDefinition[];
 }
 
 export interface PaginatedEmployees {

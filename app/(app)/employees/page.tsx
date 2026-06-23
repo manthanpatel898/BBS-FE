@@ -12,12 +12,15 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import {
   createEmployee,
   deleteEmployee,
+  fetchEmployeePermissions,
   fetchEmployeeSignature,
   fetchEmployees,
+  fetchPermissionRegistry,
   saveEmployeeSignature,
   updateEmployee,
 } from '@/lib/auth/api';
-import { Employee, UserSignature } from '@/lib/auth/types';
+import { Employee, PermissionModuleDefinition, UserSignature } from '@/lib/auth/types';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 import { useToast } from '@/components/ui/toast';
 
@@ -58,6 +61,7 @@ type EmployeeFormState = {
   password: string;
   isActive: boolean;
   canAccessOdc: boolean;
+  permissions: string[];
 };
 
 type SignatureModalState = {
@@ -76,6 +80,7 @@ const initialFormState: EmployeeFormState = {
   password: '',
   isActive: true,
   canAccessOdc: false,
+  permissions: [],
 };
 
 const inputCls =
@@ -106,8 +111,21 @@ export default function EmployeesPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [signatureModal, setSignatureModal] = useState<SignatureModalState | null>(null);
   const [isSignatureSaving, setIsSignatureSaving] = useState(false);
+  const [permissionRegistry, setPermissionRegistry] = useState<PermissionModuleDefinition[]>([]);
+  const [permissionSearch, setPermissionSearch] = useState('');
+  const [expandedPermissionModules, setExpandedPermissionModules] = useState<Set<string>>(
+    () => new Set(['bookings']),
+  );
+  const [isPermissionLoading, setIsPermissionLoading] = useState(false);
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingSignatureRef = useRef(false);
+  const canViewPermissions =
+    hasPermission(user, PERMISSIONS.EMPLOYEES_PERMISSIONS_VIEW) ||
+    hasPermission(user, PERMISSIONS.EMPLOYEES_PERMISSIONS_MANAGE);
+  const canManagePermissions = hasPermission(
+    user,
+    PERMISSIONS.EMPLOYEES_PERMISSIONS_MANAGE,
+  );
 
   useEffect(() => {
     if (!accessToken) {
@@ -141,6 +159,7 @@ export default function EmployeesPage() {
     setFormState(initialFormState);
     setShowPassword(false);
     setIsModalOpen(true);
+    void loadPermissionRegistryForModal(null);
   }
 
   function openEditModal(employee: Employee) {
@@ -154,8 +173,38 @@ export default function EmployeesPage() {
       password: '',
       isActive: employee.isActive,
       canAccessOdc: employee.canAccessOdc ?? false,
+      permissions: employee.permissions ?? [],
     });
     setIsModalOpen(true);
+    void loadPermissionRegistryForModal(employee);
+  }
+
+  async function loadPermissionRegistryForModal(employee: Employee | null) {
+    if (!accessToken || !canViewPermissions) {
+      return;
+    }
+
+    try {
+      setIsPermissionLoading(true);
+      if (employee) {
+        const response = await fetchEmployeePermissions(accessToken, employee.id);
+        setPermissionRegistry(response.registry);
+        setFormState((current) => ({
+          ...current,
+          permissions: response.permissions,
+        }));
+      } else {
+        const response = await fetchPermissionRegistry(accessToken);
+        setPermissionRegistry(response);
+      }
+    } catch (requestError) {
+      showToast(
+        requestError instanceof Error ? requestError.message : 'Unable to load permissions.',
+        'error',
+      );
+    } finally {
+      setIsPermissionLoading(false);
+    }
   }
 
   async function reloadEmployees(token: string, nextPage: number) {
@@ -198,16 +247,18 @@ export default function EmployeesPage() {
     try {
       setIsSubmitting(true);
 
-      const { displayRole, ...restFormState } = formState;
+      const { displayRole, permissions: selectedPermissions, ...restFormState } = formState;
       const role = toUserRole(displayRole);
       const designation = displayRole;
       const canAccessOdc = role === 'employee' ? restFormState.canAccessOdc : false;
+      const permissions = canManagePermissions ? selectedPermissions : undefined;
       if (editingEmployee) {
         const updatePayload = {
           ...restFormState,
           canAccessOdc,
           role,
           designation,
+          ...(permissions ? { permissions } : {}),
           ...(canManagePassword(displayRole) && restFormState.password.trim()
             ? { password: restFormState.password.trim() }
             : {}),
@@ -215,7 +266,13 @@ export default function EmployeesPage() {
         await updateEmployee(token, editingEmployee.id, updatePayload);
         showToast('Employee updated successfully.', 'success');
       } else {
-        await createEmployee(token, { ...restFormState, canAccessOdc, role, designation });
+        await createEmployee(token, {
+          ...restFormState,
+          canAccessOdc,
+          role,
+          designation,
+          ...(permissions ? { permissions } : {}),
+        });
         showToast('Employee created successfully.', 'success');
       }
 
@@ -254,6 +311,208 @@ export default function EmployeesPage() {
     } finally {
       setIsDeleting(false);
     }
+  }
+
+  function permissionKeysForModule(module: PermissionModuleDefinition) {
+    return module.groups.flatMap((group) =>
+      group.permissions.map((permission) => permission.key),
+    );
+  }
+
+  function togglePermission(permissionKey: string, checked: boolean) {
+    setFormState((current) => {
+      const next = new Set(current.permissions);
+      if (checked) {
+        next.add(permissionKey);
+      } else {
+        next.delete(permissionKey);
+      }
+
+      return { ...current, permissions: [...next] };
+    });
+  }
+
+  function togglePermissionModule(module: PermissionModuleDefinition, checked: boolean) {
+    const keys = permissionKeysForModule(module);
+    setFormState((current) => {
+      const next = new Set(current.permissions);
+      for (const key of keys) {
+        if (checked) {
+          next.add(key);
+        } else {
+          next.delete(key);
+        }
+      }
+
+      return { ...current, permissions: [...next] };
+    });
+  }
+
+  function togglePermissionModuleExpanded(moduleKey: string) {
+    setExpandedPermissionModules((current) => {
+      const next = new Set(current);
+      if (next.has(moduleKey)) {
+        next.delete(moduleKey);
+      } else {
+        next.add(moduleKey);
+      }
+
+      return next;
+    });
+  }
+
+  function filteredPermissionRegistry() {
+    const query = permissionSearch.trim().toLowerCase();
+    if (!query) {
+      return permissionRegistry;
+    }
+
+    return permissionRegistry
+      .map((module) => ({
+        ...module,
+        groups: module.groups
+          .map((group) => ({
+            ...group,
+            permissions: group.permissions.filter((permission) =>
+              [module.label, group.label, permission.label, permission.key]
+                .join(' ')
+                .toLowerCase()
+                .includes(query),
+            ),
+          }))
+          .filter((group) => group.permissions.length > 0),
+      }))
+      .filter((module) => module.groups.length > 0);
+  }
+
+  function renderPermissionAccessPanel() {
+    if (!canViewPermissions) {
+      return null;
+    }
+
+    const registry = filteredPermissionRegistry();
+    const isSelfEdit = Boolean(editingEmployee && editingEmployee.id === user?.id);
+    const isReadOnly = !canManagePermissions || isSelfEdit;
+    const selected = new Set(formState.permissions);
+
+    return (
+      <section className="md:col-span-2">
+        <div className="rounded-2xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Access</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Checked items add access beyond the selected base role.
+                </p>
+              </div>
+              <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                {formState.permissions.length} custom
+              </span>
+            </div>
+            {isReadOnly ? (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                {isSelfEdit
+                  ? 'Another permission manager must change your access.'
+                  : 'You can view permissions but cannot change them.'}
+              </p>
+            ) : null}
+            <input
+              value={permissionSearch}
+              onChange={(event) => setPermissionSearch(event.target.value)}
+              placeholder="Search permissions"
+              className={`${inputCls} mt-4`}
+            />
+          </div>
+
+          {isPermissionLoading ? (
+            <div className="p-4 text-sm text-slate-500">Loading permissions...</div>
+          ) : registry.length === 0 ? (
+            <div className="p-4 text-sm text-slate-500">No permissions found.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {registry.map((module) => {
+                const keys = permissionKeysForModule(module);
+                const selectedCount = keys.filter((key) => selected.has(key)).length;
+                const expanded = expandedPermissionModules.has(module.key);
+
+                return (
+                  <div key={module.key} className="p-3 sm:p-4">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => togglePermissionModuleExpanded(module.key)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <span className="block text-sm font-semibold text-slate-900">
+                          {module.label}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          {selectedCount} of {keys.length} enabled
+                        </span>
+                      </button>
+                      <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-600">
+                        All
+                        <input
+                          type="checkbox"
+                          checked={keys.length > 0 && selectedCount === keys.length}
+                          disabled={isReadOnly}
+                          onChange={(event) =>
+                            togglePermissionModule(module, event.target.checked)
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 disabled:opacity-50"
+                        />
+                      </label>
+                    </div>
+
+                    {expanded ? (
+                      <div className="mt-4 space-y-4">
+                        {module.groups.map((group) => (
+                          <div key={group.key}>
+                            <p className="mb-2 text-xs font-semibold uppercase text-slate-400">
+                              {group.label}
+                            </p>
+                            <div className="space-y-2">
+                              {group.permissions.map((permission) => (
+                                <label
+                                  key={permission.key}
+                                  className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-700"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selected.has(permission.key)}
+                                    disabled={isReadOnly}
+                                    onChange={(event) =>
+                                      togglePermission(
+                                        permission.key,
+                                        event.target.checked,
+                                      )
+                                    }
+                                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 disabled:opacity-50"
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block font-medium text-slate-800">
+                                      {permission.label}
+                                    </span>
+                                    <span className="mt-0.5 block break-all text-xs text-slate-400">
+                                      {permission.key}
+                                    </span>
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+    );
   }
 
   async function openSignatureModal(employee: Employee) {
@@ -865,6 +1124,7 @@ export default function EmployeesPage() {
                     Employee is active
                   </label>
                 ) : null}
+                {renderPermissionAccessPanel()}
                 <div className="flex flex-col-reverse gap-3 md:col-span-2 sm:flex-row sm:justify-end">
                   <button
                     type="button"

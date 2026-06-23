@@ -39,6 +39,8 @@ import {
   PaginatedOrders,
   PaginatedRestaurants,
   PendingPaymentReportRow,
+  EmployeePermissionsResponse,
+  PermissionModuleDefinition,
   RepeatCustomerReportRow,
   Restaurant,
   RestaurantStats,
@@ -314,7 +316,13 @@ export async function createEmployee(
   accessToken: string,
   payload: Pick<
     Employee,
-    'firstName' | 'lastName' | 'username' | 'contactNo' | 'designation' | 'canAccessOdc'
+    | 'firstName'
+    | 'lastName'
+    | 'username'
+    | 'contactNo'
+    | 'designation'
+    | 'canAccessOdc'
+    | 'permissions'
   > & {
     password: string;
     role: string;
@@ -338,6 +346,7 @@ export async function updateEmployee(
     | 'designation'
     | 'isActive'
     | 'canAccessOdc'
+    | 'permissions'
   > & { role: string; password?: string },
 ) {
   return authorizedRequest<Employee>(`/employees/${employeeId}`, accessToken, {
@@ -350,6 +359,38 @@ export async function deleteEmployee(accessToken: string, employeeId: string) {
   return authorizedRequest<null>(`/employees/${employeeId}`, accessToken, {
     method: 'DELETE',
   });
+}
+
+export async function fetchPermissionRegistry(accessToken: string) {
+  return authorizedRequest<PermissionModuleDefinition[]>(
+    '/permissions/registry',
+    accessToken,
+  );
+}
+
+export async function fetchEmployeePermissions(
+  accessToken: string,
+  employeeId: string,
+) {
+  return authorizedRequest<EmployeePermissionsResponse>(
+    `/employees/${employeeId}/permissions`,
+    accessToken,
+  );
+}
+
+export async function updateEmployeePermissions(
+  accessToken: string,
+  employeeId: string,
+  permissions: string[],
+) {
+  return authorizedRequest<EmployeePermissionsResponse>(
+    `/employees/${employeeId}/permissions`,
+    accessToken,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ permissions }),
+    },
+  );
 }
 
 export async function fetchEmployeeSignature(accessToken: string, employeeId: string) {
