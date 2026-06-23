@@ -274,12 +274,23 @@ function PrintStatus({
 function buildPrintTagItems(order: Order): PrintTagItem[] {
   return order.menuSelectionSnapshot.flatMap((menu, menuIndex) =>
     menu.sections.flatMap((section, sectionIndex) =>
-      section.items.map((itemName, itemIndex) => ({
-        id: `${menuIndex}:${sectionIndex}:${itemIndex}`,
-        itemName,
-      })),
+      section.items.flatMap((itemName, itemIndex) =>
+        splitPrintTagItemName(itemName).map((splitItemName, splitIndex) => ({
+          id: `${menuIndex}:${sectionIndex}:${itemIndex}:${splitIndex}`,
+          itemName: splitItemName,
+        })),
+      ),
     ),
   );
+}
+
+function splitPrintTagItemName(itemName: string) {
+  const parts = itemName
+    .split(/\s*\/\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts : [itemName];
 }
 
 function chunkItems(items: PrintTagItem[], size: number) {
