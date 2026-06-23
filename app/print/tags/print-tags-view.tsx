@@ -8,12 +8,15 @@ import { AppSettings, Order } from '@/lib/auth/types';
 
 type PrintTagItem = {
   id: string;
+  groupId: string;
   itemName: string;
 };
 
 type PrintTagRequest = {
   orderId?: string;
   selectedItemIds: string;
+  combinedGroupIds?: string;
+  customTags?: string[];
 };
 
 export function PrintTagsView({
@@ -27,6 +30,8 @@ export function PrintTagsView({
   const [printRequest, setPrintRequest] = useState<PrintTagRequest>({
     orderId,
     selectedItemIds,
+    combinedGroupIds: '',
+    customTags: [],
   });
   const [isResolvingRequest, setIsResolvingRequest] = useState(!orderId);
   const [order, setOrder] = useState<Order | null>(null);
@@ -46,14 +51,55 @@ export function PrintTagsView({
   const selectedItems = useMemo(() => {
     if (!order) return [];
     const requestedIdSet = new Set(requestedIds);
-    return buildPrintTagItems(order).filter((item) => requestedIdSet.has(item.id));
-  }, [order, requestedIds]);
+    const combinedGroupIdSet = new Set(
+      (printRequest.combinedGroupIds ?? '')
+        .split('|')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+    const selectedMenuItems = buildPrintTagItems(order).filter((item) =>
+      requestedIdSet.has(item.id),
+    );
+    const menuItems = Array.from(
+      selectedMenuItems.reduce((groups, item) => {
+        const existing = groups.get(item.groupId);
+        if (existing) {
+          existing.push(item);
+        } else {
+          groups.set(item.groupId, [item]);
+        }
+        return groups;
+      }, new Map<string, PrintTagItem[]>()),
+    ).flatMap(([groupId, groupItems]) => {
+      if (!combinedGroupIdSet.has(groupId)) {
+        return groupItems;
+      }
+
+      return [
+        {
+          id: `combined:${groupId}`,
+          groupId,
+          itemName: groupItems.map((item) => item.itemName).join(' / '),
+        },
+      ];
+    });
+    const customItems = (printRequest.customTags ?? [])
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .map((tag, index) => ({
+        id: `custom:${index}`,
+        groupId: `custom:${index}`,
+        itemName: tag,
+      }));
+
+    return [...menuItems, ...customItems];
+  }, [order, printRequest.combinedGroupIds, printRequest.customTags, requestedIds]);
 
   const pages = useMemo(() => chunkItems(selectedItems, 3), [selectedItems]);
 
   useEffect(() => {
     if (orderId) {
-      setPrintRequest({ orderId, selectedItemIds });
+      setPrintRequest({ orderId, selectedItemIds, combinedGroupIds: '', customTags: [] });
       setIsResolvingRequest(false);
       return;
     }
@@ -75,10 +121,17 @@ export function PrintTagsView({
       setPrintRequest({
         orderId: parsedRequest.orderId,
         selectedItemIds: parsedRequest.selectedItemIds || '',
+        combinedGroupIds: parsedRequest.combinedGroupIds || '',
+        customTags: Array.isArray(parsedRequest.customTags) ? parsedRequest.customTags : [],
       });
       localStorage.removeItem(requestKey);
     } catch {
-      setPrintRequest({ orderId: undefined, selectedItemIds: '' });
+      setPrintRequest({
+        orderId: undefined,
+        selectedItemIds: '',
+        combinedGroupIds: '',
+        customTags: [],
+      });
     } finally {
       setIsResolvingRequest(false);
     }
@@ -277,6 +330,7 @@ function buildPrintTagItems(order: Order): PrintTagItem[] {
       section.items.flatMap((itemName, itemIndex) =>
         splitPrintTagItemName(itemName).map((splitItemName, splitIndex) => ({
           id: `${menuIndex}:${sectionIndex}:${itemIndex}:${splitIndex}`,
+          groupId: `${menuIndex}:${sectionIndex}`,
           itemName: splitItemName,
         })),
       ),
