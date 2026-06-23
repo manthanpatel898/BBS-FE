@@ -479,8 +479,8 @@ export default function EmployeesPage() {
 
     return (
       <section>
-        <div className="rounded-2xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 p-4">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 p-4 backdrop-blur">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Access</p>
@@ -503,7 +503,7 @@ export default function EmployeesPage() {
               value={permissionSearch}
               onChange={(event) => setPermissionSearch(event.target.value)}
               placeholder="Search permissions"
-              className={`${inputCls} mt-4`}
+              className={`${inputCls} mt-4 min-h-12`}
             />
           </div>
 
@@ -512,7 +512,7 @@ export default function EmployeesPage() {
           ) : registry.length === 0 ? (
             <div className="p-4 text-sm text-slate-500">No permissions found.</div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="max-h-[58vh] divide-y divide-slate-100 overflow-y-auto md:max-h-[62vh]">
               {registry.map((module) => {
                 const keys = permissionKeysForModule(module);
                 const selectedCount = keys.filter((key) => effectiveSelected.has(key)).length;
@@ -520,21 +520,26 @@ export default function EmployeesPage() {
 
                 return (
                   <div key={module.key} className="p-3 sm:p-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <button
                         type="button"
                         onClick={() => togglePermissionModuleExpanded(module.key)}
-                        className="min-w-0 flex-1 text-left"
+                        className="min-w-0 flex-1 rounded-xl px-1 py-1 text-left transition hover:bg-slate-50"
                       >
-                        <span className="block text-sm font-semibold text-slate-900">
-                          {module.label}
+                        <span className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-900">
+                            {module.label}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                            {expanded ? 'Hide' : 'Show'}
+                          </span>
                         </span>
-                        <span className="mt-0.5 block text-xs text-slate-500">
-                          {selectedCount} of {keys.length} enabled
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {selectedCount} of {keys.length} permissions enabled
                         </span>
                       </button>
-                      <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-600">
-                        All
+                      <label className="flex min-h-11 shrink-0 cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 sm:min-w-[7rem]">
+                        <span>All</span>
                         <input
                           type="checkbox"
                           checked={keys.length > 0 && selectedCount === keys.length}
@@ -548,13 +553,13 @@ export default function EmployeesPage() {
                     </div>
 
                     {expanded ? (
-                      <div className="mt-4 space-y-4">
+                      <div className="mt-4 space-y-5">
                         {module.groups.map((group) => (
                           <div key={group.key}>
                             <p className="mb-2 text-xs font-semibold uppercase text-slate-400">
                               {group.label}
                             </p>
-                            <div className="space-y-2">
+                            <div className="grid gap-2 md:grid-cols-2">
                               {group.permissions.map((permission) => {
                                 const isBasePermission =
                                   effectiveSelected.has(permission.key) &&
@@ -564,7 +569,11 @@ export default function EmployeesPage() {
                                 return (
                                   <label
                                     key={permission.key}
-                                    className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-700"
+                                    className={`flex min-h-[4.5rem] items-start gap-3 rounded-xl border px-3 py-3 text-sm transition ${
+                                      checked
+                                        ? 'border-amber-200 bg-amber-50/70 text-slate-800'
+                                        : 'border-slate-100 bg-slate-50 text-slate-700'
+                                    } ${isReadOnly || isBasePermission ? 'cursor-default' : 'cursor-pointer hover:border-amber-200 hover:bg-amber-50/50'}`}
                                   >
                                     <input
                                       type="checkbox"
@@ -827,7 +836,7 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+        <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
@@ -935,7 +944,7 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        <div className="space-y-3 md:hidden">
+        <div className="grid gap-3 md:grid-cols-2 lg:hidden">
           {isLoading ? (
             <PageLoader message="Loading employees…" />
           ) : employees.length === 0 ? (
@@ -946,42 +955,64 @@ export default function EmployeesPage() {
             employees.map((employee) => (
               <article
                 key={`mobile-${employee.id}`}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                className="flex min-h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-slate-900">
                       {employee.firstName} {employee.lastName}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">@{employee.username}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium ${
-                    employee.role === 'company_admin'
-                      ? 'bg-amber-50 text-amber-700'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {toDisplayRole(employee.role)}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                      employee.role === 'company_admin'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {toDisplayRole(employee.role)}
+                    </span>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                        employee.isActive
+                          ? 'bg-emerald-50 text-emerald-600'
+                          : 'bg-red-50 text-red-600'
+                      }`}
+                    >
+                      {employee.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-slate-700">{employee.contactNo}</p>
-                <p className="mt-1 text-xs text-slate-700">{employee.designation || 'Not set'}</p>
-                <p className={employee.signatureSummary ? 'mt-1 text-xs text-emerald-600' : 'mt-1 text-xs text-slate-400'}>
-                  {employee.signatureSummary
-                    ? `Signature saved ${formatSignatureDate(employee.signatureSummary.signedAt)}`
-                    : 'Signature not added'}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-4 grid gap-2 rounded-xl bg-slate-50 p-3 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Contact</span>
+                    <span className="font-semibold text-slate-800">{employee.contactNo}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Designation</span>
+                    <span className="font-semibold text-slate-800">{employee.designation || 'Not set'}</span>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500">Signature</span>
+                    <span className={`text-right font-semibold ${employee.signatureSummary ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {employee.signatureSummary
+                        ? formatSignatureDate(employee.signatureSummary.signedAt)
+                        : 'Not added'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => void openSignatureModal(employee)}
-                    className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700"
+                    className="min-h-11 rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
                   >
                     {employee.signatureSummary ? 'View signature' : 'Add signature'}
                   </button>
                   <button
                     type="button"
                     onClick={() => openEditModal(employee)}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600"
+                    className="min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                   >
                     Edit
                   </button>
@@ -989,7 +1020,7 @@ export default function EmployeesPage() {
                     <button
                       type="button"
                       onClick={() => void openPermissionsModal(employee)}
-                      className="rounded-xl border border-cyan-200 px-3 py-2 text-xs font-medium text-cyan-700"
+                      className="min-h-11 rounded-xl border border-cyan-200 px-3 py-2 text-xs font-semibold text-cyan-700 transition hover:bg-cyan-50"
                     >
                       Permissions
                     </button>
@@ -998,7 +1029,7 @@ export default function EmployeesPage() {
                     <button
                       type="button"
                       onClick={() => setEmployeeToDelete(employee)}
-                      className="rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-600"
+                      className="min-h-11 rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                     >
                       Delete
                     </button>
@@ -1250,7 +1281,8 @@ export default function EmployeesPage() {
             title={`Permissions - ${employeeName(permissionEditor.employee)}`}
             description="View role-default access and manage custom permission overrides for this user."
             onClose={() => setPermissionEditor(null)}
-            widthClassName="max-w-3xl"
+            widthClassName="max-w-5xl"
+            contentClassName="-mx-1 sm:mx-0"
           >
             <div className="space-y-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1271,7 +1303,7 @@ export default function EmployeesPage() {
 
               {renderPermissionAccessPanel()}
 
-              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
+              <div className="sticky bottom-0 z-20 -mx-4 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.25rem+var(--zb-safe-bottom))] pt-4 backdrop-blur sm:mx-0 sm:flex-row sm:justify-end sm:px-0 sm:pb-0">
                 <button
                   type="button"
                   onClick={() => setPermissionEditor(null)}
