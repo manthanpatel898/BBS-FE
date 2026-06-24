@@ -5800,71 +5800,71 @@ function selectionStatus(order: Order) {
                     </div>
                   </section>
                 ))}
-              </div>
 
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">Custom tags</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Add extra tags that are not available in the menu snapshot.
-                    </p>
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Custom tags</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Add extra tags that are not available in the menu snapshot.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPrintTagPopup((current) =>
+                          current ? { ...current, customTags: [...current.customTags, ''] } : current,
+                        )
+                      }
+                      className={ghostButtonCls}
+                    >
+                      Add tag
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPrintTagPopup((current) =>
-                        current ? { ...current, customTags: [...current.customTags, ''] } : current,
-                      )
-                    }
-                    className={ghostButtonCls}
-                  >
-                    Add tag
-                  </button>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {printTagPopup.customTags.map((customTag, customTagIndex) => (
-                    <div key={customTagIndex} className="flex gap-2">
-                      <input
-                        value={customTag}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setPrintTagPopup((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  customTags: current.customTags.map((tag, index) =>
-                                    index === customTagIndex ? value : tag,
-                                  ),
-                                }
-                              : current,
-                          );
-                        }}
-                        placeholder="Enter custom tag"
-                        className={`${inputCls} min-h-11`}
-                      />
-                      {printTagPopup.customTags.length > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() =>
+                  <div className="mt-3 space-y-2">
+                    {printTagPopup.customTags.map((customTag, customTagIndex) => (
+                      <div key={customTagIndex} className="flex gap-2">
+                        <input
+                          value={customTag}
+                          onChange={(event) => {
+                            const value = event.target.value;
                             setPrintTagPopup((current) =>
                               current
                                 ? {
                                     ...current,
-                                    customTags: current.customTags.filter(
-                                      (_, index) => index !== customTagIndex,
+                                    customTags: current.customTags.map((tag, index) =>
+                                      index === customTagIndex ? value : tag,
                                     ),
                                   }
                                 : current,
-                            )
-                          }
-                          className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-red-200 px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-                        >
-                          Remove
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
+                            );
+                          }}
+                          placeholder="Enter custom tag"
+                          className={`${inputCls} min-h-11`}
+                        />
+                        {printTagPopup.customTags.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPrintTagPopup((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      customTags: current.customTags.filter(
+                                        (_, index) => index !== customTagIndex,
+                                      ),
+                                    }
+                                  : current,
+                              )
+                            }
+                            className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-red-200 px-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
