@@ -42,6 +42,7 @@ import {
 } from '@/lib/auth/types';
 import { filterHiddenHallDetailChoices } from '@/lib/hall-detail-combinations';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
+import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
@@ -2147,7 +2148,7 @@ export default function BookingsPage() {
       return;
     }
 
-    const signatureImage = signatureCanvasRef.current?.toDataURL('image/png');
+    const signatureImage = cropSignatureCanvasToDataUrl(signatureCanvasRef.current);
     if (!signatureImage) {
       setToast({ type: 'error', message: 'Unable to read signature.' });
       return;
@@ -5508,9 +5509,14 @@ function selectionStatus(order: Order) {
                 <div className="space-y-3">
                   {(() => {
                       const sortedOrders = [...dayRecordsPopup.orders].sort((a, b) => {
-                        const statusOrder: Record<string, number> = { CONFIRMED: 0, INQUIRY: 1, CANCELLED: 2 };
                         const slotOrder: Record<string, number> = { Breakfast: 0, Lunch: 1, Dinner: 2 };
-                        const statusDiff = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+                        const getStatusOrder = (order: CalendarOrder) => {
+                          if (order.status === 'CONFIRMED') return 0;
+                          if (order.status === 'INQUIRY' && !order.inquiryClosed) return 1;
+                          if (order.status === 'CANCELLED') return 2;
+                          return 3;
+                        };
+                        const statusDiff = getStatusOrder(a) - getStatusOrder(b);
                         if (statusDiff !== 0) return statusDiff;
                         return (slotOrder[a.serviceSlot ?? ''] ?? 9) - (slotOrder[b.serviceSlot ?? ''] ?? 9);
                       });

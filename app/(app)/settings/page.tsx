@@ -42,6 +42,7 @@ import {
 } from '@/lib/auth/api';
 import { AppSettings, Restaurant, SettingOption, UserSignature } from '@/lib/auth/types';
 import { buildHallDetailChoices } from '@/lib/hall-detail-combinations';
+import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
@@ -774,7 +775,7 @@ export default function SettingsPage() {
 
   async function handleMySignatureSave() {
     const token = requireToken();
-    const signatureImage = signatureCanvasRef.current?.toDataURL('image/png');
+    const signatureImage = cropSignatureCanvasToDataUrl(signatureCanvasRef.current);
     if (!token || !signatureImage) return;
 
     if (!hasDrawnSignature) {

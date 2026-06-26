@@ -37,6 +37,7 @@ import {
   Restaurant,
   SignatureLocationPermissionStatus,
 } from '@/lib/auth/types';
+import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 
 type InquiryFormState = {
   customerName: string;
@@ -1024,7 +1025,7 @@ export default function OdcInquiriesPage() {
       return;
     }
 
-    const signatureImage = signatureCanvasRef.current?.toDataURL('image/png');
+    const signatureImage = cropSignatureCanvasToDataUrl(signatureCanvasRef.current);
     if (!signatureImage) {
       setError('Unable to read signature.');
       return;

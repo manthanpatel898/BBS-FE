@@ -21,6 +21,7 @@ import {
 } from '@/lib/auth/api';
 import { Employee, PermissionModuleDefinition, UserSignature } from '@/lib/auth/types';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
+import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 import { useToast } from '@/components/ui/toast';
 
@@ -744,7 +745,7 @@ export default function EmployeesPage() {
       return;
     }
 
-    const signatureImage = signatureCanvasRef.current?.toDataURL('image/png');
+    const signatureImage = cropSignatureCanvasToDataUrl(signatureCanvasRef.current);
     if (!signatureImage) {
       showToast('Unable to read signature.', 'error');
       return;
