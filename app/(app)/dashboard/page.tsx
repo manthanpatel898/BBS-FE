@@ -23,6 +23,7 @@ import {
   OrderStats,
   Restaurant,
 } from '@/lib/auth/types';
+import { getAdvancePaymentSplit } from '@/lib/advance-payment-split';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
 
@@ -161,10 +162,17 @@ function AdvanceBreakdownCard({
   const onlineAmount = onlineItems.reduce((sum, item) => sum + item.amount, 0);
   const onlineCount = onlineItems.reduce((sum, item) => sum + item.count, 0);
   const maxOnlineAmount = Math.max(...onlineItems.map((item) => item.amount), 1);
+  const paymentSplit = getAdvancePaymentSplit(
+    total,
+    cashAmount,
+    cashCount,
+    onlineAmount,
+    onlineCount,
+  );
 
   return (
     <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 p-2.5">
             <span className="text-blue-600">
@@ -175,16 +183,46 @@ function AdvanceBreakdownCard({
           <p className="mt-1 text-sm font-medium text-slate-500">{title}</p>
           <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>
         </div>
+
+        <div className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-4 lg:max-w-xl">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Payment Split</p>
+              <p className="mt-1 text-sm font-semibold text-slate-700">
+                {paymentSplit.totalPayments} payment{paymentSplit.totalPayments === 1 ? '' : 's'}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-bold">
+              <span className="inline-flex items-center gap-1.5 text-emerald-600">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                Cash {paymentSplit.cashPercent}%
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-blue-600">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                Online {paymentSplit.onlinePercent}%
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-200">
+            {paymentSplit.cashBarPercent > 0 ? (
+              <div
+                className="h-full bg-emerald-500"
+                style={{ width: `${paymentSplit.cashBarPercent}%` }}
+              />
+            ) : null}
+            {paymentSplit.onlineBarPercent > 0 ? (
+              <div
+                className="h-full bg-blue-500"
+                style={{ width: `${paymentSplit.onlineBarPercent}%` }}
+              />
+            ) : null}
+          </div>
+        </div>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Total</p>
-          <p className="mt-3 text-2xl font-bold text-slate-900">{formatCurrency(total)}</p>
-          <p className="mt-1 text-xs text-slate-500">{cashCount + onlineCount} payment{cashCount + onlineCount === 1 ? '' : 's'}</p>
-        </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Cash</p>
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="rounded-2xl border border-emerald-100 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Cash</p>
           <p className="mt-3 text-2xl font-bold text-slate-900">{formatCurrency(cashAmount)}</p>
           <p className="mt-1 text-xs text-slate-500">{cashCount} payment{cashCount === 1 ? '' : 's'}</p>
         </div>
@@ -912,9 +950,9 @@ const dashboardRecordMeta: Record<DashboardRecordType, {
     badgeClassName: 'border-amber-300 bg-amber-50 text-amber-700',
   },
   cancelled: {
-    label: 'Cancelled Inquiries',
+    label: 'Closed Inquiries',
     subtitle: 'Cancelled bookings and closed inquiries from today onward',
-    empty: 'No cancelled inquiries from today onward.',
+    empty: 'No closed inquiries from today onward.',
     statusLabel: 'CANCELLED',
     cardClassName: 'border-red-300 bg-red-50/45',
     badgeClassName: 'border-red-300 bg-red-50 text-red-700',
@@ -1693,7 +1731,7 @@ function CompanyAdminDashboard({
           onClick={() => onSelectRecordType('followups')}
         />
         <StatCard
-          label="Cancelled Inquiries"
+          label="Closed Inquiries"
           value={dashboardCounts?.cancelled ?? stats.cancelled}
           icon={<XCircleIcon />}
           iconBg="bg-red-50"
@@ -1724,7 +1762,7 @@ function CompanyAdminDashboard({
       <CancelledAdvanceDashboardSection data={cancelledAdvanceDashboard} />
 
       <div className="grid gap-4 xl:grid-cols-12">
-        <div className="grid gap-4 sm:grid-cols-2 xl:col-span-12 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:col-span-12">
           <StatCard
             label={`${selectedYear} Revenue`}
             value={formatCurrency(stats.monthRevenue)}
@@ -1732,14 +1770,6 @@ function CompanyAdminDashboard({
             iconBg="bg-emerald-50"
             iconColor="text-emerald-600"
             sub="Confirmed booking value"
-          />
-          <StatCard
-            label="Completion Pipeline"
-            value={stats.completed}
-            icon={<CheckCircleIcon />}
-            iconBg="bg-slate-100"
-            iconColor="text-slate-700"
-            sub="Completed functions"
           />
           <StatCard
             label="Total Order Records"

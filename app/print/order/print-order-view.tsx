@@ -11,6 +11,7 @@ import {
   fetchSettings,
 } from '@/lib/auth/api';
 import { AppSettings, OdcOrder, Order, Restaurant } from '@/lib/auth/types';
+import { formatPrintEventDateTime, formatSlashDate } from '@/lib/print-date';
 
 type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
 
@@ -977,15 +978,6 @@ function formatDateTime(value: string) {
   return `${formatSlashDate(value)}, ${time}`;
 }
 
-function formatSlashDate(value: string) {
-  const date = new Date(value);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-
-  return `${day}/${month}/${year}`;
-}
-
 function formatTitleDate(value: string) {
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -999,37 +991,9 @@ function sanitizeDocumentTitle(value: string) {
 }
 
 function formatEventDateTime(order: Order) {
-  const date = order.eventDate ? formatLongDate(order.eventDate) : 'Pending';
-  const time =
-    order.startTime && order.endTime
-      ? `${formatTime12Hour(order.startTime)} - ${formatTime12Hour(order.endTime)}`
-      : order.startTime
-        ? formatTime12Hour(order.startTime)
-        : order.endTime
-          ? formatTime12Hour(order.endTime)
-          : 'Time pending';
-
-  return `${date} | ${time}`;
+  return formatPrintEventDateTime(order);
 }
 
 function formatOdcEventDateTime(order: OdcOrder) {
-  const date = order.eventDate ? formatLongDate(order.eventDate) : 'Pending';
-  const time =
-    order.startTime && order.endTime
-      ? `${formatTime12Hour(order.startTime)} - ${formatTime12Hour(order.endTime)}`
-      : order.startTime
-        ? formatTime12Hour(order.startTime)
-        : order.endTime
-          ? formatTime12Hour(order.endTime)
-          : 'Time pending';
-
-  return `${date} | ${time}`;
-}
-
-function formatTime12Hour(value: string) {
-  const [hourPart, minutePart] = value.split(':').map(Number);
-  const suffix = hourPart >= 12 ? 'PM' : 'AM';
-  const hour = hourPart % 12 || 12;
-
-  return `${String(hour).padStart(2, '0')}:${String(minutePart).padStart(2, '0')} ${suffix}`;
+  return formatPrintEventDateTime(order);
 }

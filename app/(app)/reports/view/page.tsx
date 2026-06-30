@@ -32,6 +32,7 @@ import {
   UpcomingEventReportRow,
 } from '@/lib/auth/types';
 import { createExcelBlobFromTable } from '@/lib/excel';
+import { getForwardMonthQuickRange } from '@/lib/report-date-ranges';
 
 type DownloadFormat = 'csv' | 'xlsx';
 type ReportType =
@@ -195,7 +196,7 @@ const CANCELLED_FIELDS: Array<{ key: CancelledFieldKey; label: string }> = [
   { key: 'reason', label: 'Cancel Reason' },
   { key: 'advanceAmount', label: 'Advance Paid' },
   { key: 'grandTotal', label: 'Booking Total' },
-  { key: 'pendingAmount', label: 'Remaining Voucher Balance' },
+  { key: 'pendingAmount', label: 'Pending With Company' },
   { key: 'bookedBy', label: 'Booked By' },
 ];
 
@@ -407,21 +408,12 @@ function getBookingDateBasisLabel(value: BookingFilters['dateBasis']) {
   return BOOKING_DATE_BASIS_OPTIONS.find((option) => option.value === value)?.label ?? 'Event Date';
 }
 
-function getQuickRange(months: number) {
-  const today = new Date();
-  const from = new Date(today.getFullYear(), today.getMonth() - (months - 1), 1);
-  return {
-    from: toDateInputValue(from),
-    to: toDateInputValue(today),
-  };
-}
-
 function QuickDatePresets({
   onApply,
 }: {
   onApply: (range: { from: string; to: string }) => void;
 }) {
-  const presets = [1, 3, 6, 9, 12] as const;
+  const presets = [1, 3, 6, 12] as const;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -432,7 +424,7 @@ function QuickDatePresets({
         <button
           key={months}
           type="button"
-          onClick={() => onApply(getQuickRange(months))}
+          onClick={() => onApply(getForwardMonthQuickRange(months))}
           className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
         >
           {months}M
@@ -656,9 +648,7 @@ function getCancelledColumns(selectedFields: CancelledFieldKey[]): ColumnDef<Ord
         ? formatExportAmount(getCancelledPendingAmount(order))
         : getBookingExportValue(order, fieldKey),
     total:
-      fieldKey === 'grandTotal'
-        ? (order) => getReportGrandTotal(order)
-        : fieldKey === 'advanceAmount'
+      fieldKey === 'advanceAmount'
           ? (order) => order.advanceAmount
           : fieldKey === 'pendingAmount'
             ? (order) => getCancelledPendingAmount(order)
