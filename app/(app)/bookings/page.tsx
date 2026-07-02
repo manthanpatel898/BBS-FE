@@ -332,6 +332,9 @@ export default function BookingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [totalItems, setTotalItems] = useState(0);
   const todayKey = toDateInputValue(new Date());
+  const tomorrowDate = new Date();
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowKey = toDateInputValue(tomorrowDate);
   const [calendarMonth, setCalendarMonth] = useState(() => {
     return new Date();
   });
@@ -1964,6 +1967,19 @@ export default function BookingsPage() {
 
     if (!followUpPopup.note.trim()) {
       setToast({ type: 'error', message: 'Follow up note is required.' });
+      return;
+    }
+
+    if (followUpPopup.date && followUpPopup.date < todayKey) {
+      setToast({ type: 'error', message: 'Follow up date cannot be in the past.' });
+      return;
+    }
+
+    if (followUpPopup.nextFollowUpDate && followUpPopup.nextFollowUpDate < tomorrowKey) {
+      setToast({
+        type: 'error',
+        message: 'Next follow up date must be tomorrow or later.',
+      });
       return;
     }
 
@@ -4955,6 +4971,7 @@ function selectionStatus(order: Order) {
                   <input
                     type="date"
                     value={followUpPopup.date}
+                    min={todayKey}
                     onChange={(event) =>
                       setFollowUpPopup((current) =>
                         current ? { ...current, date: event.target.value } : current,
@@ -4967,6 +4984,7 @@ function selectionStatus(order: Order) {
                   <input
                     type="date"
                     value={followUpPopup.nextFollowUpDate}
+                    min={tomorrowKey}
                     onChange={(event) =>
                       setFollowUpPopup((current) =>
                         current ? { ...current, nextFollowUpDate: event.target.value } : current,
