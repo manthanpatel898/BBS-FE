@@ -31,7 +31,7 @@ import {
   TreasuryReport,
   UpcomingEventReportRow,
 } from '@/lib/auth/types';
-import { createExcelBlobFromTable } from '@/lib/excel';
+import { createExcelBlobFromTable, escapeCsvValue } from '@/lib/excel';
 import { getForwardMonthQuickRange } from '@/lib/report-date-ranges';
 
 type DownloadFormat = 'csv' | 'xlsx';
@@ -312,11 +312,6 @@ function formatCurrencyCell(value: number) {
 
 function formatExportAmount(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
-}
-
-function escapeCsvValue(value: string | number | null) {
-  const stringValue = String(value ?? '');
-  return `"${stringValue.replace(/"/g, '""')}"`;
 }
 
 function downloadBlob(blob: Blob, fileName: string) {

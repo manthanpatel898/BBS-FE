@@ -1,16 +1,38 @@
 import ExcelJS from 'exceljs';
 
+type ExportCellValue = string | number | null;
+
 type ExcelFooterSection = {
   title: string;
   rows: Array<{
     label: string;
-    value: string | number | null;
+    value: ExportCellValue;
   }>;
 };
 
+const FORMULA_PREFIX_PATTERN = /^[\s]*[=+\-@]/;
+
+export function sanitizeSpreadsheetCellValue(value: ExportCellValue): ExportCellValue {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  if (!FORMULA_PREFIX_PATTERN.test(value)) {
+    return value;
+  }
+
+  return `'${value}`;
+}
+
+export function escapeCsvValue(value: ExportCellValue) {
+  const safeValue = sanitizeSpreadsheetCellValue(value);
+  const stringValue = String(safeValue ?? '');
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
 export async function createExcelBlobFromRecords(
   sheetName: string,
-  rows: Array<Record<string, string | number | null>>,
+  rows: Array<Record<string, ExportCellValue>>,
 ) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(sheetName);
@@ -23,7 +45,10 @@ export async function createExcelBlobFromRecords(
   }));
 
   rows.forEach((row) => {
-    worksheet.addRow(row);
+    const safeRow = Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, sanitizeSpreadsheetCellValue(value)]),
+    );
+    worksheet.addRow(safeRow);
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -35,7 +60,7 @@ export async function createExcelBlobFromRecords(
 export async function createExcelBlobFromTable(
   sheetName: string,
   headers: string[],
-  rows: Array<Array<string | number | null>>,
+  rows: Array<Array<ExportCellValue>>,
   options?: {
     headerInfo?: {
       reportName: string;
@@ -65,7 +90,7 @@ export async function createExcelBlobFromTable(
 
   worksheet.getRow(headerRowIndex).values = headers;
   rows.forEach((row) => {
-    worksheet.addRow(row);
+    worksheet.addRow(row.map((value) => sanitizeSpreadsheetCellValue(value)));
   });
 
   const headerRow = worksheet.getRow(headerRowIndex);
@@ -128,7 +153,7 @@ export async function createExcelBlobFromTable(
       section.rows.forEach((item) => {
         const row = worksheet.getRow(currentRow);
         row.getCell(1).value = item.label;
-        row.getCell(2).value = item.value;
+        row.getCell(2).value = sanitizeSpreadsheetCellValue(item.value);
         row.getCell(1).font = { bold: true };
         [1, 2].forEach((cellIndex) => {
           row.getCell(cellIndex).border = {
