@@ -45,6 +45,12 @@ import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
+import {
+  CUSTOMER_TITLE_OPTIONS,
+  composeCustomerDisplayName,
+  parseCustomerDisplayName,
+  type CustomerTitle,
+} from '@/lib/bookings/customer-title';
 
 type ViewMode = 'list' | 'calendar';
 
@@ -357,6 +363,7 @@ export default function BookingsPage() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
+  const [customerTitle, setCustomerTitle] = useState<CustomerTitle>('None');
   const [customEventName, setCustomEventName] = useState('');
   const [selectedAddonOption, setSelectedAddonOption] = useState('');
   const [customAddonLabel, setCustomAddonLabel] = useState('');
@@ -543,8 +550,15 @@ export default function BookingsPage() {
         return;
       }
 
-      setIsDetailOpen(true);
-      setDetailOrder(initialOrder ?? null);
+      const isRefreshingCurrentDetail = isDetailOpen && detailOrder?.id === orderId;
+
+      if (!isRefreshingCurrentDetail) {
+        setIsDetailOpen(false);
+        setDetailOrder(null);
+      } else if (initialOrder) {
+        setDetailOrder(initialOrder);
+      }
+
       setIsDetailLoading(true);
       setDetailError('');
       setIsMobileDetailActionsOpen(false);
@@ -552,17 +566,25 @@ export default function BookingsPage() {
       try {
         const order = await fetchOrderById(accessToken, orderId);
         setDetailOrder(order);
+        setIsDetailOpen(true);
       } catch (requestError) {
-        setDetailError(
+        const message =
           requestError instanceof Error
             ? requestError.message
-            : 'Unable to fetch booking details.',
-        );
+            : 'Unable to fetch booking details.';
+
+        if (!isRefreshingCurrentDetail) {
+          setIsDetailOpen(false);
+          setDetailOrder(null);
+          setDetailError(message);
+        }
+
+        setToast({ type: 'error', message });
       } finally {
         setIsDetailLoading(false);
       }
     },
-    [accessToken],
+    [accessToken, detailOrder?.id, isDetailOpen],
   );
 
   useEffect(() => {
@@ -930,6 +952,7 @@ export default function BookingsPage() {
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setFormState(initialFormState);
+    setCustomerTitle('None');
     setCustomEventName('');
     setIsWizardOpen(false);
   }
@@ -943,6 +966,7 @@ export default function BookingsPage() {
       inquiryDate: toDateInputValue(new Date()),
       functionDate: prefill?.functionDate ?? '',
     });
+    setCustomerTitle('None');
     setCustomEventName('');
     setIsInquiryOpen(true);
     if (accessToken) {
@@ -955,9 +979,12 @@ export default function BookingsPage() {
   function openEditInquiry(order: Order) {
     setEditingOrder(order);
     const resolvedEventName = resolveEventFormValue(eventOptions, order.functionName ?? '');
+    const parsedCustomerName = parseCustomerDisplayName(
+      `${order.customer.firstName} ${order.customer.lastName}`.trim(),
+    );
     setFormState({
       inquiryDate: order.inquiryDate ? formatDateKey(order.inquiryDate) : toDateInputValue(new Date()),
-      customerName: `${order.customer.firstName} ${order.customer.lastName}`.trim(),
+      customerName: parsedCustomerName.name,
       mobileNumber: order.customer.phone,
       eventName: resolvedEventName.formValue,
       functionDate: order.eventDate ? formatDateKey(order.eventDate) : '',
@@ -997,6 +1024,7 @@ export default function BookingsPage() {
       })),
       menuComment: order.menuComment ?? '',
     });
+    setCustomerTitle(parsedCustomerName.title);
     setCustomEventName(resolvedEventName.customValue);
     setIsInquiryOpen(true);
     if (accessToken) {
@@ -1014,9 +1042,12 @@ export default function BookingsPage() {
     };
     setEditingOrder(order);
     const resolvedEventName = resolveEventFormValue(eventOptions, order.functionName ?? '');
+    const parsedCustomerName = parseCustomerDisplayName(
+      `${order.customer.firstName} ${order.customer.lastName}`.trim(),
+    );
     setFormState({
       inquiryDate: order.inquiryDate ? formatDateKey(order.inquiryDate) : toDateInputValue(new Date()),
-      customerName: `${order.customer.firstName} ${order.customer.lastName}`.trim(),
+      customerName: parsedCustomerName.name,
       mobileNumber: order.customer.phone,
       eventName: resolvedEventName.formValue,
       functionDate: order.eventDate ? formatDateKey(order.eventDate) : '',
@@ -1056,6 +1087,7 @@ export default function BookingsPage() {
       })),
       menuComment: order.menuComment ?? '',
     });
+    setCustomerTitle(parsedCustomerName.title);
     setCustomEventName(resolvedEventName.customValue);
     setSkippedRuleKeys([]);
     setRuleSearches({});
@@ -1423,7 +1455,7 @@ export default function BookingsPage() {
     }
 
     const normalizedPhone = formState.mobileNumber.trim();
-    const customerName = formState.customerName.trim();
+    const customerName = composeCustomerDisplayName(customerTitle, formState.customerName);
     const resolvedEventName = getResolvedEventName(formState.eventName, customEventName);
     const { firstName, lastName } = splitFullName(customerName);
     const missingFieldsMessage = buildMissingInquiryFieldsMessage(
@@ -1576,6 +1608,7 @@ export default function BookingsPage() {
       setIsInquiryOpen(false);
       setEditingOrder(null);
       setFormState(initialFormState);
+      setCustomerTitle('None');
       setCustomEventName('');
       await refreshBookingViews(accessToken);
     } catch (requestError) {
@@ -1612,7 +1645,9 @@ export default function BookingsPage() {
 
     const normalizedPhone = formState.mobileNumber.trim();
     const resolvedEventName = getResolvedEventName(formState.eventName, customEventName);
-    const { firstName, lastName } = splitFullName(formState.customerName.trim());
+    const { firstName, lastName } = splitFullName(
+      composeCustomerDisplayName(customerTitle, formState.customerName),
+    );
 
     if (!/^\d{10}$/.test(normalizedPhone)) {
       setToast({ type: 'error', message: 'Contact number must be exactly 10 digits.' });
@@ -1734,6 +1769,7 @@ export default function BookingsPage() {
         setAdvancePopup(null);
         setEditingOrder(null);
         setFormState(initialFormState);
+        setCustomerTitle('None');
         setCustomEventName('');
         setToast({ type: 'success', message: 'Booking confirmed successfully.' });
         await refreshBookingViews(accessToken);
@@ -1783,6 +1819,7 @@ export default function BookingsPage() {
       setAdvancePopup(null);
       setEditingOrder(null);
       setFormState(initialFormState);
+      setCustomerTitle('None');
       setCustomEventName('');
       setToast({ type: 'success', message: 'Inquiry created successfully.' });
       await refreshBookingViews(accessToken);
@@ -3470,6 +3507,7 @@ function selectionStatus(order: Order) {
               setIsInquiryOpen(false);
               setEditingOrder(null);
               setFormState(initialFormState);
+              setCustomerTitle('None');
               setCustomEventName('');
             }}
             widthClassName="max-w-5xl"
@@ -3478,18 +3516,47 @@ function selectionStatus(order: Order) {
               <div>
                 <Field label="Customer Name" required>
                   <div className="space-y-2">
-                    <input
-                      value={formState.customerName}
-                      onChange={(event) =>
-                        setFormState((current) => ({
-                          ...current,
-                          customerName: event.target.value,
-                        }))
-                      }
-                      disabled={isCustomerNameLocked}
-                      placeholder="Enter customer name"
-                      className={`${inputCls} min-h-12 ${isCustomerNameLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
-                    />
+                    <div className="grid gap-2 sm:grid-cols-[minmax(220px,auto)_1fr]">
+                      <div
+                        className={`grid grid-cols-4 rounded-xl border border-slate-200 bg-slate-50 p-1 ${
+                          isCustomerNameLocked ? 'opacity-70' : ''
+                        }`}
+                        aria-label="Customer title"
+                      >
+                        {CUSTOMER_TITLE_OPTIONS.map((option) => {
+                          const isSelected = customerTitle === option;
+
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => setCustomerTitle(option)}
+                              disabled={isCustomerNameLocked}
+                              className={`min-h-10 rounded-lg px-2 text-sm font-semibold transition ${
+                                isSelected
+                                  ? 'bg-amber-400 text-white shadow-sm'
+                                  : 'text-slate-600 hover:bg-white'
+                              } ${isCustomerNameLocked ? 'cursor-not-allowed hover:bg-transparent' : ''}`}
+                              aria-pressed={isSelected}
+                            >
+                              {option}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <input
+                        value={formState.customerName}
+                        onChange={(event) =>
+                          setFormState((current) => ({
+                            ...current,
+                            customerName: event.target.value,
+                          }))
+                        }
+                        disabled={isCustomerNameLocked}
+                        placeholder="Enter customer name"
+                        className={`${inputCls} min-h-12 ${isCustomerNameLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                      />
+                    </div>
                     {isCustomerNameLocked ? (
                       <p className="text-xs text-slate-500">{permissionRequiredEditMessage}</p>
                     ) : null}
@@ -3978,6 +4045,7 @@ function selectionStatus(order: Order) {
                   setIsInquiryOpen(false);
                   setEditingOrder(null);
                   setFormState(initialFormState);
+                  setCustomerTitle('None');
                   setCustomEventName('');
                   setSelectedAddonOption('');
                   setCustomAddonLabel('');
@@ -4032,7 +4100,7 @@ function selectionStatus(order: Order) {
                       Booking Setup
                     </p>
                     <p className="mt-1 truncate text-sm font-semibold text-slate-900 sm:text-base">
-                      {formState.customerName || 'Customer'} · {selectedCategory?.name || 'Category'} ·{' '}
+                      {composeCustomerDisplayName(customerTitle, formState.customerName) || 'Customer'} · {selectedCategory?.name || 'Category'} ·{' '}
                       {formState.customPricePerPlate
                         ? formatCurrency(Number(formState.customPricePerPlate) || 0)
                         : 'Default price'}
@@ -4056,7 +4124,7 @@ function selectionStatus(order: Order) {
                           Customer
                         </p>
                         <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 sm:text-lg">
-                          {formState.customerName || 'Customer name'}
+                          {composeCustomerDisplayName(customerTitle, formState.customerName) || 'Customer name'}
                         </p>
                       </div>
                       <span className={`shrink-0 text-slate-500 transition ${wizardHeaderExpanded.customer ? 'rotate-180' : ''}`}>
@@ -5935,7 +6003,9 @@ function selectionStatus(order: Order) {
           </ModalShell>
         ) : null}
 
-        {isDetailOpen ? (
+        {isDetailLoading && !isDetailOpen ? <BookingDetailOpeningOverlay /> : null}
+
+        {isDetailOpen && detailOrder ? (
           <ModalShell
             title="Event Detail"
             eyebrow=""
@@ -5950,11 +6020,7 @@ function selectionStatus(order: Order) {
             panelClassName="flex flex-col !pb-0"
             scrollablePanel={false}
           >
-            {isDetailLoading && !detailOrder ? (
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-10 text-center text-slate-400">
-                Loading booking details…
-              </div>
-            ) : detailError ? (
+            {detailError ? (
               <EmptyState title="Unable to open booking" description={detailError} />
             ) : detailOrder ? (
               <div className="mt-6 flex min-h-0 flex-1 flex-col">
@@ -6669,6 +6735,23 @@ function buildDayHallSlotMatrix(orders: CalendarOrder[], hallLabels: string[]) {
   }
 
   return { halls, slots, cellMap };
+}
+
+function BookingDetailOpeningOverlay() {
+  return (
+    <div className="modal-viewport-pad fixed inset-0 z-[52] flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50">
+          <div className="relative h-11 w-11">
+            <div className="absolute inset-0 animate-spin rounded-full border-4 border-amber-100 border-t-amber-400" />
+            <div className="absolute inset-3 animate-ping rounded-full bg-amber-200 opacity-60" />
+          </div>
+        </div>
+        <p className="mt-5 text-base font-semibold text-slate-900">Opening booking details</p>
+        <p className="mt-1 text-sm text-slate-500">Preparing the event information...</p>
+      </div>
+    </div>
+  );
 }
 
 function ModalShell({
