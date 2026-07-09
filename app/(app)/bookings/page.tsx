@@ -70,6 +70,17 @@ type CustomMenuPopupState = {
   itemsText: string;
 };
 
+type SubitemDescriptionPopoverState = {
+  key: string;
+  item: string;
+  description: string;
+  left: number;
+  top: number;
+  width: number;
+  maxHeight: number;
+  placement: 'above' | 'below';
+};
+
 type AddonEntry = {
   id?: string;
   label: string;
@@ -436,8 +447,9 @@ export default function BookingsPage() {
   const [skippedRuleKeys, setSkippedRuleKeys] = useState<string[]>([]);
   const [ruleSearches, setRuleSearches] = useState<Record<string, string>>({});
   const [expandedRuleKeys, setExpandedRuleKeys] = useState<string[]>([]);
-  const [subitemDescriptionKey, setSubitemDescriptionKey] = useState<string | null>(null);
-  const subitemDescriptionPopoverRef = useRef<HTMLSpanElement | null>(null);
+  const [subitemDescriptionPopover, setSubitemDescriptionPopover] =
+    useState<SubitemDescriptionPopoverState | null>(null);
+  const subitemDescriptionPopoverRef = useRef<HTMLDivElement | null>(null);
   const [wizardHeaderExpanded, setWizardHeaderExpanded] = useState({
     summary: true,
     customer: false,
@@ -468,12 +480,19 @@ export default function BookingsPage() {
   }, [toast]);
 
   useEffect(() => {
-    if (!subitemDescriptionKey) {
+    if (!subitemDescriptionPopover) {
       return;
     }
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest('[data-subitem-description-trigger="true"]')
+      ) {
+        return;
+      }
+
       if (
         target instanceof Node &&
         subitemDescriptionPopoverRef.current?.contains(target)
@@ -481,15 +500,62 @@ export default function BookingsPage() {
         return;
       }
 
-      setSubitemDescriptionKey(null);
+      setSubitemDescriptionPopover(null);
+    }
+
+    function closeDescriptionPopover() {
+      setSubitemDescriptionPopover(null);
     }
 
     document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('scroll', closeDescriptionPopover, true);
+    window.addEventListener('resize', closeDescriptionPopover);
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('scroll', closeDescriptionPopover, true);
+      window.removeEventListener('resize', closeDescriptionPopover);
     };
-  }, [subitemDescriptionKey]);
+  }, [subitemDescriptionPopover]);
+
+  function openSubitemDescriptionPopover(
+    trigger: HTMLElement,
+    key: string,
+    item: string,
+    description: string,
+  ) {
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 16;
+    const gap = 8;
+    const width = Math.min(320, window.innerWidth - viewportPadding * 2);
+    const left = Math.min(
+      Math.max(rect.right - width, viewportPadding),
+      window.innerWidth - width - viewportPadding,
+    );
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding - gap;
+    const spaceAbove = rect.top - viewportPadding - gap;
+    const placement: SubitemDescriptionPopoverState['placement'] =
+      spaceBelow >= 140 || spaceBelow >= spaceAbove ? 'below' : 'above';
+    const availableHeight = Math.max(
+      96,
+      placement === 'below' ? spaceBelow : spaceAbove,
+    );
+
+    setSubitemDescriptionPopover((current) =>
+      current?.key === key
+        ? null
+        : {
+            key,
+            item,
+            description,
+            left,
+            top: placement === 'below' ? rect.bottom + gap : rect.top - gap,
+            width,
+            maxHeight: Math.min(availableHeight, 288),
+            placement,
+          },
+    );
+  }
 
   useEffect(() => {
     if (!accessToken) {
@@ -951,6 +1017,7 @@ export default function BookingsPage() {
     setWizardHeaderExpanded({ summary: true, customer: false, category: true, price: false });
     setAddonPopup(null);
     setCustomMenuPopup(null);
+    setSubitemDescriptionPopover(null);
     setFormState(initialFormState);
     setCustomerTitle('None');
     setCustomEventName('');
@@ -1645,10 +1712,6 @@ export default function BookingsPage() {
 
     const normalizedPhone = formState.mobileNumber.trim();
     const resolvedEventName = getResolvedEventName(formState.eventName, customEventName);
-    const { firstName, lastName } = splitFullName(
-      composeCustomerDisplayName(customerTitle, formState.customerName),
-    );
-
     if (!/^\d{10}$/.test(normalizedPhone)) {
       setToast({ type: 'error', message: 'Contact number must be exactly 10 digits.' });
       return;
@@ -1687,11 +1750,6 @@ export default function BookingsPage() {
           : undefined;
       setIsSubmitting(true);
       await updateOrder(accessToken, editingOrder.id, {
-        customer: {
-          firstName,
-          lastName,
-          phone: normalizedPhone,
-        },
         status: editingOrder.status,
         pax,
         eventType: resolvedEventName || editingOrder.eventType || '',
@@ -4465,7 +4523,6 @@ function selectionStatus(order: Order) {
                               `${normalizeMenuText(rule.menuTitle)}|${normalizeMenuText(rule.sectionTitle)}|${normalizeMenuText(item)}`,
                             ) || '';
                             const descriptionKey = `${rule.menuId}-${rule.sectionTitle}-${item}`;
-                            const showDescription = subitemDescriptionKey === descriptionKey;
                             const checked = isItemSelected(
                               rule.menuId,
                               rule.sectionTitle,
@@ -4519,26 +4576,33 @@ function selectionStatus(order: Order) {
                                 </span>
                                 {description ? (
                                   <span
-                                    ref={showDescription ? subitemDescriptionPopoverRef : undefined}
                                     className="relative shrink-0"
                                   >
                                     <span
                                       role="button"
                                       tabIndex={0}
+                                      data-subitem-description-trigger="true"
                                       aria-label={`Show description for ${item}`}
+                                      aria-expanded={subitemDescriptionPopover?.key === descriptionKey}
                                       onClick={(event) => {
                                         event.preventDefault();
                                         event.stopPropagation();
-                                        setSubitemDescriptionKey((current) =>
-                                          current === descriptionKey ? null : descriptionKey,
+                                        openSubitemDescriptionPopover(
+                                          event.currentTarget,
+                                          descriptionKey,
+                                          item,
+                                          description,
                                         );
                                       }}
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter' || event.key === ' ') {
                                           event.preventDefault();
                                           event.stopPropagation();
-                                          setSubitemDescriptionKey((current) =>
-                                            current === descriptionKey ? null : descriptionKey,
+                                          openSubitemDescriptionPopover(
+                                            event.currentTarget,
+                                            descriptionKey,
+                                            item,
+                                            description,
                                           );
                                         }
                                       }}
@@ -4546,11 +4610,6 @@ function selectionStatus(order: Order) {
                                     >
                                       i
                                     </span>
-                                    {showDescription ? (
-                                      <span className="absolute right-0 top-9 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700 shadow-xl">
-                                        {description}
-                                      </span>
-                                    ) : null}
                                   </span>
                                 ) : null}
                               </button>
@@ -4649,6 +4708,33 @@ function selectionStatus(order: Order) {
                   </div>
                 </div>
               </div>
+              {subitemDescriptionPopover ? (
+                <div
+                  ref={subitemDescriptionPopoverRef}
+                  role="dialog"
+                  aria-label={`Description for ${subitemDescriptionPopover.item}`}
+                  className="fixed z-[90] rounded-2xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700 shadow-[0_18px_55px_rgba(15,23,42,0.22)] sm:p-4 sm:text-sm"
+                  style={{
+                    left: subitemDescriptionPopover.left,
+                    top: subitemDescriptionPopover.top,
+                    width: subitemDescriptionPopover.width,
+                    maxHeight: subitemDescriptionPopover.maxHeight,
+                    transform:
+                      subitemDescriptionPopover.placement === 'above'
+                        ? 'translateY(-100%)'
+                        : undefined,
+                  }}
+                >
+                  <div className="max-h-full overflow-y-auto pr-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-600 sm:text-xs">
+                      {subitemDescriptionPopover.item}
+                    </p>
+                    <p className="mt-1 break-words">
+                      {subitemDescriptionPopover.description}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               <div className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur sm:pt-4">
                 <div className="grid grid-cols-2 gap-3">
                   <button
