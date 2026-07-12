@@ -109,6 +109,10 @@ export interface DecorationVenue {
   createdAt: string;
   updatedAt: string;
 }
+export interface DecorationCategory { id: string; name: string; description: string | null; displayOrder: number; isActive: boolean; }
+export type DecorationTrackingMode = 'BULK' | 'TAGGED';
+export type DecorationLogisticsMode = 'SLOT_ONLY' | 'SETUP_REMOVAL' | 'MOBILE_TURNAROUND';
+export interface DecorationItem { id: string; categoryId: string; name: string; description: string | null; trackingMode: DecorationTrackingMode; totalQuantity: number; maintenanceQuantity: number; availableQuantity: number; units: Array<{ id: string; code: string; status: 'AVAILABLE' | 'MAINTENANCE' | 'RETIRED'; note: string | null }>; images: Array<{ id: string; url: string; isCover: boolean }>; logisticsMode: DecorationLogisticsMode; setupBufferMinutes: number; removalBufferMinutes: number; turnaroundBufferMinutes: number; storageNote: string | null; isActive: boolean; }
 
 export interface PaginatedRestaurants {
   items: Restaurant[];

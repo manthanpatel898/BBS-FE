@@ -82,13 +82,13 @@
 
 **Produces:** Category/item CRUD, image lifecycle, bulk/tagged inventory and logistics defaults.
 
-- [ ] Test image type/size restrictions and company-isolated keys.
-- [ ] Implement category CRUD/reorder/deactivate.
-- [ ] Implement item CRUD with multiple images, cover image and quantity.
-- [ ] Implement bulk and individually tagged unit modes.
-- [ ] Implement logistics modes and default buffers.
-- [ ] Implement maintenance quantity/unit state and prevent negative availability.
-- [ ] Add responsive mobile camera/gallery upload with progress and retry.
+- [x] Test image type/size restrictions and company-isolated keys.
+- [x] Implement category CRUD/reorder/deactivate.
+- [x] Implement item CRUD with multiple images, cover image and quantity.
+- [x] Implement bulk and individually tagged unit modes.
+- [x] Implement logistics modes and default buffers.
+- [x] Implement maintenance quantity/unit state and prevent negative availability.
+- [x] Add responsive mobile camera/gallery upload with progress and retry.
 
 ### Task 5: Decoration booking CRUD and lifecycle
 

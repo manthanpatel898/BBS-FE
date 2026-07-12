@@ -55,6 +55,8 @@ import {
   UserSignature,
   DecorationEventType,
   DecorationVenue,
+  DecorationCategory,
+  DecorationItem,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -2031,3 +2033,11 @@ export function setDecorationHallActive(accessToken: string, venueId: string, ha
     method: 'PATCH', body: JSON.stringify({ isActive }),
   });
 }
+
+export const fetchDecorationCategories = (token: string, includeInactive = false) => authorizedRequest<DecorationCategory[]>(`/decoration/catalog/categories${includeInactive ? '?includeInactive=true' : ''}`, token);
+export const saveDecorationCategory = (token: string, payload: { name: string; description?: string; displayOrder?: number }, id?: string) => authorizedRequest<DecorationCategory>(`/decoration/catalog/categories${id ? `/${id}` : ''}`, token, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
+export const setDecorationCategoryActive = (token: string, id: string, isActive: boolean) => authorizedRequest<DecorationCategory>(`/decoration/catalog/categories/${id}/active`, token, { method: 'PATCH', body: JSON.stringify({ isActive }) });
+export const fetchDecorationItems = (token: string, categoryId = '', includeInactive = false) => authorizedRequest<DecorationItem[]>(`/decoration/catalog/items?${new URLSearchParams({ ...(categoryId ? { categoryId } : {}), ...(includeInactive ? { includeInactive: 'true' } : {}) })}`, token);
+export const saveDecorationItem = (token: string, payload: Record<string, unknown>, id?: string) => authorizedRequest<DecorationItem>(`/decoration/catalog/items${id ? `/${id}` : ''}`, token, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
+export const setDecorationItemActive = (token: string, id: string, isActive: boolean) => authorizedRequest<DecorationItem>(`/decoration/catalog/items/${id}/active`, token, { method: 'PATCH', body: JSON.stringify({ isActive }) });
+export async function uploadDecorationItemImage(token: string, id: string, file: File) { const body = new FormData(); body.append('file', file); const response = await fetch(`${API_URL}/decoration/catalog/items/${id}/images`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body }); return parseResponse<DecorationItem>(response, { notifyOnUnauthorized: true }); }
