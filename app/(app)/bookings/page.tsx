@@ -51,6 +51,11 @@ import {
   parseCustomerDisplayName,
   type CustomerTitle,
 } from '@/lib/bookings/customer-title';
+import { buildChangedFields } from '@/lib/bookings/changed-fields';
+import {
+  consumeOverlayParent,
+  type BookingOverlayParent as BaseBookingOverlayParent,
+} from '@/lib/bookings/overlay-navigation';
 
 type ViewMode = 'list' | 'calendar';
 
@@ -110,6 +115,24 @@ type BookingFormState = {
   selectedMenus: SelectedMenu[];
   menuComment: string;
 };
+
+type EditInquirySnapshot = {
+  formState: BookingFormState;
+  customerTitle: CustomerTitle;
+  customEventName: string;
+};
+
+type DayRecordsPopup = {
+  dateKey: string;
+  orders: CalendarOrder[];
+};
+
+type EventDetailParent = {
+  order: Order;
+  parent: BookingOverlayParent;
+};
+
+type BookingOverlayParent = BaseBookingOverlayParent<DayRecordsPopup, EventDetailParent>;
 
 type ToastState = {
   type: 'success' | 'error';
@@ -227,6 +250,45 @@ function buildMissingInquiryFieldsMessage(
   if (missingFields.length === 0) return '';
 
   return `Please fill the required field${missingFields.length > 1 ? 's' : ''}: ${missingFields.join(', ')}.`;
+}
+
+function buildInquiryPayload(
+  formState: BookingFormState,
+  customerTitle: CustomerTitle,
+  customEventName: string,
+) {
+  const normalizedPhone = formState.mobileNumber.trim();
+  const customerName = composeCustomerDisplayName(customerTitle, formState.customerName);
+  const resolvedEventName = getResolvedEventName(formState.eventName, customEventName);
+  const { firstName, lastName } = splitFullName(customerName);
+
+  return {
+    customer: { firstName, lastName, phone: normalizedPhone },
+    pax: Number(formState.totalPerson) || undefined,
+    eventType: resolvedEventName,
+    functionName: resolvedEventName,
+    inquiryDate: formState.inquiryDate || undefined,
+    eventDate: formState.functionDate || undefined,
+    startTime: formState.startTime || undefined,
+    endTime: formState.endTime || undefined,
+    jainSwaminarayanPax: Number(formState.jainSwaminarayanPerson) || undefined,
+    jainSwaminarayanDetails: formState.jainSwaminarayanDetails.trim(),
+    seatingRequired: Number(formState.seatingRequiredNumber) || undefined,
+    serviceSlot: formState.serviceSlot,
+    hallDetails: formState.hallDetails.trim(),
+    referenceBy: formState.referenceBy.trim(),
+    addonServices: formState.addonEntries.map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      price: Number(entry.price) || 0,
+    })),
+    additionalInformation: formState.additionalInformation.trim(),
+    categoryId: formState.categoryId || undefined,
+    inquiryCustomPrice: formState.inquiryCustomPrice.trim()
+      ? Number(formState.inquiryCustomPrice)
+      : undefined,
+    notes: formState.additionalInformation.trim(),
+  };
 }
 
 function normalizeMenuText(value: string | undefined | null) {
@@ -385,6 +447,7 @@ export default function BookingsPage() {
     order: Order | null;
   } | null>(null);
   const pendingCreatePayload = useRef<Parameters<typeof createOrder>[1] | null>(null);
+  const editInquirySnapshotRef = useRef<EditInquirySnapshot | null>(null);
   const [confirmBookingPopup, setConfirmBookingPopup] = useState(false);
   const [confirmBookingAdvance, setConfirmBookingAdvance] = useState('0');
   const [confirmBookingPaymentMode, setConfirmBookingPaymentMode] = useState<PaymentMode>('Cash');
@@ -415,10 +478,9 @@ export default function BookingsPage() {
   const [isMobileDetailActionsOpen, setIsMobileDetailActionsOpen] = useState(false);
   const [selectedEventPlanner, setSelectedEventPlanner] = useState('');
   const [isAssigningEventPlanner, setIsAssigningEventPlanner] = useState(false);
-  const [dayRecordsPopup, setDayRecordsPopup] = useState<{
-    dateKey: string;
-    orders: CalendarOrder[];
-  } | null>(null);
+  const [dayRecordsPopup, setDayRecordsPopup] = useState<DayRecordsPopup | null>(null);
+  const [bookingOverlayParent, setBookingOverlayParent] =
+    useState<BookingOverlayParent>(null);
   const [followUpPopup, setFollowUpPopup] = useState<FollowUpPopupState | null>(null);
   const [isFollowUpSubmitting, setIsFollowUpSubmitting] = useState(false);
   const [signaturePopup, setSignaturePopup] = useState<SignaturePopupState | null>(null);
@@ -1008,7 +1070,33 @@ export default function BookingsPage() {
     await Promise.all([reloadOrders(token), reloadCalendar(token)]);
   }
 
-  function resetWizard() {
+  function restoreBookingOverlayParent(updatedDetailOrder?: Order) {
+    const { restored } = consumeOverlayParent(bookingOverlayParent);
+    setBookingOverlayParent(null);
+
+    if (restored?.type === 'day-sidebar') {
+      setDayRecordsPopup(restored.value);
+    } else if (restored?.type === 'event-detail') {
+      setDetailOrder(updatedDetailOrder ?? restored.value.order);
+      setIsDetailOpen(true);
+      setBookingOverlayParent(restored.value.parent);
+    }
+  }
+
+  function closeEditInquiry(updatedDetailOrder?: Order) {
+    setIsInquiryOpen(false);
+    setEditingOrder(null);
+    editInquirySnapshotRef.current = null;
+    setFormState(initialFormState);
+    setCustomerTitle('None');
+    setCustomEventName('');
+    setSelectedAddonOption('');
+    setCustomAddonLabel('');
+    setCustomAddonPrice('');
+    restoreBookingOverlayParent(updatedDetailOrder);
+  }
+
+  function resetWizard(restoreParent = true) {
     menuSelectionTrackingRef.current = null;
     setEditingOrder(null);
     setSkippedRuleKeys([]);
@@ -1022,12 +1110,14 @@ export default function BookingsPage() {
     setCustomerTitle('None');
     setCustomEventName('');
     setIsWizardOpen(false);
+    if (restoreParent) restoreBookingOverlayParent();
   }
 
   function openCreateInquiry(prefill?: { functionDate?: string }) {
     setPageError('');
     setToast(null);
     setEditingOrder(null);
+    editInquirySnapshotRef.current = null;
     setFormState({
       ...initialFormState,
       inquiryDate: toDateInputValue(new Date()),
@@ -1049,7 +1139,7 @@ export default function BookingsPage() {
     const parsedCustomerName = parseCustomerDisplayName(
       `${order.customer.firstName} ${order.customer.lastName}`.trim(),
     );
-    setFormState({
+    const nextFormState: BookingFormState = {
       inquiryDate: order.inquiryDate ? formatDateKey(order.inquiryDate) : toDateInputValue(new Date()),
       customerName: parsedCustomerName.name,
       mobileNumber: order.customer.phone,
@@ -1090,9 +1180,15 @@ export default function BookingsPage() {
         })),
       })),
       menuComment: order.menuComment ?? '',
-    });
+    };
+    setFormState(nextFormState);
     setCustomerTitle(parsedCustomerName.title);
     setCustomEventName(resolvedEventName.customValue);
+    editInquirySnapshotRef.current = {
+      formState: nextFormState,
+      customerTitle: parsedCustomerName.title,
+      customEventName: resolvedEventName.customValue,
+    };
     setIsInquiryOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
@@ -1602,58 +1698,26 @@ export default function BookingsPage() {
 
     try {
       setIsSubmitting(true);
-      const payload = {
-        customer: {
-          firstName,
-          lastName,
-          phone: normalizedPhone,
-        },
-        pax: pax || undefined,
-        eventType: resolvedEventName,
-        functionName: resolvedEventName,
-        inquiryDate: formState.inquiryDate || undefined,
-        eventDate: formState.functionDate || undefined,
-        startTime: formState.startTime || undefined,
-        endTime: formState.endTime || undefined,
-        jainSwaminarayanPax: Number(formState.jainSwaminarayanPerson) || undefined,
-        jainSwaminarayanDetails:
-          formState.jainSwaminarayanDetails.trim() || undefined,
-        seatingRequired: Number(formState.seatingRequiredNumber) || undefined,
-        serviceSlot: formState.serviceSlot || undefined,
-        hallDetails: formState.hallDetails.trim() || undefined,
-        referenceBy: formState.referenceBy.trim() || undefined,
-        addonServices: formState.addonEntries.length
-          ? formState.addonEntries.map((e) => ({ id: e.id, label: e.label, price: Number(e.price) || 0 }))
-          : undefined,
-        additionalInformation:
-          formState.additionalInformation.trim() || undefined,
-        categoryId: formState.categoryId || undefined,
-        inquiryCustomPrice: formState.inquiryCustomPrice.trim()
-          ? Number(formState.inquiryCustomPrice)
-          : undefined,
-      };
+      const payload = buildInquiryPayload(formState, customerTitle, customEventName);
 
       if (editingOrder) {
-        await updateOrder(accessToken, editingOrder.id, {
-          ...payload,
-          status: editingOrder.status,
-          selectedMenus:
-            editingOrder.menuSelectionSnapshot.length > 0
-              ? editingOrder.menuSelectionSnapshot.map((menu) => ({
-                  menuId: menu.menuId,
-                  sections: menu.sections.map((section) => ({
-                    sectionTitle: section.sectionTitle,
-                    items: section.items,
-                  })),
-                }))
-              : undefined,
-          eventType: resolvedEventName || editingOrder.eventType || '',
-          extrasTotal: editingOrder.extrasTotal,
-          discountAmount: editingOrder.discountAmount,
-          advanceAmount: editingOrder.advanceAmount,
-          notes: formState.additionalInformation.trim() || undefined,
-        });
+        const snapshot = editInquirySnapshotRef.current;
+        const originalPayload = snapshot
+          ? buildInquiryPayload(
+              snapshot.formState,
+              snapshot.customerTitle,
+              snapshot.customEventName,
+            )
+          : {};
+        const changedPayload = buildChangedFields(originalPayload, payload);
+        if (Object.keys(changedPayload).length === 0) {
+          setToast({ type: 'success', message: 'No changes to save.' });
+          closeEditInquiry();
+          return;
+        }
+        const updatedOrder = await updateOrder(accessToken, editingOrder.id, changedPayload);
         setToast({ type: 'success', message: 'Inquiry updated successfully.' });
+        closeEditInquiry(updatedOrder);
       } else if (status === 'CONFIRMED') {
         // Store the payload and open the payment popup — advance popup will create the order on confirm
         pendingCreatePayload.current = {
@@ -1672,11 +1736,14 @@ export default function BookingsPage() {
         });
         setToast({ type: 'success', message: 'Inquiry created successfully.' });
       }
-      setIsInquiryOpen(false);
-      setEditingOrder(null);
-      setFormState(initialFormState);
-      setCustomerTitle('None');
-      setCustomEventName('');
+      if (!editingOrder) {
+        setIsInquiryOpen(false);
+        setEditingOrder(null);
+        editInquirySnapshotRef.current = null;
+        setFormState(initialFormState);
+        setCustomerTitle('None');
+        setCustomEventName('');
+      }
       await refreshBookingViews(accessToken);
     } catch (requestError) {
       setToast({
@@ -1749,7 +1816,7 @@ export default function BookingsPage() {
             }
           : undefined;
       setIsSubmitting(true);
-      await updateOrder(accessToken, editingOrder.id, {
+      const updatedOrder = await updateOrder(accessToken, editingOrder.id, {
         status: editingOrder.status,
         pax,
         eventType: resolvedEventName || editingOrder.eventType || '',
@@ -1788,7 +1855,8 @@ export default function BookingsPage() {
           formState.additionalInformation.trim() || undefined,
         menuSelectionTracking,
       });
-      resetWizard();
+      resetWizard(false);
+      restoreBookingOverlayParent(updatedOrder);
       setToast({ type: 'success', message: 'Booking details saved successfully.' });
       await refreshBookingViews(accessToken);
       if (isDetailOpen) {
@@ -2497,6 +2565,9 @@ export default function BookingsPage() {
 
     try {
       const order = await fetchOrderById(accessToken, orderId);
+      if (dayRecordsPopup) {
+        setBookingOverlayParent({ type: 'day-sidebar', value: dayRecordsPopup });
+      }
       setDayRecordsPopup(null);
       openCategoryChooser(order);
     } catch (requestError) {
@@ -2517,6 +2588,9 @@ export default function BookingsPage() {
 
     try {
       const order = await fetchOrderById(accessToken, orderId);
+      if (dayRecordsPopup) {
+        setBookingOverlayParent({ type: 'day-sidebar', value: dayRecordsPopup });
+      }
       setDayRecordsPopup(null);
       openEditInquiry(order);
     } catch (requestError) {
@@ -3562,11 +3636,7 @@ function selectionStatus(order: Order) {
             title={editingOrder ? 'Edit inquiry' : 'Create inquiry'}
             eyebrow="Inquiry Form"
             onClose={() => {
-              setIsInquiryOpen(false);
-              setEditingOrder(null);
-              setFormState(initialFormState);
-              setCustomerTitle('None');
-              setCustomEventName('');
+              closeEditInquiry();
             }}
             widthClassName="max-w-5xl"
           >
@@ -4100,14 +4170,7 @@ function selectionStatus(order: Order) {
               <button
                 type="button"
                 onClick={() => {
-                  setIsInquiryOpen(false);
-                  setEditingOrder(null);
-                  setFormState(initialFormState);
-                  setCustomerTitle('None');
-                  setCustomEventName('');
-                  setSelectedAddonOption('');
-                  setCustomAddonLabel('');
-                  setCustomAddonPrice('');
+                  closeEditInquiry();
                 }}
                 className={`${ghostButtonCls} w-full sm:w-auto`}
               >
@@ -4739,7 +4802,7 @@ function selectionStatus(order: Order) {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={resetWizard}
+                    onClick={() => resetWizard()}
                     className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:rounded-2xl sm:py-3"
                   >
                     Cancel
@@ -5777,6 +5840,10 @@ function selectionStatus(order: Order) {
                             type="button"
                             key={`popup-${calendarOrder.id}`}
                             onClick={() => {
+                              setBookingOverlayParent({
+                                type: 'day-sidebar',
+                                value: dayRecordsPopup,
+                              });
                               setDayRecordsPopup(null);
                               void openOrderDetail(calendarOrder.id);
                             }}
@@ -6101,6 +6168,7 @@ function selectionStatus(order: Order) {
               setDetailError('');
               setIsMobileDetailActionsOpen(false);
               setPrintTagPopup(null);
+              restoreBookingOverlayParent();
             }}
             widthClassName="max-w-4xl"
             panelClassName="flex flex-col !pb-0"
@@ -6680,6 +6748,10 @@ function selectionStatus(order: Order) {
                         <button
                           type="button"
                           onClick={() => {
+                            setBookingOverlayParent({
+                              type: 'event-detail',
+                              value: { order: detailOrder, parent: bookingOverlayParent },
+                            });
                             setIsDetailOpen(false);
                             setIsMobileDetailActionsOpen(false);
                             openEditInquiry(detailOrder);
@@ -6694,6 +6766,10 @@ function selectionStatus(order: Order) {
                         <button
                           type="button"
                           onClick={() => {
+                            setBookingOverlayParent({
+                              type: 'event-detail',
+                              value: { order: detailOrder, parent: bookingOverlayParent },
+                            });
                             setIsDetailOpen(false);
                             setIsMobileDetailActionsOpen(false);
                             openCategoryChooser(detailOrder);
