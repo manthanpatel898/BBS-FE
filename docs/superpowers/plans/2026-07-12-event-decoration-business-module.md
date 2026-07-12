@@ -185,8 +185,8 @@
 - [x] Generate an XLSX template with Instructions, Data and Example sheets, formats, accepted statuses and sample values.
 - [x] Generate a UTF-8 CSV template with stable headers and documented encoding/date rules.
 - [x] Add template download endpoints protected by decoration import permission.
-- [ ] Write parser tests for `.xlsx`, `.csv`, empty files, renamed/missing/duplicate columns, large files, formulas, invalid encodings and malicious content.
-- [ ] Normalize dates, 10-digit mobile numbers, whitespace, time-slot aliases, budget values and statuses without silently changing ambiguous values.
+- [x] Write parser tests for `.xlsx`, `.csv`, empty files, renamed/missing/duplicate columns, large files, formulas, invalid encodings and malicious content.
+- [x] Normalize dates, 10-digit mobile numbers, whitespace, time-slot aliases, budget values and statuses without silently changing ambiguous values.
 - [ ] Validate required fields, date ranges, hall/venue relationship, status and follow-up chronology per row.
 - [ ] Add optional permission-controlled creation of missing event types, venues and halls; default to previewing unresolved configuration as errors.
 - [ ] Create an import job with file hash, template version, uploader and counts; store row errors separately to avoid oversized documents.
@@ -198,7 +198,7 @@
 - [ ] Attach imported follow-up history only when its dates/notes are valid; otherwise fail that row visibly.
 - [ ] Audit template download, preview, confirmation, created configuration, created bookings and cancelled jobs.
 - [ ] Build responsive drag/drop and file-picker UI with progress, preview filters, confirm dialog, result summary and retry.
-- [ ] Enforce maximum file size/row count and avoid loading unbounded files entirely into application memory.
+- [x] Enforce maximum file size/row count and avoid loading unbounded files entirely into application memory.
 
 ### Task 11: Decoration reports and exports
 
