@@ -188,14 +188,14 @@
 - [x] Write parser tests for `.xlsx`, `.csv`, empty files, renamed/missing/duplicate columns, large files, formulas, invalid encodings and malicious content.
 - [x] Normalize dates, 10-digit mobile numbers, whitespace, time-slot aliases, budget values and statuses without silently changing ambiguous values.
 - [x] Validate required fields, date ranges, hall/venue relationship, status and follow-up chronology per row.
-- [ ] Add optional permission-controlled creation of missing event types, venues and halls; default to previewing unresolved configuration as errors.
+- [x] Add optional permission-controlled creation of missing event types, venues and halls; default to previewing unresolved configuration as errors.
 - [x] Create an import job with file hash, template version, uploader and counts; store row errors separately to avoid oversized documents.
 - [x] Return a preview containing valid rows, invalid rows, warnings, normalized values and configuration actions before any write.
 - [ ] Generate downloadable XLSX/CSV error results containing original row plus validation message.
-- [ ] On explicit confirmation, import valid rows in bounded batches and record booking source, job ID and row number.
-- [ ] Compute a stable row fingerprint and unique import constraint so retry or repeated upload cannot duplicate bookings.
-- [ ] Mark confirmed imported bookings without selections as `DECORATION_SELECTION_PENDING`; do not reserve inventory during import.
-- [ ] Attach imported follow-up history only when its dates/notes are valid; otherwise fail that row visibly.
+- [x] On explicit confirmation, import valid rows in bounded batches and record booking source, job ID and row number.
+- [x] Compute a stable row fingerprint and unique import constraint so retry or repeated upload cannot duplicate bookings.
+- [x] Mark confirmed imported bookings without selections as `DECORATION_SELECTION_PENDING`; do not reserve inventory during import.
+- [x] Attach imported follow-up history only when its dates/notes are valid; otherwise fail that row visibly.
 - [ ] Audit template download, preview, confirmation, created configuration, created bookings and cancelled jobs.
 - [ ] Build responsive drag/drop and file-picker UI with progress, preview filters, confirm dialog, result summary and retry.
 - [x] Enforce maximum file size/row count and avoid loading unbounded files entirely into application memory.
