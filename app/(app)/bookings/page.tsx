@@ -56,6 +56,7 @@ import {
   consumeOverlayParent,
   type BookingOverlayParent as BaseBookingOverlayParent,
 } from '@/lib/bookings/overlay-navigation';
+import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 
 type ViewMode = 'list' | 'calendar';
 
@@ -124,7 +125,6 @@ type EditInquirySnapshot = {
 
 type DayRecordsPopup = {
   dateKey: string;
-  orders: CalendarOrder[];
 };
 
 type EventDetailParent = {
@@ -892,6 +892,9 @@ export default function BookingsPage() {
     return grouped;
   }, [filteredCalendarOrders]);
   const selectedCalendarOrders = ordersByDate.get(selectedCalendarDay) ?? [];
+  const dayRecordsPopupOrders = dayRecordsPopup
+    ? getDaySidebarOrders(dayRecordsPopup.dateKey, ordersByDate)
+    : [];
   const selectedMenuItemsCount = formState.selectedMenus.reduce(
     (count, menu) =>
       count +
@@ -3515,7 +3518,7 @@ function selectionStatus(order: Order) {
                           type="button"
                           onClick={() => {
                             setSelectedCalendarDay(dayKey);
-                            setDayRecordsPopup({ dateKey: dayKey, orders: dayOrders });
+                            setDayRecordsPopup({ dateKey: dayKey });
                           }}
                           className={`relative min-h-[112px] overflow-hidden rounded-[26px] border text-left transition sm:min-h-[132px] ${
                             isHotDate
@@ -5710,7 +5713,7 @@ function selectionStatus(order: Order) {
                     {formatDisplayDate(dayRecordsPopup.dateKey)}
                   </h3>
                   <p className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800 shadow-sm">
-                    {dayRecordsPopup.orders.length} booking{dayRecordsPopup.orders.length === 1 ? '' : 's'}
+                    {dayRecordsPopupOrders.length} booking{dayRecordsPopupOrders.length === 1 ? '' : 's'}
                   </p>
                 </div>
                 <button
@@ -5743,7 +5746,7 @@ function selectionStatus(order: Order) {
               <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
                 <div className="space-y-3">
                   {(() => {
-                      const sortedOrders = [...dayRecordsPopup.orders].sort((a, b) => {
+                      const sortedOrders = [...dayRecordsPopupOrders].sort((a, b) => {
                         const slotOrder: Record<string, number> = { Breakfast: 0, Lunch: 1, Dinner: 2 };
                         const getStatusOrder = (order: CalendarOrder) => {
                           if (order.status === 'CONFIRMED') return 0;
