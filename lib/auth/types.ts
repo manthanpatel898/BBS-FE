@@ -821,6 +821,14 @@ export interface CalendarOrder {
   customerName: string;
 }
 
+export interface CalendarView {
+  orders: CalendarOrder[];
+  hallBookingInformation: {
+    enabled: boolean;
+    halls: string[];
+  };
+}
+
 export interface PaginatedOrders {
   items: Order[];
   pagination: {

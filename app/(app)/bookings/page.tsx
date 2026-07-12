@@ -406,6 +406,10 @@ export default function BookingsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
   const [orders, setOrders] = useState<Order[]>([]);
   const [calendarOrders, setCalendarOrders] = useState<CalendarOrder[]>([]);
+  const [calendarHallBookingInformation, setCalendarHallBookingInformation] = useState({
+    enabled: false,
+    halls: [] as string[],
+  });
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -742,7 +746,8 @@ export default function BookingsPage() {
       try {
         setIsCalendarLoading(true);
         const response = await fetchCalendarOrders(token, monthRange);
-        setCalendarOrders(response);
+        setCalendarOrders(response.orders);
+        setCalendarHallBookingInformation(response.hallBookingInformation);
       } catch (requestError) {
         setToast({
           type: 'error',
@@ -804,7 +809,6 @@ export default function BookingsPage() {
     formState.hallDetails && !generatedHallDetailChoices.includes(formState.hallDetails)
       ? [formState.hallDetails, ...generatedHallDetailChoices]
       : generatedHallDetailChoices;
-  const showHallBookingInformation = settings?.showHallBookingInformation ?? false;
   const addonOptions = settings?.addonServices ?? [];
   const availableAddonOptions = addonOptions.filter(
     (option) => !formState.addonEntries.some((entry) => entry.id === option.id),
@@ -1060,7 +1064,8 @@ export default function BookingsPage() {
 
   async function reloadCalendar(token: string) {
     const response = await fetchCalendarOrders(token, getMonthRange(calendarMonth));
-    setCalendarOrders(response);
+    setCalendarOrders(response.orders);
+    setCalendarHallBookingInformation(response.hallBookingInformation);
   }
 
   async function loadCategories(token: string) {
@@ -5758,11 +5763,14 @@ function selectionStatus(order: Order) {
                         if (statusDiff !== 0) return statusDiff;
                         return (slotOrder[a.serviceSlot ?? ''] ?? 9) - (slotOrder[b.serviceSlot ?? ''] ?? 9);
                       });
-                      const hallSlotMatrix = buildDayHallSlotMatrix(sortedOrders, hallDetailOptions);
+                      const hallSlotMatrix = buildDayHallSlotMatrix(
+                        sortedOrders,
+                        calendarHallBookingInformation.halls,
+                      );
 
                       return (
                         <>
-                          {showHallBookingInformation && hallSlotMatrix.halls.length > 0 ? (
+                          {calendarHallBookingInformation.enabled && hallSlotMatrix.halls.length > 0 ? (
                             <div className="border border-slate-200 bg-slate-50 p-4">
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>

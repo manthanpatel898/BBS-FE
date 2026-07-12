@@ -7,6 +7,7 @@ import {
   AuthUser,
   BulkUploadResult,
   CalendarOrder,
+  CalendarView,
   Category,
   Customer,
   DashboardRecords,
@@ -1013,7 +1014,7 @@ export async function fetchCalendarOrders(
     to: params.to,
   });
 
-  return authorizedRequest<CalendarOrder[]>(
+  return authorizedRequest<CalendarView>(
     `/orders/calendar?${query.toString()}`,
     accessToken,
   );
