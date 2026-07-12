@@ -15,10 +15,11 @@ import {
   updateRestaurant,
   uploadLogo,
 } from '@/lib/auth/api';
-import { Restaurant, SubscriptionLog } from '@/lib/auth/types';
+import { BusinessType, Restaurant, SubscriptionLog } from '@/lib/auth/types';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 
 type RestaurantFormState = {
+  businessType: BusinessType;
   name: string;
   contactPersonName: string;
   contactPersonEmail: string;
@@ -38,6 +39,7 @@ type RestaurantFormState = {
 };
 
 const initialFormState: RestaurantFormState = {
+  businessType: 'BANQUET',
   name: '',
   contactPersonName: '',
   contactPersonEmail: '',
@@ -167,6 +169,7 @@ export default function RestaurantsPage() {
   function openEditModal(restaurant: Restaurant) {
     setEditingRestaurant(restaurant);
     setFormState({
+      businessType: restaurant.businessType ?? 'BANQUET',
       name: restaurant.name,
       contactPersonName: restaurant.contactPersonName,
       contactPersonEmail: restaurant.contactPersonEmail,
@@ -630,6 +633,28 @@ export default function RestaurantsPage() {
                   </div>
                 )}
                 <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
+                  <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    Business type
+                    <select
+                      value={formState.businessType}
+                      onChange={(e) =>
+                        setFormState((s) => ({
+                          ...s,
+                          businessType: e.target.value as BusinessType,
+                        }))
+                      }
+                      disabled={Boolean(editingRestaurant)}
+                      className={`${inputCls} disabled:cursor-not-allowed disabled:bg-slate-100`}
+                    >
+                      <option value="BANQUET">Banquet</option>
+                      <option value="EVENT_DECORATION">Event Decoration</option>
+                    </select>
+                    {editingRestaurant && (
+                      <span className="text-xs font-normal text-slate-500">
+                        Business type is locked after company creation.
+                      </span>
+                    )}
+                  </label>
                   <input
                     value={formState.name}
                     onChange={(e) => setFormState((s) => ({ ...s, name: e.target.value }))}

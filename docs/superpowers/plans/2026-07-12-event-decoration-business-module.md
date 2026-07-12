@@ -35,12 +35,12 @@
 
 **Produces:** `BusinessType = BANQUET | EVENT_DECORATION`, immutable-after-data validation, authenticated business type, backend guard.
 
-- [ ] Add failing tests for default banquet migration behavior, decoration creation, guarded endpoints and forbidden type changes after data exists.
-- [ ] Add the enum and restaurant field with `BANQUET` default.
-- [ ] Include business type in login/session/current-user responses.
-- [ ] Add Super Admin selection and read-only display after operational use.
-- [ ] Add and apply a reusable backend business-type guard.
-- [ ] Verify existing banquet auth and restaurant tests.
+- [x] Add failing tests for default banquet migration behavior, decoration creation, guarded endpoints and forbidden type changes after data exists.
+- [x] Add the enum and restaurant field with `BANQUET` default.
+- [x] Include business type in login/session/current-user responses.
+- [x] Add Super Admin selection and read-only display after operational use.
+- [x] Add and apply a reusable backend business-type guard.
+- [x] Verify existing banquet auth and restaurant tests.
 
 ### Task 2: Business-aware navigation, routes and permissions
 

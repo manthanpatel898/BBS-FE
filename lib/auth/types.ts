@@ -1,4 +1,5 @@
 export type UserRole = 'super_admin' | 'company_admin' | 'employee';
+export type BusinessType = 'BANQUET' | 'EVENT_DECORATION';
 
 export interface AuthUser {
   id: string;
@@ -9,6 +10,7 @@ export interface AuthUser {
   designation?: string | null;
   role: UserRole;
   restaurantId: string | null;
+  businessType?: BusinessType | null;
   canAccessCancelledBookings?: boolean;
   canUseAdvancedCancelManagement?: boolean;
   canAccessVoucherFlow?: boolean;
@@ -58,6 +60,7 @@ export interface SubscriptionStatus {
 
 export interface Restaurant {
   id: string;
+  businessType: BusinessType;
   name: string;
   contactPersonName: string;
   contactPersonEmail: string;
