@@ -163,12 +163,12 @@
 
 **Produces:** Event Detail with full snapshot plus View, Download PDF and Print.
 
-- [ ] Render event, customer, venue, package/payment, follow-up and activity sections.
-- [ ] Render category-grouped snapshot cards with images, quantities and descriptions.
-- [ ] Add full-screen mobile gallery and responsive actions.
-- [ ] Create customer visual output and internal operational output.
-- [ ] Verify historical output remains unchanged after catalog edits.
-- [ ] Verify pagination, image loading failure states and print CSS.
+- [x] Render event, customer, venue, package/payment, follow-up and activity sections.
+- [x] Render category-grouped snapshot cards with images, quantities and descriptions.
+- [x] Add full-screen mobile gallery and responsive actions.
+- [x] Create customer visual output and internal operational output.
+- [x] Verify historical output remains unchanged after catalog edits.
+- [x] Verify pagination, image loading failure states and print CSS.
 
 ### Task 10: Excel/CSV templates and import pipeline
 
