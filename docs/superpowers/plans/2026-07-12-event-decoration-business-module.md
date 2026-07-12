@@ -181,10 +181,10 @@
 
 **Produces:** Downloadable templates and a preview/confirm import workflow for legacy Excel records.
 
-- [ ] Define versioned template columns: `Date`, `Name`, `Mobile No`, `Hotel Name`, `Hall Name`, `Time`, `Notes`, `Function Name`, `Budget`, `Status`, `Follow-up Date`, `Next Follow-up Date`, `Follow-up Notes`.
-- [ ] Generate an XLSX template with Instructions, Data and Example sheets, formats, accepted statuses and sample values.
-- [ ] Generate a UTF-8 CSV template with stable headers and documented encoding/date rules.
-- [ ] Add template download endpoints protected by decoration import permission.
+- [x] Define versioned template columns: `Date`, `Name`, `Mobile No`, `Hotel Name`, `Hall Name`, `Time`, `Notes`, `Function Name`, `Budget`, `Status`, `Follow-up Date`, `Next Follow-up Date`, `Follow-up Notes`.
+- [x] Generate an XLSX template with Instructions, Data and Example sheets, formats, accepted statuses and sample values.
+- [x] Generate a UTF-8 CSV template with stable headers and documented encoding/date rules.
+- [x] Add template download endpoints protected by decoration import permission.
 - [ ] Write parser tests for `.xlsx`, `.csv`, empty files, renamed/missing/duplicate columns, large files, formulas, invalid encodings and malicious content.
 - [ ] Normalize dates, 10-digit mobile numbers, whitespace, time-slot aliases, budget values and statuses without silently changing ambiguous values.
 - [ ] Validate required fields, date ranges, hall/venue relationship, status and follow-up chronology per row.
