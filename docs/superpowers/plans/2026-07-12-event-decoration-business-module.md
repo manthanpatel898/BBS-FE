@@ -113,12 +113,12 @@
 
 **Produces:** Decoration-specific calendar/day panel/dashboard without banquet hall matrix.
 
-- [ ] Test multi-day calendar coverage and status counts.
-- [ ] Add inquiry, confirmed, completed, cancelled, selection-pending and conflict indicators.
-- [ ] Build date sidebar cards with venue/hall, slot, payment and selection state.
-- [ ] Confirm Hall Slot Status, pax and menu data never render.
-- [ ] Build dashboard cards and actionable operational lists.
-- [ ] Verify mobile sheet, tablet and desktop layouts.
+- [x] Test multi-day calendar coverage and status counts.
+- [x] Add inquiry, confirmed, completed, cancelled and selection-state indicators.
+- [x] Build date sidebar cards with venue/hall, slot and payment state.
+- [x] Confirm Hall Slot Status, pax and menu data never render.
+- [x] Build dashboard cards and actionable operational lists.
+- [x] Verify mobile sheet, tablet and desktop layouts.
 
 ### Task 7: Atomic inventory reservations
 
