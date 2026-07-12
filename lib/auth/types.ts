@@ -85,6 +85,31 @@ export interface Restaurant {
   updatedAt: string;
 }
 
+export interface DecorationEventType {
+  id: string;
+  name: string;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DecorationHall {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface DecorationVenue {
+  id: string;
+  name: string;
+  address: string | null;
+  isActive: boolean;
+  halls: DecorationHall[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PaginatedRestaurants {
   items: Restaurant[];
   pagination: {

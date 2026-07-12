@@ -245,6 +245,8 @@ function buildNavItems(
       role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_REPORTS_VIEW);
     const canViewCatalog =
       role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_CATALOG_VIEW);
+    const canViewConfiguration =
+      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_CONFIGURATION_VIEW);
 
     return [
       ...(role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_VIEW)
@@ -261,6 +263,9 @@ function buildNavItems(
         : []),
       ...(canViewCatalog
         ? [{ type: 'link' as const, href: '/decoration/catalog', label: 'Decoration Catalog', icon: <IconTag /> }]
+        : []),
+      ...(canViewConfiguration
+        ? [{ type: 'link' as const, href: '/decoration/configuration', label: 'Configuration', icon: <IconSettings /> }]
         : []),
       ...(role === 'company_admin'
         ? [

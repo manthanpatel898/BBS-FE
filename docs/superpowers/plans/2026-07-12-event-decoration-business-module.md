@@ -66,11 +66,11 @@
 
 **Produces:** Tenant-scoped event type, venue and hall APIs with active/deactivated lifecycle.
 
-- [ ] Test tenant isolation, duplicate normalization, referenced-record deactivation and hall filtering.
-- [ ] Implement event type CRUD and ordering.
-- [ ] Implement venue CRUD with embedded or dedicated hall records and safe uniqueness.
-- [ ] Add searchable responsive configuration pages.
-- [ ] Add permission-controlled inline create flows used by the inquiry form.
+- [x] Test tenant isolation, duplicate normalization, referenced-record deactivation and hall filtering.
+- [x] Implement event type CRUD and ordering.
+- [x] Implement venue CRUD with embedded hall records and safe uniqueness.
+- [x] Add searchable responsive configuration pages.
+- [x] Add permission-controlled reusable create APIs and clients for the inquiry form.
 
 ### Task 4: Decoration catalog, images and inventory units
 

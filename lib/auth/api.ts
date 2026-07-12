@@ -53,6 +53,8 @@ import {
   CancelledAdvanceDashboard,
   TreasuryReport,
   UserSignature,
+  DecorationEventType,
+  DecorationVenue,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -1951,4 +1953,81 @@ export async function bulkUploadHotDates(
     throw new Error(message);
   }
   return payload.data;
+}
+
+function decorationConfigurationQuery(search: string, includeInactive: boolean) {
+  const query = new URLSearchParams();
+  if (search.trim()) query.set('search', search.trim());
+  if (includeInactive) query.set('includeInactive', 'true');
+  return query.toString();
+}
+
+export function fetchDecorationEventTypes(accessToken: string, search = '', includeInactive = false) {
+  const query = decorationConfigurationQuery(search, includeInactive);
+  return authorizedRequest<DecorationEventType[]>(
+    `/decoration/configuration/event-types${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export function createDecorationEventType(accessToken: string, payload: { name: string; displayOrder?: number }) {
+  return authorizedRequest<DecorationEventType>('/decoration/configuration/event-types', accessToken, {
+    method: 'POST', body: JSON.stringify(payload),
+  });
+}
+
+export function updateDecorationEventType(accessToken: string, id: string, payload: { name?: string; displayOrder?: number }) {
+  return authorizedRequest<DecorationEventType>(`/decoration/configuration/event-types/${id}`, accessToken, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  });
+}
+
+export function setDecorationEventTypeActive(accessToken: string, id: string, isActive: boolean) {
+  return authorizedRequest<DecorationEventType>(`/decoration/configuration/event-types/${id}/active`, accessToken, {
+    method: 'PATCH', body: JSON.stringify({ isActive }),
+  });
+}
+
+export function fetchDecorationVenues(accessToken: string, search = '', includeInactive = false) {
+  const query = decorationConfigurationQuery(search, includeInactive);
+  return authorizedRequest<DecorationVenue[]>(
+    `/decoration/configuration/venues${query ? `?${query}` : ''}`,
+    accessToken,
+  );
+}
+
+export function createDecorationVenue(accessToken: string, payload: { name: string; address?: string; halls?: Array<{ name: string }> }) {
+  return authorizedRequest<DecorationVenue>('/decoration/configuration/venues', accessToken, {
+    method: 'POST', body: JSON.stringify(payload),
+  });
+}
+
+export function updateDecorationVenue(accessToken: string, id: string, payload: { name?: string; address?: string }) {
+  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${id}`, accessToken, {
+    method: 'PATCH', body: JSON.stringify(payload),
+  });
+}
+
+export function setDecorationVenueActive(accessToken: string, id: string, isActive: boolean) {
+  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${id}/active`, accessToken, {
+    method: 'PATCH', body: JSON.stringify({ isActive }),
+  });
+}
+
+export function addDecorationHall(accessToken: string, venueId: string, name: string) {
+  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${venueId}/halls`, accessToken, {
+    method: 'POST', body: JSON.stringify({ name }),
+  });
+}
+
+export function updateDecorationHall(accessToken: string, venueId: string, hallId: string, name: string) {
+  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${venueId}/halls/${hallId}`, accessToken, {
+    method: 'PATCH', body: JSON.stringify({ name }),
+  });
+}
+
+export function setDecorationHallActive(accessToken: string, venueId: string, hallId: string, isActive: boolean) {
+  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${venueId}/halls/${hallId}/active`, accessToken, {
+    method: 'PATCH', body: JSON.stringify({ isActive }),
+  });
 }
