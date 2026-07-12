@@ -145,13 +145,13 @@
 
 **Produces:** Immutable `decorationSnapshot` and confirmed-event chooser.
 
-- [ ] Test selection is unavailable before confirmation.
-- [ ] Implement category filtering, image choice, quantity and descriptions.
-- [ ] Implement event-only custom uploads.
-- [ ] Show availability for the booking logistics range.
-- [ ] Save selection and reservations atomically.
-- [ ] Store immutable snapshot data and preserve it after catalog edits.
-- [ ] Add mobile sticky summary, tablet split layout and desktop grid.
+- [x] Test selection is unavailable before confirmation.
+- [x] Implement category filtering, image choice, quantity and descriptions.
+- [x] Implement event-only custom uploads.
+- [x] Show availability for the booking logistics range.
+- [x] Save selection and reservations atomically.
+- [x] Store immutable snapshot data and preserve it after catalog edits.
+- [x] Add mobile sticky summary, tablet split layout and desktop grid.
 
 ### Task 9: Event Detail, view, PDF and print
 
