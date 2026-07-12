@@ -48,9 +48,26 @@ Mobile uses full-screen sheets, sticky actions, swipeable galleries, searchable 
 
 Dashboard cards: today's events, upcoming events, open inquiries, confirmed events, decoration pending, follow-ups due, pending advances, outstanding balances, conflicts, low availability, maintenance and recent completions. Operational lists emphasize setup/removal windows and incomplete selection.
 
+Decoration reports are implemented in a separate backend module, separate frontend route and separate print/export views. They do not reuse banquet report endpoints or mix banquet and decoration rows.
+
 Reports: advance collection, outstanding payments, conversion, open inquiries, confirmed/upcoming/completed/cancelled events, follow-up performance, revenue by event type and venue, decoration usage, inventory utilization, conflict history, maintenance/unavailable inventory and employee-created bookings.
+
+Users can select a month, a custom date range or a single date. The summary must show event count, inquiry/confirmed/completed/cancelled counts, total package amount, advance received, total collected, outstanding amount and status/venue/event-type breakdowns. Results support on-screen viewing, pagination, XLSX download, CSV download and print/PDF where applicable.
+
+## Excel/CSV import and replacement of manual records
+
+Decoration companies receive a separate Import Data page. Users can download both XLSX and CSV templates. The required template columns are:
+
+`Date`, `Name`, `Mobile No`, `Hotel Name`, `Hall Name`, `Time`, `Notes`, `Function Name`, `Budget`, `Status`, `Follow-up Date`, `Next Follow-up Date`, `Follow-up Notes`.
+
+The template includes an Instructions sheet and an Example row in XLSX; the CSV template contains headers only. Accepted status values are documented and normalized to application statuses. Date, mobile and budget formats are explicitly documented.
+
+Import uses a preview-first workflow: upload, parse, validate, resolve configuration, preview valid/invalid rows, download error file, confirm import, then show result. No database write occurs before confirmation. Each row reports its exact validation error. Users may choose whether new event types, venues and halls found in the file are created automatically; this option requires configuration permissions.
+
+Import is idempotent. A file hash and row fingerprint prevent accidental duplicate imports. Retrying a partially failed job does not duplicate successful bookings. Imported records store import job ID, original row number, source filename, imported-by user and timestamp. Every import and created booking is audited.
+
+The importer supports active historical and future records without reserving decoration inventory automatically. Confirmed imported bookings are marked `DECORATION_SELECTION_PENDING` until a user selects decoration. Import never invents advances or collected amounts unless supported columns are deliberately added to a future template version.
 
 ## Version-one exclusions
 
 Item-level pricing, automatic calculated quotation totals, team/vehicle assignment, logistics checklists, before/after photos, messaging automation, customer portal, online approval, vendor/subcontractor management, procurement, payroll and attendance.
-

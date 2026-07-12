@@ -19,6 +19,8 @@
 - Inventory confirmation is atomic and safe under concurrent requests.
 - All new screens are mobile-first and tablet-ready.
 - Version one has package pricing only, with no decoration-item pricing.
+- Decoration import and reporting are separate from existing banquet import/report routes and services.
+- Import is preview-first, idempotent and auditable; no records are written before explicit confirmation.
 
 ---
 
@@ -168,21 +170,58 @@
 - [ ] Verify historical output remains unchanged after catalog edits.
 - [ ] Verify pagination, image loading failure states and print CSS.
 
-### Task 10: Decoration reports
+### Task 10: Excel/CSV templates and import pipeline
+
+**Files:**
+- Backend create: `apps/BBS-BE/src/modules/decoration-imports/` module, schemas, DTOs, parser, validator, controller, service and specs
+- Backend create: import job/error schemas in dedicated collections
+- Frontend create: `apps/BBS-FE/app/(app)/decoration/import/page.tsx`
+- Frontend create: decoration import API client/types and preview components
+- Assets create: generated XLSX and CSV template endpoints
+
+**Produces:** Downloadable templates and a preview/confirm import workflow for legacy Excel records.
+
+- [ ] Define versioned template columns: `Date`, `Name`, `Mobile No`, `Hotel Name`, `Hall Name`, `Time`, `Notes`, `Function Name`, `Budget`, `Status`, `Follow-up Date`, `Next Follow-up Date`, `Follow-up Notes`.
+- [ ] Generate an XLSX template with Instructions, Data and Example sheets, formats, accepted statuses and sample values.
+- [ ] Generate a UTF-8 CSV template with stable headers and documented encoding/date rules.
+- [ ] Add template download endpoints protected by decoration import permission.
+- [ ] Write parser tests for `.xlsx`, `.csv`, empty files, renamed/missing/duplicate columns, large files, formulas, invalid encodings and malicious content.
+- [ ] Normalize dates, 10-digit mobile numbers, whitespace, time-slot aliases, budget values and statuses without silently changing ambiguous values.
+- [ ] Validate required fields, date ranges, hall/venue relationship, status and follow-up chronology per row.
+- [ ] Add optional permission-controlled creation of missing event types, venues and halls; default to previewing unresolved configuration as errors.
+- [ ] Create an import job with file hash, template version, uploader and counts; store row errors separately to avoid oversized documents.
+- [ ] Return a preview containing valid rows, invalid rows, warnings, normalized values and configuration actions before any write.
+- [ ] Generate downloadable XLSX/CSV error results containing original row plus validation message.
+- [ ] On explicit confirmation, import valid rows in bounded batches and record booking source, job ID and row number.
+- [ ] Compute a stable row fingerprint and unique import constraint so retry or repeated upload cannot duplicate bookings.
+- [ ] Mark confirmed imported bookings without selections as `DECORATION_SELECTION_PENDING`; do not reserve inventory during import.
+- [ ] Attach imported follow-up history only when its dates/notes are valid; otherwise fail that row visibly.
+- [ ] Audit template download, preview, confirmation, created configuration, created bookings and cancelled jobs.
+- [ ] Build responsive drag/drop and file-picker UI with progress, preview filters, confirm dialog, result summary and retry.
+- [ ] Enforce maximum file size/row count and avoid loading unbounded files entirely into application memory.
+
+### Task 11: Decoration reports and exports
 
 **Files:**
 - Backend create: decoration report DTOs/queries/specs
-- Frontend create: decoration report dashboard, tables and print/export views
+- Frontend create: dedicated `app/(app)/decoration/reports` dashboard, tables and print/export views
 
 **Produces:** Scoped operational, revenue, payment, follow-up and inventory reports.
 
+- [ ] Keep all controllers, services, routes, permissions and exports separate from the existing banquet reports module.
+- [ ] Implement monthly, single-date and custom-date-range filters with explicit restaurant timezone boundaries.
+- [ ] Implement summary metrics: total events, inquiry/confirmed/completed/cancelled counts, total package value, advance received, total collected and outstanding amount.
 - [ ] Implement advance, outstanding, conversion and event-status reports.
 - [ ] Implement revenue by event type/venue.
 - [ ] Implement usage, utilization, conflicts and maintenance reports.
 - [ ] Implement employee-created booking and follow-up performance reports.
-- [ ] Add filters, pagination, empty/loading/error states and permission checks.
+- [ ] Add event-type, venue, hall, status, creator and payment-state filters.
+- [ ] Add on-screen pagination plus XLSX, CSV and print/PDF outputs generated from the same filtered query definition.
+- [ ] Ensure currency totals use authoritative payment entries and do not double-count advances.
+- [ ] Add empty/loading/error states, permission checks and export audit events.
+- [ ] Add report reconciliation tests comparing summary totals with booking/payment source records.
 
-### Task 11: Audit, observability and cleanup
+### Task 12: Audit, observability and cleanup
 
 **Files:**
 - Backend modify: shared audit mapping and scheduled cleanup
@@ -196,7 +235,7 @@
 - [ ] Add cleanup for abandoned custom/catalog uploads.
 - [ ] Add conflict/error telemetry without exposing customer or S3 secrets.
 
-### Task 12: Migration, regression and rollout
+### Task 13: Migration, regression and rollout
 
 **Files:**
 - Backend create: idempotent business-type migration script
@@ -210,6 +249,7 @@
 - [ ] Run backend unit/build/lint and frontend tests/lint/build.
 - [ ] Execute mobile/tablet/desktop end-to-end journeys.
 - [ ] Test concurrent reservation, cancellation release, catalog changes and print snapshots.
+- [ ] Test template downloads, import preview/confirm/retry, duplicate prevention and report/export reconciliation.
 - [ ] Deploy behind a decoration-module feature flag.
 - [ ] Pilot with one company, review audit/conflict data, then enable general onboarding.
 
@@ -219,7 +259,7 @@
 2. Configuration and catalog (Tasks 3-4)
 3. Booking/calendar/dashboard (Tasks 5-6)
 4. Inventory and selection (Tasks 7-8)
-5. Event Detail/print/reports (Tasks 9-10)
-6. Audit, migration and rollout (Tasks 11-12)
+5. Event Detail and legacy-data import (Tasks 9-10)
+6. Reports, audit, migration and rollout (Tasks 11-13)
 
 No phase should begin production rollout until its tenant-isolation, permission and regression checks pass.
