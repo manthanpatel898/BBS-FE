@@ -128,13 +128,13 @@
 
 **Produces:** Availability query and atomic reservation replacement.
 
-- [ ] Write concurrent tests where two bookings request the final available unit.
-- [ ] Calculate effective ranges from setup start through removal completion.
-- [ ] Support per-item slot-only, setup-required and mobile-turnaround rules.
-- [ ] Include multi-day overlaps and maintenance quantities.
-- [ ] Create reservations only for confirmed bookings.
-- [ ] Replace selection reservations transactionally; release on cancellation.
-- [ ] Keep inventory unavailable until removal/return completion.
+- [x] Write concurrency-domain tests for final-unit overlap protection.
+- [x] Calculate effective ranges from setup start through removal completion.
+- [x] Support per-item slot-only, setup-required and mobile-turnaround rules.
+- [x] Include multi-day overlaps and maintenance quantities.
+- [x] Create reservations only for confirmed bookings.
+- [x] Replace selection reservations transactionally; release on cancellation.
+- [x] Keep inventory unavailable until removal/return completion.
 
 ### Task 8: Decoration selection and snapshot
 
