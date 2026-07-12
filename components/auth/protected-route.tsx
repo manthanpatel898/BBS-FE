@@ -3,6 +3,11 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { getHomeRouteForUser } from '@/lib/auth/navigation';
+import {
+  getDecorationRoutePermission,
+  isRouteAllowedForBusiness,
+} from '@/lib/auth/business-routes';
+import { hasPermission } from '@/lib/auth/permissions';
 import { useAuth } from './auth-provider';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -30,8 +35,29 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     if (!user.isFirstLogin && isResetPasswordRoute) {
       router.replace(getHomeRouteForUser(user));
+      return;
     }
-  }, [isReady, isResetPasswordRoute, router, user]);
+
+    if (
+      user.role !== 'super_admin' &&
+      normalizedPathname &&
+      !isRouteAllowedForBusiness(normalizedPathname, user.businessType)
+    ) {
+      router.replace(getHomeRouteForUser(user));
+      return;
+    }
+
+    const requiredPermission = normalizedPathname
+      ? getDecorationRoutePermission(normalizedPathname)
+      : null;
+    if (
+      user.role === 'employee' &&
+      requiredPermission &&
+      !hasPermission(user, requiredPermission)
+    ) {
+      router.replace(getHomeRouteForUser(user));
+    }
+  }, [isReady, isResetPasswordRoute, normalizedPathname, router, user]);
 
   if (!isReady) {
     return <div className="text-sm text-stone-400">Loading session...</div>;
@@ -46,6 +72,25 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user.isFirstLogin && isResetPasswordRoute) {
+    return null;
+  }
+
+  if (
+    user.role !== 'super_admin' &&
+    normalizedPathname &&
+    !isRouteAllowedForBusiness(normalizedPathname, user.businessType)
+  ) {
+    return null;
+  }
+
+  const requiredPermission = normalizedPathname
+    ? getDecorationRoutePermission(normalizedPathname)
+    : null;
+  if (
+    user.role === 'employee' &&
+    requiredPermission &&
+    !hasPermission(user, requiredPermission)
+  ) {
     return null;
   }
 

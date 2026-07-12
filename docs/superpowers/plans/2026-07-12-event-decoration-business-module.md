@@ -52,11 +52,11 @@
 
 **Produces:** Decoration permission namespace and business-aware navigation.
 
-- [ ] Define view/create/update/confirm/cancel/follow-up/payment/print/report/catalog/inventory permissions.
-- [ ] Seed sensible Company Admin defaults without granting employee permissions implicitly.
-- [ ] Hide banquet-only navigation for decoration tenants and vice versa.
-- [ ] Reject manual navigation to the wrong module.
-- [ ] Verify API requests cannot cross business types.
+- [x] Define view/create/update/confirm/cancel/follow-up/payment/print/report/catalog/inventory permissions.
+- [x] Seed sensible Company Admin defaults without granting employee permissions implicitly.
+- [x] Hide banquet-only navigation for decoration tenants and vice versa.
+- [x] Reject manual navigation to the wrong module.
+- [x] Verify API requests cannot cross business types.
 
 ### Task 3: Event type and venue/hall CRUD
 

@@ -8,6 +8,7 @@ import { TcModal } from '@/components/auth/tc-modal';
 import { CommonModal } from '@/components/ui/common-modal';
 import { fetchActiveTerms, fetchMyRestaurant, fetchProfile } from '@/lib/auth/api';
 import { ActiveTermsAndConditions, AuthUser, Restaurant } from '@/lib/auth/types';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 
 type NavLinkItem = {
   type: 'link';
@@ -34,6 +35,7 @@ type AppPageHeader = {
 const AppPageHeaderContext = createContext<React.Dispatch<React.SetStateAction<AppPageHeader>> | null>(null);
 const CONFIGURATION_ROUTES = ['/categories', '/menus', '/employees', '/settings'];
 const ODC_ROUTES = ['/odc/categories', '/odc/menus'];
+const DECORATION_ROUTES = ['/decoration'];
 
 export function useAppPageHeader(header: AppPageHeader) {
   const setPageHeader = useContext(AppPageHeaderContext);
@@ -206,11 +208,12 @@ function IconShieldList() {
 }
 
 function buildNavItems(
-  role: string,
+  user: AuthUser | null,
   canAccessCancelledBookings?: boolean,
   canAccessVoucherFlow?: boolean,
   canAccessOdc?: boolean,
 ): NavItem[] {
+  const role = user?.role ?? '';
   if (role === 'super_admin') {
     return [
       { type: 'link', href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
@@ -230,6 +233,41 @@ function buildNavItems(
           ]
         : []),
       { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
+    ];
+  }
+
+  if (user?.businessType === 'EVENT_DECORATION') {
+    const canViewEvents =
+      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_BOOKINGS_VIEW);
+    const canViewFollowups =
+      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_FOLLOWUPS_MANAGE);
+    const canViewReports =
+      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_REPORTS_VIEW);
+    const canViewCatalog =
+      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_CATALOG_VIEW);
+
+    return [
+      ...(role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_VIEW)
+        ? [{ type: 'link' as const, href: '/decoration/dashboard', label: 'Dashboard', icon: <IconGrid /> }]
+        : []),
+      ...(canViewEvents
+        ? [{ type: 'link' as const, href: '/decoration/events', label: 'Events', icon: <IconCalendar /> }]
+        : []),
+      ...(canViewFollowups
+        ? [{ type: 'link' as const, href: '/decoration/followups', label: 'Followups', icon: <IconBell /> }]
+        : []),
+      ...(canViewReports
+        ? [{ type: 'link' as const, href: '/decoration/reports', label: 'Reports', icon: <IconReport /> }]
+        : []),
+      ...(canViewCatalog
+        ? [{ type: 'link' as const, href: '/decoration/catalog', label: 'Decoration Catalog', icon: <IconTag /> }]
+        : []),
+      ...(role === 'company_admin'
+        ? [
+            { type: 'link' as const, href: '/employees', label: 'Employees', icon: <IconUsers /> },
+            { type: 'link' as const, href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
+          ]
+        : []),
     ];
   }
 
@@ -316,6 +354,10 @@ function getActiveGroupIds(pathname: string) {
     groupIds.push('outdoor-catering');
   }
 
+  if (matchesAnyRoute(pathname, DECORATION_ROUTES)) {
+    groupIds.push('decoration-configuration');
+  }
+
   return groupIds;
 }
 
@@ -347,8 +389,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const isAdminUser = user?.role === 'super_admin' || user?.role === 'company_admin';
 
   const navItems = useMemo(
-    () => buildNavItems(user?.role ?? '', canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc),
-    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, user?.role],
+    () => buildNavItems(user, canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc),
+    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, user],
   );
 
   useEffect(() => {
