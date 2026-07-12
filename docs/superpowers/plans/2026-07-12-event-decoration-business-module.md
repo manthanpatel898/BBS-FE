@@ -187,10 +187,10 @@
 - [x] Add template download endpoints protected by decoration import permission.
 - [x] Write parser tests for `.xlsx`, `.csv`, empty files, renamed/missing/duplicate columns, large files, formulas, invalid encodings and malicious content.
 - [x] Normalize dates, 10-digit mobile numbers, whitespace, time-slot aliases, budget values and statuses without silently changing ambiguous values.
-- [ ] Validate required fields, date ranges, hall/venue relationship, status and follow-up chronology per row.
+- [x] Validate required fields, date ranges, hall/venue relationship, status and follow-up chronology per row.
 - [ ] Add optional permission-controlled creation of missing event types, venues and halls; default to previewing unresolved configuration as errors.
-- [ ] Create an import job with file hash, template version, uploader and counts; store row errors separately to avoid oversized documents.
-- [ ] Return a preview containing valid rows, invalid rows, warnings, normalized values and configuration actions before any write.
+- [x] Create an import job with file hash, template version, uploader and counts; store row errors separately to avoid oversized documents.
+- [x] Return a preview containing valid rows, invalid rows, warnings, normalized values and configuration actions before any write.
 - [ ] Generate downloadable XLSX/CSV error results containing original row plus validation message.
 - [ ] On explicit confirmation, import valid rows in bounded batches and record booking source, job ID and row number.
 - [ ] Compute a stable row fingerprint and unique import constraint so retry or repeated upload cannot duplicate bookings.
