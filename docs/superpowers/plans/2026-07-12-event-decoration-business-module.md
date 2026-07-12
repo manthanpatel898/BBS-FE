@@ -98,12 +98,12 @@
 
 **Produces:** Separate `decoration_bookings` collection and lifecycle APIs.
 
-- [ ] Test required fields, multi-day validation, venue/hall consistency, package rate and tenant scoping.
-- [ ] Implement inquiry create/read/update/list/calendar.
-- [ ] Store customer, venue, hall, event type and creator snapshots.
-- [ ] Implement confirm, cancel, close inquiry and complete transitions.
-- [ ] Reuse payment/follow-up behavior through decoration-specific service adapters and audit actions.
-- [ ] Build the responsive inquiry form with default slots and inline configuration creation.
+- [x] Test required fields, multi-day validation, venue/hall consistency, package rate and tenant scoping.
+- [x] Implement inquiry create/read/update/list and date-range queries.
+- [x] Store customer, venue, hall, event type and creator snapshots.
+- [x] Implement confirm, cancel, close inquiry and complete transitions.
+- [x] Reuse payment/follow-up behavior through decoration-specific service adapters and audit actions.
+- [x] Build the responsive inquiry form with default slots and reusable inline configuration APIs.
 
 ### Task 6: Calendar, date sidebar and dashboard
 

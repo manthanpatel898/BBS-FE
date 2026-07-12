@@ -57,6 +57,8 @@ import {
   DecorationVenue,
   DecorationCategory,
   DecorationItem,
+  DecorationBooking,
+  DecorationBookingStatus,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -2041,3 +2043,8 @@ export const fetchDecorationItems = (token: string, categoryId = '', includeInac
 export const saveDecorationItem = (token: string, payload: Record<string, unknown>, id?: string) => authorizedRequest<DecorationItem>(`/decoration/catalog/items${id ? `/${id}` : ''}`, token, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
 export const setDecorationItemActive = (token: string, id: string, isActive: boolean) => authorizedRequest<DecorationItem>(`/decoration/catalog/items/${id}/active`, token, { method: 'PATCH', body: JSON.stringify({ isActive }) });
 export async function uploadDecorationItemImage(token: string, id: string, file: File) { const body = new FormData(); body.append('file', file); const response = await fetch(`${API_URL}/decoration/catalog/items/${id}/images`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body }); return parseResponse<DecorationItem>(response, { notifyOnUnauthorized: true }); }
+export const fetchDecorationBookings=(token:string)=>authorizedRequest<DecorationBooking[]>('/decoration/bookings',token);
+export const saveDecorationBooking=(token:string,payload:Record<string,unknown>,id?:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings${id?`/${id}`:''}`,token,{method:id?'PATCH':'POST',body:JSON.stringify(payload)});
+export const setDecorationBookingStatus=(token:string,id:string,status:DecorationBookingStatus,reason?:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${id}/status`,token,{method:'PATCH',body:JSON.stringify({status,reason})});
+export const addDecorationFollowup=(token:string,id:string,payload:{date:string;nextDate?:string;note:string})=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${id}/followups`,token,{method:'POST',body:JSON.stringify(payload)});
+export const addDecorationPayment=(token:string,id:string,payload:{amount:number;mode:string;date:string;remark?:string})=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${id}/payments`,token,{method:'POST',body:JSON.stringify(payload)});

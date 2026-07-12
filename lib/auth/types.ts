@@ -113,6 +113,8 @@ export interface DecorationCategory { id: string; name: string; description: str
 export type DecorationTrackingMode = 'BULK' | 'TAGGED';
 export type DecorationLogisticsMode = 'SLOT_ONLY' | 'SETUP_REMOVAL' | 'MOBILE_TURNAROUND';
 export interface DecorationItem { id: string; categoryId: string; name: string; description: string | null; trackingMode: DecorationTrackingMode; totalQuantity: number; maintenanceQuantity: number; availableQuantity: number; units: Array<{ id: string; code: string; status: 'AVAILABLE' | 'MAINTENANCE' | 'RETIRED'; note: string | null }>; images: Array<{ id: string; url: string; isCover: boolean }>; logisticsMode: DecorationLogisticsMode; setupBufferMinutes: number; removalBufferMinutes: number; turnaroundBufferMinutes: number; storageNote: string | null; isActive: boolean; }
+export type DecorationBookingStatus='INQUIRY'|'CONFIRMED'|'DECORATION_SELECTED'|'IN_PROGRESS'|'COMPLETED'|'CANCELLED'|'CLOSED_INQUIRY';
+export interface DecorationBooking { id:string; bookingNumber:string; customer:{name:string;mobile:string}; eventType:{id:string;name:string}; venue:{id:string;name:string}; hall:{id:string;name:string}|null; address:string|null; functionName:string; timeSlot:'MORNING'|'AFTERNOON'|'EVENING'; startDate:string; endDate:string; startTime:string; endTime:string; packageRate:number; totalCollected:number; outstandingAmount:number; notes:string|null; status:DecorationBookingStatus; followups:Array<{_id:string;date:string;nextDate:string|null;note:string;recordedBy:string}>; payments:Array<{_id:string;amount:number;mode:string;date:string;remark:string|null;recordedBy:string}>; }
 
 export interface PaginatedRestaurants {
   items: Restaurant[];
