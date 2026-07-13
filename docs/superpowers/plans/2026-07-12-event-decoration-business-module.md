@@ -214,7 +214,7 @@
 - [x] Implement advance, outstanding, conversion and event-status reports.
 - [x] Implement revenue by event type/venue.
 - [x] Implement usage, utilization, conflicts and maintenance reports.
-- [ ] Implement employee-created booking and follow-up performance reports.
+- [x] Implement employee-created booking and follow-up performance reports.
 - [x] Add event-type, venue, hall, status, creator and payment-state filters.
 - [ ] Add on-screen pagination plus XLSX, CSV and print/PDF outputs generated from the same filtered query definition.
 - [x] Ensure currency totals use authoritative payment entries and do not double-count advances.
