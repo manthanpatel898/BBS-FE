@@ -216,9 +216,9 @@
 - [x] Implement usage, utilization, conflicts and maintenance reports.
 - [x] Implement employee-created booking and follow-up performance reports.
 - [x] Add event-type, venue, hall, status, creator and payment-state filters.
-- [ ] Add on-screen pagination plus XLSX, CSV and print/PDF outputs generated from the same filtered query definition.
+- [x] Add on-screen pagination plus XLSX, CSV and print/PDF outputs generated from the same filtered query definition.
 - [x] Ensure currency totals use authoritative payment entries and do not double-count advances.
-- [ ] Add empty/loading/error states, permission checks and export audit events.
+- [x] Add empty/loading/error states, permission checks and export audit events.
 - [x] Add report reconciliation tests comparing summary totals with booking/payment source records.
 
 ### Task 12: Audit, observability and cleanup
