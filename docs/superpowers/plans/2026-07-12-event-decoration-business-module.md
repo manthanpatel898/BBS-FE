@@ -230,8 +230,8 @@
 
 **Produces:** Decoration action history and storage hygiene.
 
-- [ ] Audit every configuration, booking, selection, reservation, payment and status mutation.
-- [ ] Mask sensitive customer data in inappropriate audit contexts.
+- [x] Audit every configuration, booking, selection, reservation, payment and status mutation.
+- [x] Mask sensitive customer data in inappropriate audit contexts.
 - [ ] Add cleanup for abandoned custom/catalog uploads.
 - [ ] Add conflict/error telemetry without exposing customer or S3 secrets.
 
