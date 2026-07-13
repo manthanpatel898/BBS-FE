@@ -208,10 +208,10 @@
 
 **Produces:** Scoped operational, revenue, payment, follow-up and inventory reports.
 
-- [ ] Keep all controllers, services, routes, permissions and exports separate from the existing banquet reports module.
+- [x] Keep all controllers, services, routes, permissions and exports separate from the existing banquet reports module.
 - [x] Implement monthly, single-date and custom-date-range filters with explicit restaurant timezone boundaries.
 - [x] Implement summary metrics: total events, inquiry/confirmed/completed/cancelled counts, total package value, advance received, total collected and outstanding amount.
-- [ ] Implement advance, outstanding, conversion and event-status reports.
+- [x] Implement advance, outstanding, conversion and event-status reports.
 - [ ] Implement revenue by event type/venue.
 - [ ] Implement usage, utilization, conflicts and maintenance reports.
 - [ ] Implement employee-created booking and follow-up performance reports.
