@@ -120,6 +120,7 @@ export interface DecorationImportConfigurationAction { type:'CREATE_EVENT_TYPE'|
 export interface DecorationImportRow { rowNumber:number; original:Record<string,unknown>; normalized:Record<string,string|number|null>; errors:string[]; warnings:string[]; isValid:boolean; configurationActions:DecorationImportConfigurationAction[]; }
 export interface DecorationImportPreview { jobId:string; reused:boolean; templateVersion:string; filename:string; totalRows:number; validRows:number; invalidRows:number; warningRows:number; configurationActions:DecorationImportConfigurationAction[]; rows:DecorationImportRow[]; }
 export interface DecorationImportConfirmation { jobId:string; status:string; importedRows:number; skippedRows:number; confirmedAt:string|null; reused:boolean; }
+export interface DecorationImportCancellation { jobId:string; status:string; reused:boolean; }
 
 export interface PaginatedRestaurants {
   items: Restaurant[];

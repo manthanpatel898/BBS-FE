@@ -61,6 +61,7 @@ import {
   DecorationBookingStatus,
   DecorationImportPreview,
   DecorationImportConfirmation,
+  DecorationImportCancellation,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -2059,3 +2060,4 @@ export async function downloadDecorationImportTemplate(token:string,format:'xlsx
 export function previewDecorationImport(token:string,file:File,onProgress?:(percent:number)=>void){return new Promise<DecorationImportPreview>((resolve,reject)=>{const request=new XMLHttpRequest(),body=new FormData();body.append('file',file);request.open('POST',`${API_URL}/decoration/imports/preview`);request.setRequestHeader('Authorization',`Bearer ${token}`);request.upload.onprogress=(event)=>{if(event.lengthComputable)onProgress?.(Math.round((event.loaded/event.total)*100))};request.onerror=()=>reject(new Error('Network error while uploading the import file.'));request.onload=()=>{let payload:ApiEnvelope<DecorationImportPreview>|null=null;try{payload=JSON.parse(request.responseText) as ApiEnvelope<DecorationImportPreview>}catch{}if(request.status===401)notifySessionExpired();if(request.status<200||request.status>=300||!payload?.success){reject(new Error(payload?.message??'Unable to preview import file.'));return}onProgress?.(100);resolve(payload.data)};request.send(body)})}
 export const confirmDecorationImport=(token:string,jobId:string,allowCreateConfiguration:boolean)=>authorizedRequest<DecorationImportConfirmation>(`/decoration/imports/${encodeURIComponent(jobId)}/confirm`,token,{method:'POST',body:JSON.stringify({allowCreateConfiguration})});
 export async function downloadDecorationImportErrors(token:string,jobId:string,format:'xlsx'|'csv'){const response=await fetch(`${API_URL}/decoration/imports/${encodeURIComponent(jobId)}/errors/${format}`,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok){const payload=await response.json().catch(()=>null) as {message?:string}|null;if(response.status===401)notifySessionExpired();throw new Error(payload?.message??'Unable to download import error report.')}return response.blob()}
+export const cancelDecorationImport=(token:string,jobId:string)=>authorizedRequest<DecorationImportCancellation>(`/decoration/imports/${encodeURIComponent(jobId)}/cancel`,token,{method:'POST'});
