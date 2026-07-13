@@ -197,7 +197,7 @@
 - [x] Mark confirmed imported bookings without selections as `DECORATION_SELECTION_PENDING`; do not reserve inventory during import.
 - [x] Attach imported follow-up history only when its dates/notes are valid; otherwise fail that row visibly.
 - [ ] Audit template download, preview, confirmation, created configuration, created bookings and cancelled jobs.
-- [ ] Build responsive drag/drop and file-picker UI with progress, preview filters, confirm dialog, result summary and retry.
+- [x] Build responsive drag/drop and file-picker UI with progress, preview filters, confirm dialog, result summary and retry.
 - [x] Enforce maximum file size/row count and avoid loading unbounded files entirely into application memory.
 
 ### Task 11: Decoration reports and exports

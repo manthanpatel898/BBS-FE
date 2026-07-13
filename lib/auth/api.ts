@@ -59,6 +59,8 @@ import {
   DecorationItem,
   DecorationBooking,
   DecorationBookingStatus,
+  DecorationImportPreview,
+  DecorationImportConfirmation,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -2053,3 +2055,6 @@ export const fetchDecorationDashboard=(token:string)=>authorizedRequest<{todayEv
 export const fetchDecorationBooking=(token:string,id:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${encodeURIComponent(id)}`,token);
 export const saveDecorationSelection=(token:string,bookingId:string,items:Array<{itemId:string;quantity:number;imageId?:string;description?:string}>,customItems:Array<{name:string;quantity:number;description?:string;imageKey:string;imageUrl:string}>=[])=>authorizedRequest<unknown>(`/decoration/reservations/bookings/${encodeURIComponent(bookingId)}`,token,{method:'PUT',body:JSON.stringify({items,customItems})});
 export async function uploadCustomDecorationImage(token:string,bookingId:string,file:File){const body=new FormData();body.append('file',file);const response=await fetch(`${API_URL}/decoration/selection/bookings/${encodeURIComponent(bookingId)}/custom-images`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body});return parseResponse<{key:string;url:string;mimeType:string;sizeBytes:number}>(response,{notifyOnUnauthorized:true});}
+export async function downloadDecorationImportTemplate(token:string,format:'xlsx'|'csv'){const response=await fetch(`${API_URL}/decoration/imports/template/${format}`,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok){const payload=await response.json().catch(()=>null) as {message?:string}|null;if(response.status===401)notifySessionExpired();throw new Error(payload?.message??'Unable to download import template.')}return response.blob()}
+export function previewDecorationImport(token:string,file:File,onProgress?:(percent:number)=>void){return new Promise<DecorationImportPreview>((resolve,reject)=>{const request=new XMLHttpRequest(),body=new FormData();body.append('file',file);request.open('POST',`${API_URL}/decoration/imports/preview`);request.setRequestHeader('Authorization',`Bearer ${token}`);request.upload.onprogress=(event)=>{if(event.lengthComputable)onProgress?.(Math.round((event.loaded/event.total)*100))};request.onerror=()=>reject(new Error('Network error while uploading the import file.'));request.onload=()=>{let payload:ApiEnvelope<DecorationImportPreview>|null=null;try{payload=JSON.parse(request.responseText) as ApiEnvelope<DecorationImportPreview>}catch{}if(request.status===401)notifySessionExpired();if(request.status<200||request.status>=300||!payload?.success){reject(new Error(payload?.message??'Unable to preview import file.'));return}onProgress?.(100);resolve(payload.data)};request.send(body)})}
+export const confirmDecorationImport=(token:string,jobId:string,allowCreateConfiguration:boolean)=>authorizedRequest<DecorationImportConfirmation>(`/decoration/imports/${encodeURIComponent(jobId)}/confirm`,token,{method:'POST',body:JSON.stringify({allowCreateConfiguration})});

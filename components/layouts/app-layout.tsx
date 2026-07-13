@@ -247,6 +247,8 @@ function buildNavItems(
       role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_CATALOG_VIEW);
     const canViewConfiguration =
       role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_CONFIGURATION_VIEW);
+    const canImport =
+      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_IMPORT_MANAGE);
 
     return [
       ...(role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_VIEW)
@@ -266,6 +268,9 @@ function buildNavItems(
         : []),
       ...(canViewConfiguration
         ? [{ type: 'link' as const, href: '/decoration/configuration', label: 'Configuration', icon: <IconSettings /> }]
+        : []),
+      ...(canImport
+        ? [{ type: 'link' as const, href: '/decoration/import', label: 'Import Data', icon: <IconReport /> }]
         : []),
       ...(role === 'company_admin'
         ? [

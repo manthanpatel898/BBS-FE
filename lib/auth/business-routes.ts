@@ -45,6 +45,7 @@ const DECORATION_ROUTE_PERMISSIONS: Array<[string, string]> = [
   ['/decoration/events', 'decoration.bookings.view'],
   ['/decoration/followups', 'decoration.followups.manage'],
   ['/decoration/reports', 'decoration.reports.view'],
+  ['/decoration/import', 'decoration.import.manage'],
   ['/decoration/catalog', 'decoration.catalog.view'],
   ['/decoration/selection', 'decoration.selection.manage'],
   ['/decoration/event-detail', 'decoration.bookings.view'],
