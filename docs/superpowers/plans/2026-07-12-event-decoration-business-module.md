@@ -212,7 +212,7 @@
 - [x] Implement monthly, single-date and custom-date-range filters with explicit restaurant timezone boundaries.
 - [x] Implement summary metrics: total events, inquiry/confirmed/completed/cancelled counts, total package value, advance received, total collected and outstanding amount.
 - [x] Implement advance, outstanding, conversion and event-status reports.
-- [ ] Implement revenue by event type/venue.
+- [x] Implement revenue by event type/venue.
 - [ ] Implement usage, utilization, conflicts and maintenance reports.
 - [ ] Implement employee-created booking and follow-up performance reports.
 - [x] Add event-type, venue, hall, status, creator and payment-state filters.
