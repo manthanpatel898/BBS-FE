@@ -213,7 +213,7 @@
 - [x] Implement summary metrics: total events, inquiry/confirmed/completed/cancelled counts, total package value, advance received, total collected and outstanding amount.
 - [x] Implement advance, outstanding, conversion and event-status reports.
 - [x] Implement revenue by event type/venue.
-- [ ] Implement usage, utilization, conflicts and maintenance reports.
+- [x] Implement usage, utilization, conflicts and maintenance reports.
 - [ ] Implement employee-created booking and follow-up performance reports.
 - [x] Add event-type, venue, hall, status, creator and payment-state filters.
 - [ ] Add on-screen pagination plus XLSX, CSV and print/PDF outputs generated from the same filtered query definition.
