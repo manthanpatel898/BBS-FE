@@ -209,17 +209,17 @@
 **Produces:** Scoped operational, revenue, payment, follow-up and inventory reports.
 
 - [ ] Keep all controllers, services, routes, permissions and exports separate from the existing banquet reports module.
-- [ ] Implement monthly, single-date and custom-date-range filters with explicit restaurant timezone boundaries.
-- [ ] Implement summary metrics: total events, inquiry/confirmed/completed/cancelled counts, total package value, advance received, total collected and outstanding amount.
+- [x] Implement monthly, single-date and custom-date-range filters with explicit restaurant timezone boundaries.
+- [x] Implement summary metrics: total events, inquiry/confirmed/completed/cancelled counts, total package value, advance received, total collected and outstanding amount.
 - [ ] Implement advance, outstanding, conversion and event-status reports.
 - [ ] Implement revenue by event type/venue.
 - [ ] Implement usage, utilization, conflicts and maintenance reports.
 - [ ] Implement employee-created booking and follow-up performance reports.
-- [ ] Add event-type, venue, hall, status, creator and payment-state filters.
+- [x] Add event-type, venue, hall, status, creator and payment-state filters.
 - [ ] Add on-screen pagination plus XLSX, CSV and print/PDF outputs generated from the same filtered query definition.
-- [ ] Ensure currency totals use authoritative payment entries and do not double-count advances.
+- [x] Ensure currency totals use authoritative payment entries and do not double-count advances.
 - [ ] Add empty/loading/error states, permission checks and export audit events.
-- [ ] Add report reconciliation tests comparing summary totals with booking/payment source records.
+- [x] Add report reconciliation tests comparing summary totals with booking/payment source records.
 
 ### Task 12: Audit, observability and cleanup
 
