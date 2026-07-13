@@ -9,6 +9,7 @@ import { CommonModal } from '@/components/ui/common-modal';
 import { fetchActiveTerms, fetchMyRestaurant, fetchProfile } from '@/lib/auth/api';
 import { ActiveTermsAndConditions, AuthUser, Restaurant } from '@/lib/auth/types';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
+import { EVENT_DECORATION_MODULE_ENABLED } from '@/lib/auth/business-routes';
 
 type NavLinkItem = {
   type: 'link';
@@ -234,6 +235,18 @@ function buildNavItems(
         : []),
       { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
     ];
+  }
+
+  if (
+    user?.businessType === 'EVENT_DECORATION' &&
+    !EVENT_DECORATION_MODULE_ENABLED
+  ) {
+    return role === 'company_admin'
+      ? [
+          { type: 'link', href: '/employees', label: 'Employees', icon: <IconUsers /> },
+          { type: 'link', href: '/audit-logs', label: 'Audit Logs', icon: <IconShieldList /> },
+        ]
+      : [];
   }
 
   if (user?.businessType === 'EVENT_DECORATION') {

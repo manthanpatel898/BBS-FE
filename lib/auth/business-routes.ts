@@ -1,5 +1,14 @@
 import type { BusinessType } from './types';
 
+export function isEventDecorationModuleEnabled(value?: string): boolean {
+  return value?.trim().toLowerCase() !== 'false';
+}
+
+export const EVENT_DECORATION_MODULE_ENABLED =
+  isEventDecorationModuleEnabled(
+    process.env.NEXT_PUBLIC_EVENT_DECORATION_MODULE_ENABLED,
+  );
+
 const DECORATION_PREFIX = '/decoration';
 const SHARED_PREFIXES = ['/employees', '/audit-logs', '/reset-password', '/access-denied'];
 const BANQUET_PREFIXES = [
@@ -22,7 +31,13 @@ function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-export function getBusinessHomeRoute(businessType?: BusinessType | null): string {
+export function getBusinessHomeRoute(
+  businessType?: BusinessType | null,
+  decorationModuleEnabled = EVENT_DECORATION_MODULE_ENABLED,
+): string {
+  if (businessType === 'EVENT_DECORATION' && !decorationModuleEnabled) {
+    return '/access-denied';
+  }
   return businessType === 'EVENT_DECORATION'
     ? '/decoration/dashboard'
     : '/dashboard';
@@ -31,10 +46,11 @@ export function getBusinessHomeRoute(businessType?: BusinessType | null): string
 export function isRouteAllowedForBusiness(
   pathname: string,
   businessType?: BusinessType | null,
+  decorationModuleEnabled = EVENT_DECORATION_MODULE_ENABLED,
 ): boolean {
   if (SHARED_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix))) return true;
   if (businessType === 'EVENT_DECORATION') {
-    return matchesPrefix(pathname, DECORATION_PREFIX);
+    return decorationModuleEnabled && matchesPrefix(pathname, DECORATION_PREFIX);
   }
   if (matchesPrefix(pathname, DECORATION_PREFIX)) return false;
   return BANQUET_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
