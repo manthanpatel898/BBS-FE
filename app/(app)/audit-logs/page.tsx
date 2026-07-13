@@ -8,6 +8,8 @@ import { AuditLogItem } from '@/lib/auth/types';
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
+const decorationModules=['decoration_bookings','decoration_configuration','decoration_catalog','decoration_reservations','decoration_selection','decoration_imports','decoration_reports','decoration_maintenance'];
+const moduleLabel=(value:string)=>value.startsWith('decoration_')?`Decoration · ${titleCase(value.replace('decoration_',''))}`:titleCase(value);
 
 function prettyJson(value: Record<string, unknown> | null) {
   if (!value) return '—';
@@ -218,7 +220,7 @@ export default function AuditLogsPage() {
   }, [accessToken, dateFrom, dateTo, moduleFilter, operationFilter, page, search]);
 
   const moduleOptions = useMemo(() => {
-    const values = Array.from(new Set(items.map((item) => item.module))).sort();
+    const values = Array.from(new Set([...decorationModules,...items.map((item) => item.module)])).sort();
     return values;
   }, [items]);
 
@@ -256,7 +258,7 @@ export default function AuditLogsPage() {
           <option value="">All modules</option>
           {moduleOptions.map((module) => (
             <option key={module} value={module}>
-              {module}
+              {moduleLabel(module)}
             </option>
           ))}
         </select>
@@ -302,8 +304,8 @@ export default function AuditLogsPage() {
                         <td className="px-4 py-3 text-slate-600">
                           {new Date(item.createdAt).toLocaleString('en-IN')}
                         </td>
-                        <td className="px-4 py-3 font-semibold text-slate-900">{item.module}</td>
-                        <td className="px-4 py-3 text-slate-700">{item.action}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-900">{moduleLabel(item.module)}</td>
+                        <td className="px-4 py-3 text-slate-700">{titleCase(item.action)}</td>
                         <td className="px-4 py-3">{operationBadge(item.operation)}</td>
                         <td className="px-4 py-3 text-slate-700">
                           <div>{item.actor?.name || 'System'}</div>

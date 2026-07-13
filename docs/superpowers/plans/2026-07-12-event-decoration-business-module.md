@@ -232,8 +232,8 @@
 
 - [x] Audit every configuration, booking, selection, reservation, payment and status mutation.
 - [x] Mask sensitive customer data in inappropriate audit contexts.
-- [ ] Add cleanup for abandoned custom/catalog uploads.
-- [ ] Add conflict/error telemetry without exposing customer or S3 secrets.
+- [x] Add cleanup for abandoned custom/catalog uploads.
+- [x] Add conflict/error telemetry without exposing customer or S3 secrets.
 
 ### Task 13: Migration, regression and rollout
 
