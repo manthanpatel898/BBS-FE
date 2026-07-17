@@ -22,10 +22,8 @@ const FakeCropModal: ComponentType<CustomCropModalProps> = ({ file, busy, onCanc
   <button type="button" disabled={busy} onClick={() => void onConfirm(png(`cropped-${file.name}`, 'cropped'))}>Confirm crop</button>
 </div>;
 
-let actualCropperProps: DecorationCropperAdapterProps;
 const CropperAdapter = (props: DecorationCropperAdapterProps) => {
-  actualCropperProps = props;
-  return <button type="button" onClick={() => props.onCropComplete({ x: 0, y: 0, width: 4, height: 3 }, { x: 0, y: 0, width: 4, height: 3 })}>Set actual crop</button>;
+  return <button type="button" data-aspect={props.aspect} onClick={() => props.onCropComplete({ x: 0, y: 0, width: 4, height: 3 }, { x: 0, y: 0, width: 4, height: 3 })}>Set actual crop</button>;
 };
 const ActualCropModal: ComponentType<CustomCropModalProps> = (props) => <DecorationImageCropModal
   {...props}
@@ -142,8 +140,9 @@ test('actual nested crop restores focus to the visible Camera / gallery trigger 
   fireEvent.click(trigger);
   fireEvent.change(input, { target: { files: [png('confirm.png')] } });
   await page().findByRole('heading', { name: 'Crop image' });
-  fireEvent.click(page().getByRole('button', { name: 'Set actual crop' }));
-  assert.equal(actualCropperProps.aspect, 4 / 3);
+  const setCrop = page().getByRole('button', { name: 'Set actual crop' });
+  assert.equal(setCrop.getAttribute('data-aspect'), String(4 / 3));
+  fireEvent.click(setCrop);
   fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
   await waitFor(() => assert.equal(uploads.length, 1));
   await waitFor(() => assert.equal(document.activeElement, trigger));

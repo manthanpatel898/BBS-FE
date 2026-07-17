@@ -424,7 +424,7 @@ Run focused selection/crop tests, all decoration tests, TypeScript, lint, and bu
 - Modify: `apps/BBS-FE/docs/superpowers/plans/2026-07-17-decoration-customer-pdf-and-image-crop.md` to mark completed checkboxes only after evidence.
 - No production changes unless verification finds a defect.
 
-- [ ] **Step 1: Run complete backend verification**
+- [x] **Step 1: Run complete backend verification**
 
 ```bash
 cd apps/BBS-BE
@@ -438,7 +438,7 @@ npm run lint
 
 Expected: all new specs pass, build exits 0, and no new lint error/warning is introduced.
 
-- [ ] **Step 2: Run complete frontend verification**
+- [x] **Step 2: Run complete frontend verification**
 
 ```bash
 cd apps/BBS-FE
@@ -459,7 +459,7 @@ Manually test: missing logo, multiple contacts, single/multi-day event, banquet 
 
 On phone/tablet/desktop test: camera JPEG with EXIF rotation, gallery PNG transparency, WebP, 8 MB boundary, invalid renamed file, very small image, portrait image, extreme zoom, 90/180/270 rotation, Cancel, Confirm, failed upload retry, and nested popup close hierarchy.
 
-- [ ] **Step 5: Render final PDFs for visual QA**
+- [x] **Step 5: Render final PDFs for visual QA**
 
 Render representative downloaded PDFs with `pdftoppm`, inspect every page, and require zero clipping, overlap, broken image, unreadable text, or incorrect page numbering.
 
