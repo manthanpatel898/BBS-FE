@@ -64,6 +64,7 @@ import {
   DecorationImportCancellation,
   DecorationDashboardData,
   DecorationLocationType,
+  DecorationCustomerDocument,
 } from './types';
 import { isSessionInvalidatingResponse, notifySessionExpired } from './session-events';
 import { requestDecorationCustomerPdf } from '@/lib/decoration/customer-document-download';
@@ -2045,7 +2046,7 @@ export const addDecorationPayment=(token:string,id:string,payload:import('./type
 export const fetchDecorationCalendar=(token:string,year:number,month:number)=>authorizedRequest<{year:number;month:number;bookings:DecorationBooking[]}>(`/decoration/operations/calendar?year=${year}&month=${month}`,token);
 export const fetchDecorationDashboard=(token:string)=>authorizedRequest<DecorationDashboardData>('/decoration/operations/dashboard',token);
 export const fetchDecorationBooking=(token:string,id:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${encodeURIComponent(id)}`,token);
-export const fetchDecorationCustomerDocument=(token:string,id:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${encodeURIComponent(id)}/customer-document`,token);
+export const fetchDecorationCustomerDocument=(token:string,id:string)=>authorizedRequest<DecorationCustomerDocument>(`/decoration/bookings/${encodeURIComponent(id)}/customer-document`,token);
 
 export async function downloadDecorationCustomerPdf(
   accessToken: string,

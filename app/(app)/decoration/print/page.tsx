@@ -1,46 +1,79 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
-import { DecorationSnapshotGallery } from '@/components/decoration/decoration-snapshot-gallery';
+import { DecorationCustomerDocumentView } from '@/components/decoration/decoration-customer-document';
 import { fetchDecorationCustomerDocument } from '@/lib/auth/api';
-import type { DecorationBooking } from '@/lib/auth/types';
+import type { DecorationCustomerDocument } from '@/lib/auth/types';
 import { waitForPrintableDocument } from '@/lib/decoration/customer-document-print-readiness';
-
-const formatDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
 
 export default function Page() {
   const params = useSearchParams();
   const bookingId = params.get('bookingId')?.trim() ?? '';
-  const mode = ['view', 'download', 'print'].includes(params.get('mode') ?? '') ? params.get('mode')! : 'view';
-  const { accessToken, user } = useAuth();
-  const [booking, setBooking] = useState<DecorationBooking | null>(null);
+  const requestedMode = params.get('mode') ?? '';
+  const mode = requestedMode === 'print' ? 'print' : 'view';
+  const { accessToken } = useAuth();
+  const [document, setDocument] = useState<DecorationCustomerDocument | null>(null);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const printableRoot = useRef<HTMLElement | null>(null);
-  useEffect(() => { if (!accessToken || !bookingId) return; let active = true; fetchDecorationCustomerDocument(accessToken, bookingId).then((value) => { if (active) setBooking(value); }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load customer document.'); }); return () => { active = false; }; }, [accessToken, bookingId]);
+
+  const retry = useCallback(() => {
+    setError('');
+    setAttempt((value) => value + 1);
+  }, []);
+
   useEffect(() => {
-    if (!booking || mode !== 'print') return;
+    if (!accessToken || !bookingId) return;
+    let active = true;
+    setDocument(null);
+    setError('');
+    fetchDecorationCustomerDocument(accessToken, bookingId)
+      .then((value) => { if (active) setDocument(value); })
+      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load customer document.'); });
+    return () => { active = false; };
+  }, [accessToken, attempt, bookingId]);
+
+  useEffect(() => {
+    if (!document || mode !== 'print') return;
     const root = printableRoot.current;
     if (!root) return;
     const controller = new AbortController();
-    void waitForPrintableDocument(root, document.fonts.ready, controller.signal)
+    void waitForPrintableDocument(root, window.document.fonts.ready, controller.signal)
       .then((ready) => { if (ready) window.print(); });
     return () => controller.abort();
-  }, [booking, mode]);
+  }, [document, mode]);
+
   if (!bookingId) return <Message text="Booking ID is missing." />;
-  if (error) return <Message text={error} />;
-  if (!booking) return <Message text="Preparing print view…" />;
-  return <main ref={printableRoot} data-decoration-print-document className="mx-auto min-h-screen max-w-5xl bg-white p-4 text-slate-900 sm:p-8 print:max-w-none print:p-0">
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-100 p-3 print:hidden"><div><p className="text-sm font-bold">Customer decoration document</p><p className="text-xs text-slate-500">Review the proposal or print it when ready.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => window.print()} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Print</button><Link href={`/decoration/event-detail?bookingId=${encodeURIComponent(booking.id)}`} className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold">Back</Link></div></div>
-    <header className="mb-8 border-b-2 border-slate-900 pb-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-600">Decoration Proposal</p><div className="mt-2 flex items-start justify-between gap-4"><div><h1 className="text-3xl font-bold">{booking.functionName}</h1><p className="mt-1 text-slate-500">{booking.bookingNumber}</p></div><p className="text-right text-sm font-semibold">{user?.restaurantId ? 'Event Decoration' : 'Decoration Management'}</p></div></header>
-    <section className="mb-8 grid gap-5 rounded-2xl border p-5 sm:grid-cols-2 print:grid-cols-2"><Details title="Customer" rows={[["Name", booking.customer.name], ["Mobile", booking.customer.mobile]]} /><Details title="Event & venue" rows={[["Date", booking.startDate === booking.endDate ? formatDate(booking.startDate) : `${formatDate(booking.startDate)} – ${formatDate(booking.endDate)}`], ["Time", `${booking.startTime} – ${booking.endTime}`], ["Venue", booking.venue.name], ["Hall", booking.hall?.name || 'Not applicable'], ["Address", booking.address || 'Not provided']]} /></section>
-    <section><div className="mb-5"><h2 className="text-2xl font-bold">Selected Decoration</h2><p className="mt-1 text-sm text-slate-500">{booking.decorationSnapshot?.length ?? 0} selected items</p></div><DecorationSnapshotGallery lines={booking.decorationSnapshot ?? []} printable /></section>
-    <footer className="mt-10 border-t pt-4 text-center text-xs text-slate-400">Generated from immutable event snapshot · {booking.bookingNumber}</footer>
-    <style jsx global>{`@media print { @page { size: A4; margin: 12mm; } body { background: white !important; } nav, aside { display: none !important; } .decoration-print-group { break-inside: avoid-page; margin-bottom: 8mm; } .decoration-print-item { break-inside: avoid; box-shadow: none !important; } img { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }`}</style>
-  </main>;
+  if (error) return <Message text={error} onRetry={retry} />;
+  if (!document) return <Message text="Preparing print view…" />;
+
+  return (
+    <main ref={printableRoot} data-decoration-print-document className="min-h-screen bg-slate-100 py-4 text-slate-900 sm:px-4 sm:py-8 print:bg-white print:p-0">
+      <div className="mx-auto mb-4 flex max-w-[210mm] flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3 shadow-sm print:hidden">
+        <div>
+          <p className="text-sm font-bold">Customer decoration document</p>
+          <p className="text-xs text-slate-500">Review the proposal or print it when ready.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => window.print()} className="min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2">Print</button>
+          <Link href={`/decoration/event-detail?bookingId=${encodeURIComponent(document.booking.id)}`} className="flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Back</Link>
+        </div>
+      </div>
+      <DecorationCustomerDocumentView document={document} />
+    </main>
+  );
 }
 
-function Message({ text }: { text: string }) { return <main className="p-8 text-center text-slate-600">{text}</main>; }
-function Details({ title, rows }: { title: string; rows: Array<[string, string]> }) { return <div><h2 className="mb-2 font-bold">{title}</h2><dl className="space-y-1 text-sm">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[90px_1fr] gap-2"><dt className="text-slate-500">{label}</dt><dd className="font-medium">{value}</dd></div>)}</dl></div>; }
+function Message({ text, onRetry }: { text: string; onRetry?: () => void }) {
+  return (
+    <main className="grid min-h-screen place-items-center p-8 text-center text-slate-600">
+      <div>
+        <p role={onRetry ? 'alert' : undefined}>{text}</p>
+        {onRetry ? <button type="button" onClick={onRetry} className="mt-4 min-h-11 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Retry</button> : null}
+      </div>
+    </main>
+  );
+}
