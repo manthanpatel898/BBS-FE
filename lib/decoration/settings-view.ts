@@ -33,3 +33,19 @@ export function activeHalls<H extends { id: string; isActive: boolean }>(venues:
 export function buildEventTypeCreatePayload(values: { name: string; displayOrder?: string }) {
   return { name: values.name.trim().replace(/\s+/g, ' ') };
 }
+
+export function reconcileSelectedParentId<T extends { id: string }>(selectedId: string, parents: T[]): string {
+  return selectedId && parents.some((parent) => parent.id === selectedId) ? selectedId : '';
+}
+
+export function childrenForParent<T extends { categoryId: string }>(items: T[], parentId: string): T[] {
+  return items.filter((item) => item.categoryId === parentId);
+}
+
+export function decorationPreviewImages<T extends { images: Array<{ url: string }> }>(items: T[], limit = 4): string[] {
+  return [...new Set(items.flatMap((item) => item.images.map((image) => image.url)))].slice(0, Math.max(0, limit));
+}
+
+export function decorationLocationTypeLabel(type: 'HOTEL' | 'VENUE'): 'Banquet' | 'Outdoor Venue' {
+  return type === 'HOTEL' ? 'Banquet' : 'Outdoor Venue';
+}
