@@ -66,6 +66,7 @@ import {
   DecorationLocationType,
 } from './types';
 import { notifySessionExpired } from './session-events';
+import { getCustomerPdfFilename } from '@/lib/decoration/customer-document-download';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -2059,6 +2060,40 @@ export const fetchDecorationCalendar=(token:string,year:number,month:number)=>au
 export const fetchDecorationDashboard=(token:string)=>authorizedRequest<DecorationDashboardData>('/decoration/operations/dashboard',token);
 export const fetchDecorationBooking=(token:string,id:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${encodeURIComponent(id)}`,token);
 export const fetchDecorationCustomerDocument=(token:string,id:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${encodeURIComponent(id)}/customer-document`,token);
+
+async function extractApiError(response: Response): Promise<string> {
+  const payload = await response.json().catch(() => null) as { message?: unknown } | null;
+  return typeof payload?.message === 'string' && payload.message.trim()
+    ? payload.message
+    : 'Unable to download the decoration proposal.';
+}
+
+export async function downloadDecorationCustomerPdf(
+  accessToken: string,
+  bookingId: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(
+    `${API_URL}/decoration/bookings/${encodeURIComponent(bookingId)}/customer-document.pdf`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+
+  if (response.status === 401) {
+    notifySessionExpired();
+  }
+  if (!response.ok) {
+    throw new Error(await extractApiError(response));
+  }
+
+  const contentType = response.headers.get('Content-Type')?.split(';', 1)[0].trim().toLowerCase();
+  if (contentType !== 'application/pdf') {
+    throw new Error('The server returned an invalid PDF response. Please try again.');
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: getCustomerPdfFilename(response.headers.get('Content-Disposition')),
+  };
+}
 export const confirmDecorationBooking=(token:string,id:string,payload:import('./types').DecorationConfirmationPayload)=>authorizedRequest<import('./types').DecorationConfirmationResult>(`/decoration/bookings/${encodeURIComponent(id)}/confirm`,token,{method:'POST',body:JSON.stringify(payload)});
 export const saveDecorationSelection=(token:string,bookingId:string,items:Array<{itemId:string;quantity:number;imageId?:string;description?:string}>,customItems:Array<{name:string;quantity:number;description?:string;imageKey:string;imageUrl:string}>=[])=>authorizedRequest<import('./types').DecorationSelectionResult>(`/decoration/reservations/bookings/${encodeURIComponent(bookingId)}`,token,{method:'PUT',body:JSON.stringify({items,customItems})});
 export async function uploadCustomDecorationImage(token:string,bookingId:string,file:File){const body=new FormData();body.append('file',file);const response=await fetch(`${API_URL}/decoration/selection/bookings/${encodeURIComponent(bookingId)}/custom-images`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body});return parseResponse<{key:string;url:string;mimeType:string;sizeBytes:number}>(response,{notifyOnUnauthorized:true});}
