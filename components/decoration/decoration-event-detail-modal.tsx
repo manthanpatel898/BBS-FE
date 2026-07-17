@@ -6,6 +6,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { DecorationAdvanceLedger } from '@/components/decoration/decoration-advance-ledger';
 import { DecorationConfirmationModal } from '@/components/decoration/decoration-confirmation-modal';
 import { DecorationInquiryForm } from '@/components/decoration/decoration-inquiry-form';
+import { DecorationFollowupModal } from '@/components/decoration/decoration-followup-modal';
 import { DecorationPaymentModal } from '@/components/decoration/decoration-payment-modal';
 import { DecorationSelectionModal } from '@/components/decoration/decoration-selection-modal';
 import { DecorationSnapshotGallery } from '@/components/decoration/decoration-snapshot-gallery';
@@ -22,7 +23,7 @@ export function DecorationEventDetailModal({ bookingId, initialBooking, onClose,
   const [booking, setBooking] = useState<DecorationBooking | null>(initialBooking?.id === bookingId ? initialBooking : null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(!booking);
-  const [child, setChild] = useState<'edit' | 'confirm' | 'advance' | 'selection' | null>(null);
+  const [child, setChild] = useState<'edit' | 'confirm' | 'advance' | 'followup' | 'selection' | null>(null);
   useEffect(() => {
     if (!accessToken || !bookingId) { setLoading(false); return; }
     let active = true; setError(''); setLoading((current) => current || !booking);
@@ -33,11 +34,12 @@ export function DecorationEventDetailModal({ bookingId, initialBooking, onClose,
   return <div className={onClose ? 'fixed inset-0 z-50 overflow-y-auto bg-slate-900/45 p-0 backdrop-blur-sm sm:p-5' : ''} role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label={onClose ? 'Decoration event details' : undefined} onMouseDown={(event) => { if (onClose && event.target === event.currentTarget && !child) onClose(); }}>
     <div className={onClose ? 'relative mx-auto min-h-full w-full max-w-6xl bg-slate-50 shadow-2xl sm:min-h-0 sm:rounded-3xl' : ''}>
       {onClose ? <button type="button" onClick={onClose} aria-label="Close Event Detail" className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl text-slate-500 shadow-sm hover:text-slate-900">×</button> : null}
-      {loading && !booking ? <State title="Loading event" message="Fetching the latest event details…" /> : !booking ? <State title="Unable to open event" message={error || 'Decoration event was not found.'} /> : <Detail booking={booking} warning={error} onAction={(action) => { if (action === 'edit' || action === 'confirm' || action === 'advance') setChild(action); else if (action === 'choose-decoration' || action === 'edit-decoration') setChild('selection'); }} />}
+      {loading && !booking ? <State title="Loading event" message="Fetching the latest event details…" /> : !booking ? <State title="Unable to open event" message={error || 'Decoration event was not found.'} /> : <Detail booking={booking} warning={error} onAction={(action) => { if (action === 'edit' || action === 'confirm' || action === 'advance' || action === 'followup') setChild(action); else if (action === 'choose-decoration' || action === 'edit-decoration') setChild('selection'); }} />}
     </div>
     {child === 'edit' && booking ? <DecorationInquiryForm booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
     {child === 'confirm' && booking ? <DecorationConfirmationModal booking={booking} onClose={() => setChild(null)} onConfirmed={updated} /> : null}
     {child === 'advance' && booking ? <DecorationPaymentModal booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
+    {child === 'followup' && booking ? <DecorationFollowupModal booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
     {child === 'selection' && booking ? <DecorationSelectionModal booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
   </div>;
 }
@@ -73,7 +75,7 @@ function BottomActions({ booking, onAction }: { booking: DecorationBooking; onAc
     const className = `shrink-0 rounded-xl px-4 py-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50'}`;
     if (action.id === 'choose-decoration' || action.id === 'edit-decoration') return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
     if (action.id === 'view' || action.id === 'download' || action.id === 'print') return <Link key={action.id} href={`/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=${action.id}`} className={className}>{action.label}</Link>;
-    if (action.id === 'followup') return <Link key={action.id} href={`/decoration/followups?bookingId=${encodeURIComponent(booking.id)}`} className={className}>{action.label}</Link>;
+    if (action.id === 'followup') return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
     return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
   })}</div></div>;
 }
