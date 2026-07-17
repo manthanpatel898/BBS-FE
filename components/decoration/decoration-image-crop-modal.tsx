@@ -74,11 +74,12 @@ export function DecorationImageCropModal({
   useModalViewport(requestClose, closeBlocked);
 
   useEffect(() => {
-    const returnTrigger = returnFocusRef?.current ?? (document.activeElement instanceof HTMLElement
+    const fallbackTrigger = returnFocusRef?.current ?? (document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null);
     return () => {
-      returnTrigger?.focus();
+      (returnFocusRef?.current ?? fallbackTrigger)?.focus();
+      queueMicrotask(() => returnFocusRef?.current?.focus());
     };
   }, [returnFocusRef]);
 

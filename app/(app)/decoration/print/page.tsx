@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { DecorationCustomerDocumentView } from '@/components/decoration/decoration-customer-document';
+import { DecorationPrintButton } from '@/components/decoration/decoration-print-button';
 import { fetchDecorationCustomerDocument } from '@/lib/auth/api';
 import type { DecorationCustomerDocument } from '@/lib/auth/types';
 import { waitForPrintableDocument } from '@/lib/decoration/customer-document-print-readiness';
@@ -58,7 +59,7 @@ export default function Page() {
           <p className="text-xs text-slate-500">Review the proposal or print it when ready.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => window.print()} className="min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2">Print</button>
+          <DecorationPrintButton printableRoot={printableRoot} />
           <Link href={`/decoration/event-detail?bookingId=${encodeURIComponent(document.booking.id)}`} className="flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Back</Link>
         </div>
       </div>

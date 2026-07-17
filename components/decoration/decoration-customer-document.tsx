@@ -51,6 +51,20 @@ function ImageWithFallback({ item }: { item: DocumentItem }) {
   );
 }
 
+function CompanyLogo({ url, name }: { url: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return <div data-company-logo className="flex h-16 w-16 shrink-0 items-center justify-center p-1">
+    <img
+      src={url}
+      alt={`${name} logo`}
+      className="max-h-full max-w-full object-contain"
+      {...printableImageAttributes}
+      onError={() => setFailed(true)}
+    />
+  </div>;
+}
+
 function DetailSection({
   id,
   title,
@@ -89,16 +103,7 @@ export function DecorationCustomerDocumentView({
       <header className="decoration-document-header border-b-2 border-slate-900 pb-5">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            {document.company.logoUrl ? (
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center p-1">
-                <img
-                  src={document.company.logoUrl}
-                  alt={`${document.company.name} logo`}
-                  className="max-h-full max-w-full object-contain"
-                  {...printableImageAttributes}
-                />
-              </div>
-            ) : null}
+            {document.company.logoUrl ? <CompanyLogo key={document.company.logoUrl} url={document.company.logoUrl} name={document.company.name} /> : null}
             <div className="min-w-0">
               <h1 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">{document.company.name}</h1>
               {document.company.contactNumbers.length ? (

@@ -8,6 +8,7 @@ import {
   ItemModal,
   type CatalogCropModalProps,
 } from '../../components/decoration/settings/decoration-catalog-section';
+import { DecorationImageCropModal, type DecorationCropperAdapterProps } from '../../components/decoration/decoration-image-crop-modal';
 
 const page = () => within(document.body);
 const png = (name: string, tail = 1) => new File([
@@ -19,6 +20,16 @@ const FakeCropModal: ComponentType<CatalogCropModalProps> = ({ file, onCancel, o
   <button type="button" onClick={onCancel}>Cancel crop</button>
   <button type="button" onClick={() => void onConfirm(png(`cropped-${file.name}`, 2))}>Confirm crop</button>
 </div>;
+
+const CropperAdapter = (props: DecorationCropperAdapterProps) => <button type="button" onClick={() => props.onCropComplete(
+  { x: 0, y: 0, width: 4, height: 3 },
+  { x: 0, y: 0, width: 4, height: 3 },
+)}>Set actual crop</button>;
+const ActualCropModal: ComponentType<CatalogCropModalProps> = (props) => <DecorationImageCropModal
+  {...props}
+  CropperComponent={CropperAdapter}
+  exportCrop={async () => png('actual-cropped.png', 9)}
+/>;
 
 test.afterEach(() => cleanup());
 
@@ -197,4 +208,56 @@ test('StrictMode setup-cleanup-setup still allows async selection and crop confi
   await page().findByText('strict-card.png');
   fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
   await waitFor(() => assert.deepEqual(uploaded, ['cropped-strict-card.png']));
+});
+
+function renderActualAddItem() {
+  const view = render(<ItemModal value="new" categoryId="type" onClose={() => {}} onSave={async () => {}} CropModal={ActualCropModal} materializeImage={async (file) => file} />);
+  const choose = () => page().getByRole('button', { name: 'Camera / gallery' });
+  const input = () => view.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+  return { view, choose, input };
+}
+
+test('actual Add Item crop restores focus after Cancel', async () => {
+  const { choose, input } = renderActualAddItem();
+  choose().focus();
+  fireEvent.change(input(), { target: { files: [png('cancel.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Cancel' }));
+  assert.equal(document.activeElement, choose());
+});
+
+test('actual Add Item crop restores focus after Escape', async () => {
+  const { choose, input } = renderActualAddItem();
+  choose().focus();
+  fireEvent.change(input(), { target: { files: [png('escape.png')] } });
+  await page().findByRole('heading', { name: 'Crop image' });
+  fireEvent.keyDown(window, { key: 'Escape' });
+  assert.equal(document.activeElement, choose());
+});
+
+test('actual Add Item crop restores focus after Confirm', async () => {
+  const { choose, input } = renderActualAddItem();
+  choose().focus();
+  fireEvent.change(input(), { target: { files: [png('confirm.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Set actual crop' }));
+  fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+  await page().findByText('actual-cropped.png');
+  await act(async () => Promise.resolve());
+  assert.equal(document.activeElement, page().getByRole('button', { name: 'Replace image' }));
+});
+
+test('actual catalog-card crop returns focus while a failed crop remains retryable after replacement cancel', async () => {
+  const item = { id: 'focus', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const view = render(<CatalogItemCard item={item} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={() => {}} onToggle={() => {}} onError={() => {}} CropModal={ActualCropModal} materializeImage={async (file) => file} uploadImage={async () => { throw new Error('offline'); }} />);
+  const trigger = () => page().getByRole('button', { name: 'Camera / gallery' });
+  const input = () => view.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+  trigger().focus();
+  fireEvent.change(input(), { target: { files: [png('first.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Set actual crop' }));
+  fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+  await page().findByRole('button', { name: 'Retry image upload' });
+  await waitFor(() => assert.equal(document.activeElement, trigger()));
+  fireEvent.change(input(), { target: { files: [png('replacement.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Cancel' }));
+  assert.equal(document.activeElement, trigger());
+  assert.ok(page().getByRole('button', { name: 'Retry image upload' }));
 });
