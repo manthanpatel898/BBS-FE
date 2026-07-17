@@ -26,6 +26,6 @@ export function hasNormalizedDuplicate<T extends { name: string }>(items: T[], n
   return items.some((item) => normalizeConfigurationName(item.name) === normalized && (!excludedId || !('id' in item) || item.id !== excludedId));
 }
 
-export function activeHalls<T extends { id: string; halls: Array<{ id: string; isActive: boolean }> }>(venues: T[], venueId: string) {
+export function activeHalls<H extends { id: string; isActive: boolean }>(venues: Array<{ id: string; halls: H[] }>, venueId: string): H[] {
   return venues.find((venue) => venue.id === venueId)?.halls.filter((hall) => hall.isActive) ?? [];
 }

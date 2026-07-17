@@ -294,7 +294,7 @@ git commit -m "Build decoration configuration settings"
 - Produces: `resolveDecorationInquiryConfiguration(token, values)` returning resolved `eventTypeId`, `venueId`, and `hallId`.
 - Booking payload excludes `functionName` and contains only resolved configuration IDs.
 
-- [ ] **Step 1: Add failing cascading and payload tests**
+- [x] **Step 1: Add failing cascading and payload tests**
 
 ```js
 test('changing location clears a hall from the previous location', () => {
@@ -309,24 +309,24 @@ test('booking payload never contains functionName', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `node --test --experimental-strip-types lib/decoration/inquiry-form.test.mjs`
 Expected: FAIL on missing Other fields, cascading helper, and legacy payload.
 
-- [ ] **Step 3: Implement the form state machine**
+- [x] **Step 3: Implement the form state machine**
 
 Use sentinel `__OTHER__`. Event Type Other reveals one required name. Location Other reveals name, required type, optional address, and optional new hall. Existing locations expose only their active halls; show `Other Hall` last. Hide Hall when no active halls while showing an `Add Hall` action.
 
-- [ ] **Step 4: Implement bounded sequential submission**
+- [x] **Step 4: Implement bounded sequential submission**
 
 Resolve custom Event Type, then custom Location, then custom Hall, preserving every returned ID in form state. Only after all configuration resolves call `saveDecorationBooking`. If booking save fails, keep the modal open with resolved selections and all entered values. Disable every mutation control while submitting.
 
-- [ ] **Step 5: Implement Edit Inquiry parity**
+- [x] **Step 5: Implement Edit Inquiry parity**
 
 Hydrate values from the booking snapshot, preserve the existing parent sidebar/detail context, send only changed fields, and use the same cascading controls. Dirty close requires confirmation.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```bash
 node --test --experimental-strip-types lib/decoration/inquiry-form.test.mjs
