@@ -59,7 +59,10 @@ test('traps focus, supports keyboard controls, cancels safely and restores viewp
   assert.equal(cropperProps.maxZoom, 3);
   assert.equal(cropperProps.zoomWithScroll, true);
   assert.equal(document.body.querySelectorAll('[class~="safe-pad-bottom"]').length, 1);
-  assert.match(page().getByRole('dialog').firstElementChild?.getAttribute('class') ?? '', /h-\[100dvh\]/);
+  const panelClasses = page().getByRole('dialog').firstElementChild?.getAttribute('class') ?? '';
+  assert.match(panelClasses, /h-\[100dvh\]/);
+  assert.match(panelClasses, /overflow-y-auto/);
+  assert.match(page().getByTestId('decoration-crop-viewport').getAttribute('class') ?? '', /min-h-\[15rem\]/);
   fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
   const cancel = page().getByRole('button', { name: 'Cancel' });
   assert.equal(document.activeElement === cancel, true);
@@ -158,4 +161,47 @@ test('external busy state blocks Escape, backdrop, cancel and confirm', async ()
   fireEvent.mouseDown(page().getByRole('dialog'));
   assert.equal(cancels, 0);
   assert.equal(page().getByRole('button', { name: 'Cancel' }).hasAttribute('disabled'), true);
+});
+
+test('actual react-easy-crop handles mouse drag and touch pinch gestures', async () => {
+  setupUrls();
+  render(<DecorationImageCropModal
+    file={new File(['actual'], 'actual.jpg', { type: 'image/jpeg' })}
+    onCancel={() => {}}
+    onConfirm={() => {}}
+  />);
+
+  const container = await waitFor(() => {
+    const element = document.querySelector<HTMLElement>('.reactEasyCrop_Container');
+    assert.ok(element);
+    return element;
+  });
+  container.getBoundingClientRect = () => ({
+    x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 240, width: 400, height: 240,
+    toJSON() { return {}; },
+  });
+  const image = container.querySelector<HTMLImageElement>('img');
+  assert.ok(image);
+  Object.defineProperties(image, {
+    naturalWidth: { configurable: true, value: 800 },
+    naturalHeight: { configurable: true, value: 600 },
+    offsetWidth: { configurable: true, value: 400 },
+    offsetHeight: { configurable: true, value: 300 },
+  });
+  fireEvent.load(image);
+  await waitFor(() => assert.ok(document.querySelector('.reactEasyCrop_CropArea')));
+
+  fireEvent.touchStart(container, {
+    touches: [{ clientX: 100, clientY: 100 }, { clientX: 200, clientY: 100 }],
+  });
+  fireEvent.touchMove(document, {
+    touches: [{ clientX: 75, clientY: 100 }, { clientX: 225, clientY: 100 }],
+  });
+  fireEvent.touchEnd(document, { touches: [] });
+  await waitFor(() => assert.ok(Number((page().getByRole('slider', { name: 'Image zoom' }) as HTMLInputElement).value) > 1));
+
+  fireEvent.mouseDown(container, { clientX: 100, clientY: 100 });
+  fireEvent.mouseMove(document, { clientX: 130, clientY: 120 });
+  fireEvent.mouseUp(document);
+  await waitFor(() => assert.match(image.style.transform, /translate\(30px, 20px\)/));
 });

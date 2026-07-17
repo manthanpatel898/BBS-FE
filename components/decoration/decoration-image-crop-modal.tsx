@@ -153,8 +153,8 @@ export function DecorationImageCropModal({
         if (event.target === event.currentTarget) requestClose();
       }}
     >
-      <div className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-4xl sm:rounded-3xl">
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-slate-900 px-4 py-3 sm:px-6">
+      <div className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-y-auto overscroll-contain bg-slate-950 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-4xl sm:overflow-hidden sm:rounded-3xl">
+        <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-slate-900 px-4 py-3 sm:static sm:px-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-amber-400">Image editor</p>
             <h2 id="decoration-crop-title" className="text-xl font-bold text-white">Crop image</h2>
@@ -162,7 +162,11 @@ export function DecorationImageCropModal({
           <button type="button" disabled={closeBlocked} onClick={requestClose} aria-label="Close image crop" className="h-11 w-11 rounded-full border border-white/20 text-2xl text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400 disabled:opacity-50">×</button>
         </header>
 
-        <div className="relative min-h-0 flex-1 bg-black" style={{ touchAction: 'none' }}>
+        <div
+          className="relative h-[clamp(15rem,48dvh,32rem)] min-h-[15rem] shrink-0 bg-black sm:h-auto sm:min-h-[20rem] sm:flex-1"
+          data-testid="decoration-crop-viewport"
+          style={{ touchAction: 'none' }}
+        >
           {sourceUrl ? <CropperComponent
             image={sourceUrl}
             crop={crop}
