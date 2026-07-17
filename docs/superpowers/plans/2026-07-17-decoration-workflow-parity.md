@@ -78,7 +78,7 @@
 - Produces `DecorationOverlayState`, `decorationOverlayReducer`, `DecorationStatusMeta`, `getDecorationStatusMeta`, `getDecorationPaymentState`, `getLatestDecorationFollowup`, and `bookingIntersectsDate`.
 - Consumed by every later frontend task.
 
-- [ ] **Step 1: Write failing booking-view tests**
+- [x] **Step 1: Write failing booking-view tests**
 
 ```js
 test('derives partial payment and the latest pending follow-up', () => {
@@ -99,13 +99,13 @@ test('uses inclusive Asia/Kolkata business dates for multi-day events', () => {
 });
 ```
 
-- [ ] **Step 2: Run booking-view tests and verify missing exports fail**
+- [x] **Step 2: Run booking-view tests and verify missing exports fail**
 
 Run: `cd apps/BBS-FE && node --test --experimental-strip-types lib/decoration/booking-view.test.mjs`
 
 Expected: FAIL because `booking-view.ts` does not exist.
 
-- [ ] **Step 3: Implement typed view helpers and complete status metadata**
+- [x] **Step 3: Implement typed view helpers and complete status metadata**
 
 ```ts
 export type DecorationPaymentState = 'PAID' | 'PARTIAL' | 'UNPAID';
@@ -123,7 +123,7 @@ export function bookingIntersectsDate(booking: DecorationBooking, date: string):
 
 Define explicit labels/classes for all eight `DecorationBookingStatus` values. Normalize embedded `_id` to `id` at the frontend type boundary.
 
-- [ ] **Step 4: Write failing overlay transition tests**
+- [x] **Step 4: Write failing overlay transition tests**
 
 ```js
 test('closes one overlay level at a time', () => {
@@ -140,7 +140,7 @@ test('closes one overlay level at a time', () => {
 });
 ```
 
-- [ ] **Step 5: Implement the reducer without component-local boolean combinations**
+- [x] **Step 5: Implement the reducer without component-local boolean combinations**
 
 ```ts
 export type DecorationChildOverlay = 'ADD' | 'EDIT' | 'ADVANCE' | 'FOLLOWUP' | 'SELECTION' | 'PRINT';
@@ -154,11 +154,11 @@ export type DecorationOverlayState = {
 
 `CLOSE_TOP` clears `child`, then `bookingId`, then `date`. `OPEN_DETAIL` never clears the parent date. `OPEN_CHILD` requires a selected booking except for `ADD`.
 
-- [ ] **Step 6: Add status, loading, empty, and retry primitives**
+- [x] **Step 6: Add status, loading, empty, and retry primitives**
 
 Match banquet border radii, slate typography, amber primary actions, readable contrast, and shared `PageLoader` behavior. No screen may render invisible white text or a blank loading region.
 
-- [ ] **Step 7: Run tests, lint, build, and commit**
+- [x] **Step 7: Run tests, lint, build, and commit**
 
 ```bash
 cd apps/BBS-FE
