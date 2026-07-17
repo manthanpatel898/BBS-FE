@@ -45,7 +45,7 @@ function DecorationTypeCard({ category, items, manage, onOpen, onEdit, onToggle 
 
 export function CatalogItemCard({ item, categoryName, manage, token, onEdit, onChanged, onError, onToggle, CropModal = DecorationImageCropModal, uploadImage = uploadDecorationItemImage, materializeImage = materializeDecorationImageFile }: { item: DecorationItem; categoryName: string; manage: boolean; token: string | null; onEdit: () => void; onChanged: (item: DecorationItem) => void; onError: (error: string) => void; onToggle: () => void; CropModal?: ComponentType<CatalogCropModalProps>; uploadImage?: typeof uploadDecorationItemImage; materializeImage?: typeof materializeDecorationImageFile }) {
   const [busy, setBusy] = useState(false), [broken, setBroken] = useState(false), [pendingSource, setPendingSource] = useState<File | null>(null), [confirmedCrop, setConfirmedCrop] = useState<File | null>(null); const cover = getDecorationCoverImage(item.images);
-  const mountedRef = useRef(true), itemRef = useRef(item), itemIdRef = useRef(item.id), generationRef = useRef(0), uploadLockRef = useRef(false), selectionRef = useRef(0), triggerRef = useRef<HTMLButtonElement | null>(null), fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mountedRef = useRef(true), itemRef = useRef(item), itemIdRef = useRef(item.id), generationRef = useRef(0), uploadLockRef = useRef(false), selectionRef = useRef(0), triggerRef = useRef<HTMLButtonElement | null>(null), fileInputRef = useRef<HTMLInputElement | null>(null), focusRestoreRef = useRef<{ generation: number; itemId: string } | null>(null);
   useEffect(() => {
     itemRef.current = item;
     if (itemIdRef.current === item.id) return;
@@ -53,14 +53,27 @@ export function CatalogItemCard({ item, categoryName, manage, token, onEdit, onC
     generationRef.current += 1;
     selectionRef.current += 1;
     uploadLockRef.current = false;
+    focusRestoreRef.current = null;
     setPendingSource(null);
     setConfirmedCrop(null);
     setBusy(false);
   }, [item]);
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; generationRef.current += 1; selectionRef.current += 1; uploadLockRef.current = false; }; }, []);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; generationRef.current += 1; selectionRef.current += 1; uploadLockRef.current = false; focusRestoreRef.current = null; }; }, []);
+  useEffect(() => {
+    const request = focusRestoreRef.current;
+    if (busy || !request) return;
+    focusRestoreRef.current = null;
+    queueMicrotask(() => {
+      if (!mountedRef.current || request.generation !== generationRef.current || request.itemId !== itemIdRef.current) return;
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      const trigger = triggerRef.current;
+      if (trigger && !trigger.disabled) trigger.focus();
+    });
+  }, [busy, confirmedCrop]);
   async function run(action: () => Promise<DecorationItem>) { if (busy) return; setBusy(true); onError(''); try { onChanged(await action()); setBroken(false); } catch (reason) { onError(reason instanceof Error ? reason.message : 'Unable to update item images.'); } finally { setBusy(false); } }
   async function selectSource(file: File) { const selection = ++selectionRef.current; const validation = validateDecorationImageFile(file, itemRef.current.images.length); if (validation) { onError(validation); return; } try { const stableFile = await materializeImage(file); if (!mountedRef.current || selection !== selectionRef.current) return; setPendingSource(stableFile); onError(''); } catch (error) { if (mountedRef.current && selection === selectionRef.current) onError(error instanceof Error ? error.message : 'The selected image could not be read.'); } }
-  async function uploadConfirmed(file: File, revalidate = true) { if (!token || uploadLockRef.current) return; uploadLockRef.current = true; const generation = generationRef.current; const id = itemIdRef.current; const fileValidation = validateDecorationImageFile(file, revalidate ? 0 : itemRef.current.images.length); if (fileValidation) { onError(fileValidation); uploadLockRef.current = false; return; } setBusy(true); onError(''); try { const stableFile = revalidate ? await materializeImage(file) : file; if (!mountedRef.current || generation !== generationRef.current || id !== itemIdRef.current) return; if (revalidate) { setConfirmedCrop(stableFile); setPendingSource(null); } const latestValidation = validateDecorationImageFile(stableFile, itemRef.current.images.length); if (latestValidation) { onError(latestValidation); return; } const updated = await uploadImage(token, id, stableFile); if (!mountedRef.current || generation !== generationRef.current || id !== itemIdRef.current) return; onChanged(updated); setBroken(false); setConfirmedCrop(null); } catch (reason) { if (mountedRef.current && generation === generationRef.current && id === itemIdRef.current) onError(reason instanceof Error ? reason.message : 'Unable to upload item image.'); } finally { if (mountedRef.current && generation === generationRef.current) setBusy(false); uploadLockRef.current = false; } }
+  async function uploadConfirmed(file: File, revalidate = true) { if (!token || uploadLockRef.current) return; uploadLockRef.current = true; const generation = generationRef.current; const id = itemIdRef.current; const fileValidation = validateDecorationImageFile(file, revalidate ? 0 : itemRef.current.images.length); if (fileValidation) { onError(fileValidation); uploadLockRef.current = false; return; } focusRestoreRef.current = { generation, itemId: id }; setBusy(true); onError(''); try { const stableFile = revalidate ? await materializeImage(file) : file; if (!mountedRef.current || generation !== generationRef.current || id !== itemIdRef.current) return; if (revalidate) { setConfirmedCrop(stableFile); setPendingSource(null); } const latestValidation = validateDecorationImageFile(stableFile, itemRef.current.images.length); if (latestValidation) { onError(latestValidation); return; } const updated = await uploadImage(token, id, stableFile); if (!mountedRef.current || generation !== generationRef.current || id !== itemIdRef.current) return; onChanged(updated); setBroken(false); setConfirmedCrop(null); } catch (reason) { if (mountedRef.current && generation === generationRef.current && id === itemIdRef.current) onError(reason instanceof Error ? reason.message : 'Unable to upload item image.'); } finally { if (mountedRef.current && generation === generationRef.current) setBusy(false); uploadLockRef.current = false; } }
   return <>
     <article className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${item.isActive ? '' : 'opacity-60'}`}>
       <div className="aspect-[16/10] bg-slate-100">{cover && !broken ? <img src={cover.url} alt={item.name} onError={() => setBroken(true)} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm text-slate-400">No image available</div>}</div>

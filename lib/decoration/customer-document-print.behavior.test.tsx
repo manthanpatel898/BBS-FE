@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React, { createRef } from 'react';
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
-import { DecorationPrintButton } from '../../components/decoration/decoration-print-button';
+import { DecorationPrintButton, DecorationPrintControls } from '../../components/decoration/decoration-print-button';
 import { DecorationCustomerDocumentView } from '../../components/decoration/decoration-customer-document';
 import { waitForPrintableDocument } from './customer-document-print-readiness';
 
@@ -77,4 +77,22 @@ test('broken company logo is omitted before readiness settles after fallback pai
   resolvePaint();
   await waiting;
   assert.equal(settled, true);
+});
+
+test('print mode auto-prints once without exposing a second manual Print action', async () => {
+  const rootRef = createRef<HTMLElement>();
+  let prints = 0;
+  render(<main ref={rootRef}><DecorationPrintControls mode="print" printableRoot={rootRef} fontsReady={Promise.resolve()} print={() => { prints += 1; }} waitForReady={async () => true} /></main>);
+  await waitFor(() => assert.equal(prints, 1));
+  assert.equal(page().queryByRole('button', { name: 'Print' }), null);
+});
+
+test('view mode does not auto-print and exposes the readiness-aware manual Print action', async () => {
+  const rootRef = createRef<HTMLElement>();
+  let prints = 0;
+  render(<main ref={rootRef}><DecorationPrintControls mode="view" printableRoot={rootRef} fontsReady={Promise.resolve()} print={() => { prints += 1; }} waitForReady={async () => true} /></main>);
+  await act(async () => Promise.resolve());
+  assert.equal(prints, 0);
+  fireEvent.click(page().getByRole('button', { name: 'Print' }));
+  await waitFor(() => assert.equal(prints, 1));
 });

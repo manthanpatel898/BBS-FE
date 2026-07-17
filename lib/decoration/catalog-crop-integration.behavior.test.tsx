@@ -261,3 +261,96 @@ test('actual catalog-card crop returns focus while a failed crop remains retryab
   assert.equal(document.activeElement, trigger());
   assert.ok(page().getByRole('button', { name: 'Retry image upload' }));
 });
+
+test('pending catalog upload restores focus only after its trigger is enabled', async () => {
+  let resolveUpload!: (item: any) => void;
+  const item = { id: 'deferred', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const view = render(<CatalogItemCard item={item} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={() => {}} onToggle={() => {}} onError={() => {}} CropModal={ActualCropModal} materializeImage={async (file) => file} uploadImage={async () => new Promise((resolve) => { resolveUpload = resolve; })} />);
+  const trigger = page().getByRole('button', { name: 'Camera / gallery' });
+  trigger.focus();
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [png('pending.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Set actual crop' }));
+  fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+  await waitFor(() => assert.equal(trigger.hasAttribute('disabled'), true));
+  assert.notEqual(document.activeElement, trigger);
+  resolveUpload(item);
+  await waitFor(() => assert.equal(trigger.hasAttribute('disabled'), false));
+  await waitFor(() => assert.equal(document.activeElement, trigger));
+});
+
+test('failed pending upload restores focus with retry retained but never steals deliberate focus', async () => {
+  let rejectUpload!: (reason: Error) => void;
+  const item = { id: 'failure', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const outside = document.createElement('button');
+  outside.textContent = 'Outside';
+  document.body.append(outside);
+  const view = render(<CatalogItemCard item={item} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={() => {}} onToggle={() => {}} onError={() => {}} CropModal={ActualCropModal} materializeImage={async (file) => file} uploadImage={async () => new Promise((_resolve, reject) => { rejectUpload = reject; })} />);
+  const trigger = page().getByRole('button', { name: 'Camera / gallery' });
+  trigger.focus();
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [png('failure.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Set actual crop' }));
+  fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+  await waitFor(() => assert.equal(trigger.hasAttribute('disabled'), true));
+  outside.focus();
+  rejectUpload(new Error('offline'));
+  await page().findByRole('button', { name: 'Retry image upload' });
+  await waitFor(() => assert.equal(trigger.hasAttribute('disabled'), false));
+  assert.equal(document.activeElement, outside);
+});
+
+test('failed pending upload restores focus and retry completion restores it again', async () => {
+  const attempts: Array<{ resolve: (item: any) => void; reject: (reason: Error) => void }> = [];
+  const item = { id: 'retry-focus', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const view = render(<CatalogItemCard item={item} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={() => {}} onToggle={() => {}} onError={() => {}} CropModal={ActualCropModal} materializeImage={async (file) => file} uploadImage={async () => new Promise((resolve, reject) => attempts.push({ resolve, reject }))} />);
+  const trigger = page().getByRole('button', { name: 'Camera / gallery' });
+  trigger.focus();
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [png('retry.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Set actual crop' }));
+  fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+  await waitFor(() => assert.equal(attempts.length, 1));
+  await act(async () => {
+    attempts[0].reject(new Error('offline'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  const retry = await page().findByRole('button', { name: 'Retry image upload' });
+  await waitFor(() => assert.equal(document.activeElement, trigger));
+  fireEvent.click(retry);
+  await waitFor(() => assert.equal(attempts.length, 2));
+  await act(async () => {
+    attempts[1].resolve(item);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => assert.equal(document.activeElement, trigger));
+});
+
+test('deferred catalog focus restoration ignores stale item and unmount completion', async () => {
+  const resolutions: Array<(item: any) => void> = [];
+  const item = { id: 'one', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const common = { categoryName: 'Stage', manage: true, token: 'token', onEdit() {}, onChanged() {}, onToggle() {}, onError() {}, CropModal: ActualCropModal, materializeImage: async (file: File) => file, uploadImage: async () => new Promise<any>((resolve) => resolutions.push(resolve)) };
+  const view = render(<CatalogItemCard item={item} {...common} />);
+  const begin = async (name: string) => {
+    fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [png(name)] } });
+    fireEvent.click(await page().findByRole('button', { name: 'Set actual crop' }));
+    fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  };
+  await begin('stale.png');
+  await waitFor(() => assert.equal(resolutions.length, 1));
+  await act(async () => {
+    view.rerender(<CatalogItemCard item={{ ...item, id: 'two' }} {...common} />);
+    await Promise.resolve();
+  });
+  const currentTrigger = page().getByRole('button', { name: 'Camera / gallery' });
+  await act(async () => {
+    resolutions[0]({ ...item, id: 'one' });
+    await Promise.resolve();
+  });
+  assert.notEqual(document.activeElement, currentTrigger);
+  await begin('unmount.png');
+  await waitFor(() => assert.equal(resolutions.length, 2));
+  view.unmount();
+  await act(async () => {
+    resolutions[1]({ ...item, id: 'two' });
+    await Promise.resolve();
+  });
+});
