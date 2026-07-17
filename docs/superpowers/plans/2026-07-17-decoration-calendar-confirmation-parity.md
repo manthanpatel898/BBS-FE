@@ -98,7 +98,7 @@ Run: `node --test --experimental-strip-types lib/decoration/settings-view.test.m
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit Task 1 in both repositories**
+- [x] **Step 8: Commit Task 1 in both repositories**
 
 ```bash
 git add src/modules/decoration-configuration src/modules/decoration-imports/decoration-imports.service.ts src/scripts package.json
@@ -124,7 +124,7 @@ git commit -m "Use generated decoration event type order"
 - Produces: `configurationActionClass(variant, disabled): string` for `edit | activate | deactivate | add`.
 - Produces: mobile-safe action rows using `flex flex-wrap` and minimum 44px controls.
 
-- [ ] **Step 1: Write failing action-state tests**
+- [x] **Step 1: Write failing action-state tests**
 
 Assert every variant contains a readable text color, non-transparent background or strong border, focus-visible ring, disabled state, and that card action rows wrap.
 
@@ -135,17 +135,17 @@ assert.match(configurationActionClass('activate', false), /bg-emerald-/);
 assert.match(configurationActionClass('add', true), /disabled:/);
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run: `node --test --experimental-strip-types lib/decoration/configuration-actions.test.mjs`
 
 Expected: FAIL because the shared action-style contract does not exist.
 
-- [ ] **Step 3: Implement visible button variants and responsive rows**
+- [x] **Step 3: Implement visible button variants and responsive rows**
 
 Use explicit colors rather than inherited low-contrast text. Apply the same variants to event types, hotels, venues, and halls. Preserve existing loading/disabled behavior and add `aria-busy` during mutations.
 
-- [ ] **Step 4: Run focused test, lint, and commit**
+- [x] **Step 4: Run focused test, lint, and commit**
 
 Run: `node --test --experimental-strip-types lib/decoration/configuration-actions.test.mjs && npm run lint`
 
