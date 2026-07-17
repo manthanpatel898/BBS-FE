@@ -51,11 +51,10 @@ export function DecorationImageCropModal({
   const [error, setError] = useState('');
   const [currentFile, setCurrentFile] = useState(file);
   const [dialogElement, setDialogElement] = useState<HTMLDivElement | null>(null);
-  const fileVersionRef = useRef(0);
+  const activeFileRef = useRef<File | null>(file);
   const closeBlocked = busy || processing;
 
   if (currentFile !== file) {
-    fileVersionRef.current += 1;
     setCurrentFile(file);
     setCrop(initialCrop);
     setZoom(1);
@@ -106,9 +105,12 @@ export function DecorationImageCropModal({
     return () => dialog.removeEventListener('keydown', trapFocus);
   }, [dialogElement]);
 
-  useEffect(() => () => {
-    fileVersionRef.current += 1;
-  }, []);
+  useEffect(() => {
+    activeFileRef.current = file;
+    return () => {
+      if (activeFileRef.current === file) activeFileRef.current = null;
+    };
+  }, [file]);
 
   useEffect(() => {
     const nextSourceUrl = URL.createObjectURL(file);
@@ -127,18 +129,18 @@ export function DecorationImageCropModal({
 
   const confirm = async () => {
     if (closeBlocked || !cropPixels) return;
-    const fileVersion = fileVersionRef.current;
+    const confirmingFile = file;
     setProcessing(true);
     setError('');
     try {
       const croppedFile = await exportCrop(file, cropPixels, rotation);
-      if (fileVersion !== fileVersionRef.current) return;
+      if (activeFileRef.current !== confirmingFile) return;
       await onConfirm(croppedFile);
     } catch (reason) {
-      if (fileVersion !== fileVersionRef.current) return;
+      if (activeFileRef.current !== confirmingFile) return;
       setError(reason instanceof Error ? reason.message : 'Unable to crop this image. Please try again.');
     } finally {
-      if (fileVersion === fileVersionRef.current) setProcessing(false);
+      if (activeFileRef.current === confirmingFile) setProcessing(false);
     }
   };
 

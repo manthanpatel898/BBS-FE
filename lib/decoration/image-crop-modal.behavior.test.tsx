@@ -12,6 +12,7 @@ const page = () => within(document.body);
 
 let cropperProps: DecorationCropperAdapterProps;
 const FakeCropper: ComponentType<DecorationCropperAdapterProps> = (props) => {
+  // eslint-disable-next-line react-hooks/globals -- The adapter exposes third-party callback props to the interaction harness.
   cropperProps = props;
   return <button type="button" onClick={() => props.onCropComplete(
     { x: 1, y: 2, width: 400, height: 300 },
