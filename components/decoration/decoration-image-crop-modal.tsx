@@ -1,25 +1,46 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
 import { BodyPortal } from '@/components/ui/body-portal';
 import { useModalViewport } from '@/components/ui/use-modal-viewport';
 import { exportDecorationCrop } from '@/lib/decoration/image-crop';
+
+export type DecorationCropperAdapterProps = {
+  image: string;
+  crop: Point;
+  zoom: number;
+  rotation: number;
+  aspect: number;
+  minZoom: number;
+  maxZoom: number;
+  zoomWithScroll: boolean;
+  onCropChange: (crop: Point) => void;
+  onZoomChange: (zoom: number) => void;
+  onCropComplete: (area: Area, pixels: Area) => void;
+};
 
 type DecorationImageCropModalProps = {
   file: File;
   busy?: boolean;
   onCancel: () => void;
   onConfirm: (file: File) => void | Promise<void>;
+  /** Test seam for exercising modal behavior without browser image layout. */
+  CropperComponent?: ComponentType<DecorationCropperAdapterProps>;
+  /** Test seam for exercising asynchronous export behavior. */
+  exportCrop?: typeof exportDecorationCrop;
 };
 
 const initialCrop: Point = { x: 0, y: 0 };
+const DefaultCropper = (props: DecorationCropperAdapterProps) => <Cropper {...props} />;
 
 export function DecorationImageCropModal({
   file,
   busy = false,
   onCancel,
   onConfirm,
+  CropperComponent = DefaultCropper,
+  exportCrop = exportDecorationCrop,
 }: DecorationImageCropModalProps) {
   const [sourceUrl, setSourceUrl] = useState('');
   const [crop, setCrop] = useState<Point>(initialCrop);
@@ -28,7 +49,21 @@ export function DecorationImageCropModal({
   const [cropPixels, setCropPixels] = useState<Area | null>(null);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [currentFile, setCurrentFile] = useState(file);
+  const [dialogElement, setDialogElement] = useState<HTMLDivElement | null>(null);
+  const fileVersionRef = useRef(0);
   const closeBlocked = busy || processing;
+
+  if (currentFile !== file) {
+    fileVersionRef.current += 1;
+    setCurrentFile(file);
+    setCrop(initialCrop);
+    setZoom(1);
+    setRotation(0);
+    setCropPixels(null);
+    setProcessing(false);
+    setError('');
+  }
 
   const requestClose = useCallback(() => {
     if (closeBlocked) return;
@@ -44,6 +79,35 @@ export function DecorationImageCropModal({
     return () => {
       returnTrigger?.focus();
     };
+  }, []);
+
+  useEffect(() => {
+    const dialog = dialogElement;
+    if (!dialog) return;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button, input, [tabindex]',
+    )).filter(control => !control.hasAttribute('disabled') && control.tabIndex >= 0);
+    focusable()[0]?.focus();
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const controls = focusable();
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    dialog.addEventListener('keydown', trapFocus);
+    return () => dialog.removeEventListener('keydown', trapFocus);
+  }, [dialogElement]);
+
+  useEffect(() => () => {
+    fileVersionRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -63,15 +127,18 @@ export function DecorationImageCropModal({
 
   const confirm = async () => {
     if (closeBlocked || !cropPixels) return;
+    const fileVersion = fileVersionRef.current;
     setProcessing(true);
     setError('');
     try {
-      const croppedFile = await exportDecorationCrop(file, cropPixels, rotation);
+      const croppedFile = await exportCrop(file, cropPixels, rotation);
+      if (fileVersion !== fileVersionRef.current) return;
       await onConfirm(croppedFile);
     } catch (reason) {
+      if (fileVersion !== fileVersionRef.current) return;
       setError(reason instanceof Error ? reason.message : 'Unable to crop this image. Please try again.');
     } finally {
-      setProcessing(false);
+      if (fileVersion === fileVersionRef.current) setProcessing(false);
     }
   };
 
@@ -79,13 +146,14 @@ export function DecorationImageCropModal({
     <div
       className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/70 backdrop-blur-sm sm:items-center sm:p-5"
       role="dialog"
+      ref={setDialogElement}
       aria-modal="true"
       aria-labelledby="decoration-crop-title"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
     >
-      <div className="safe-pad-bottom flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-4xl sm:rounded-3xl">
+      <div className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-4xl sm:rounded-3xl">
         <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-slate-900 px-4 py-3 sm:px-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-amber-400">Image editor</p>
@@ -95,7 +163,7 @@ export function DecorationImageCropModal({
         </header>
 
         <div className="relative min-h-0 flex-1 bg-black" style={{ touchAction: 'none' }}>
-          {sourceUrl ? <Cropper
+          {sourceUrl ? <CropperComponent
             image={sourceUrl}
             crop={crop}
             zoom={zoom}
