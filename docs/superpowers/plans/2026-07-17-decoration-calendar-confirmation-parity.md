@@ -345,25 +345,25 @@ git commit -m "Add decoration confirmation client"
 - Consumes: `confirmDecorationBooking` from Task 5.
 - Produces: `onConfirmed(updatedBooking)` to update modal and cached calendar/day data in place.
 
-- [ ] **Step 1: Write failing form and overlay tests**
+- [x] **Step 1: Write failing form and overlay tests**
 
 Cover zero advance without payment fields, positive advance requiring date/mode, over-limit rejection, stable request ID across retry, double-submit disabling, child close returning to detail, and successful confirmation updating cached detail/card.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `node --test --experimental-strip-types lib/decoration/confirmation-form.test.mjs lib/decoration/overlay-state.test.mjs`
 
 Expected: FAIL because the confirmation UI/domain helpers do not exist.
 
-- [ ] **Step 3: Build the banquet-matched popup**
+- [x] **Step 3: Build the banquet-matched popup**
 
 Show package, already received, advance, pending preview, date, payment mode, and remark. Hide or disable payment-only fields when advance is zero. Generate one `crypto.randomUUID()` when the popup opens and reuse it for retries until success or explicit close.
 
-- [ ] **Step 4: Integrate Confirm Booking into inquiry details**
+- [x] **Step 4: Integrate Confirm Booking into inquiry details**
 
 Render only for `INQUIRY`. Open above Event Detail. On success replace the booking in detail and workspace cache, keep detail open, show confirmed colors, update finance, and expose Choose Decoration. On error retain values and show an actionable message.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `node --test --experimental-strip-types lib/decoration/confirmation-form.test.mjs lib/decoration/overlay-state.test.mjs lib/decoration/booking-view.test.mjs && npm run lint && npm run build`
 
