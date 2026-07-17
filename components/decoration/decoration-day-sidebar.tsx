@@ -1,6 +1,7 @@
 import type { DecorationBooking } from '@/lib/auth/types';
 import { DecorationStatusBadge } from '@/components/decoration/decoration-status-badge';
 import { formatIndianCurrency } from '@/lib/decoration/dashboard-view';
+import { getDecorationStatusMeta } from '@/lib/decoration/booking-view';
 
 export function DecorationDaySidebar({ date, bookings, onClose, onAdd, onOpenBooking }: {
   date: string;
@@ -19,7 +20,7 @@ export function DecorationDaySidebar({ date, bookings, onClose, onAdd, onOpenBoo
         </header>
         <div className="flex-1 overflow-y-auto p-4 sm:p-7">
           {bookings.length ? <div className="grid gap-4 md:grid-cols-2">{bookings.map((booking) => (
-            <button type="button" key={booking.id} onClick={() => onOpenBooking(booking.id)} className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${booking.status==='INQUIRY'?'border-amber-300 bg-amber-50/60 shadow-[0_0_0_1px_rgba(245,158,11,0.15),0_4px_16px_rgba(245,158,11,0.12)]':booking.status==='CLOSED_INQUIRY'?'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]':booking.status==='CANCELLED'?'border-red-300 bg-red-50/60 shadow-[0_0_0_1px_rgba(239,68,68,0.15),0_4px_16px_rgba(239,68,68,0.12)]':'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'}`}>
+            <button type="button" key={booking.id} onClick={() => onOpenBooking(booking.id)} className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-200 ${getDecorationStatusMeta(booking.status).cardClass}`}>
               <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-lg font-black text-slate-950">{booking.customer.name}</h3><p className="mt-1 truncate text-sm text-slate-600">{booking.functionName}</p></div><DecorationStatusBadge status={booking.status} /></div>
               <dl className="mt-4 space-y-2 text-sm"><div><dt className="inline font-bold text-slate-700">Venue: </dt><dd className="inline text-slate-600">{booking.venue.name}{booking.hall ? ` / ${booking.hall.name}` : ''}</dd></div><div><dt className="inline font-bold text-slate-700">Time: </dt><dd className="inline text-slate-600">{booking.startTime}–{booking.endTime} · {booking.timeSlot}</dd></div></dl>
               <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-4 text-xs"><div><p className="text-slate-500">Package</p><p className="mt-1 font-bold text-slate-900">{formatIndianCurrency(booking.packageRate)}</p></div><div><p className="text-slate-500">Received</p><p className="mt-1 font-bold text-emerald-700">{formatIndianCurrency(booking.totalCollected)}</p></div><div><p className="text-slate-500">Pending</p><p className="mt-1 font-bold text-red-700">{formatIndianCurrency(booking.outstandingAmount)}</p></div></div>

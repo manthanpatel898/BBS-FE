@@ -174,25 +174,25 @@ git commit -m "Improve decoration configuration actions"
 - Produces: `decorationStatusPresentation(status)` mapped to the banquet-equivalent card, badge, dot, and calendar indicator classes.
 - Produces: month view retaining `selectedDate` and already-fetched `bookings` while child overlays open.
 
-- [ ] **Step 1: Capture banquet status and calendar contracts in failing tests**
+- [x] **Step 1: Capture banquet status and calendar contracts in failing tests**
 
 Assert inquiry, confirmed, completed, closed, cancelled, and on-hold decoration statuses resolve to the same semantic palette tokens as banquet. Assert multi-day event placement and selected-date retention.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `node --test --experimental-strip-types lib/decoration/calendar.test.mjs lib/decoration/booking-view.test.mjs`
 
 Expected: FAIL on parity tokens and retained selection behavior.
 
-- [ ] **Step 3: Match the calendar structure without changing banquet code**
+- [x] **Step 3: Match the calendar structure without changing banquet code**
 
 Copy only stable layout decisions: header hierarchy, month controls, Today action, weekday row, date-cell sizing, selected date, indicators, breakpoints, loading skeleton, empty state, and error Retry. Keep decoration queries and types.
 
-- [ ] **Step 4: Apply banquet-equivalent status presentation**
+- [x] **Step 4: Apply banquet-equivalent status presentation**
 
 Centralize card/badge/dot colors so calendar, sidebar, and Event Detail cannot drift. Do not introduce a second hard-coded palette inside components.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `node --test --experimental-strip-types lib/decoration/calendar.test.mjs lib/decoration/booking-view.test.mjs && npm run lint`
 

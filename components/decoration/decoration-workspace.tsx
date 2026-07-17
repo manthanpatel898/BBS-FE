@@ -54,7 +54,7 @@ export function DecorationWorkspace() {
         <button type="button" onClick={() => openAdd()} className="rounded-xl bg-amber-500 px-5 py-3 font-bold text-white shadow-sm hover:bg-amber-600">Add inquiry</button>
       </div>
       {error ? <DecorationPageError message={error} onRetry={() => void loadMonth(true)} /> : null}
-      <DecorationCalendar month={month} bookings={bookings} onMonthChange={setMonth} onOpenDay={(date) => dispatch({ type: 'OPEN_DAY', date, origin: 'EVENTS' })} />
+      <DecorationCalendar month={month} bookings={bookings} selectedDate={overlay.date} onMonthChange={setMonth} onOpenDay={(date) => dispatch({ type: 'OPEN_DAY', date, origin: 'EVENTS' })} />
       {overlay.date ? (
         <DecorationDaySidebar
           date={overlay.date}

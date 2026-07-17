@@ -47,3 +47,7 @@ export function replaceDecorationBooking<T extends { id: string }>(bookings: T[]
 export function isLatestDecorationCalendarRequest(requestId: number, latestRequestId: number) {
   return requestId === latestRequestId;
 }
+
+export function getDecorationCalendarCellState(date: string, today: string, selectedDate: string | null) {
+  return { isToday: date === today, isSelected: date === selectedDate };
+}
