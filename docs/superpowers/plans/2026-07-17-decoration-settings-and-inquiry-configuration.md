@@ -100,7 +100,7 @@ Expected final dry-run: `updated: 0`, `invalid: 0`.
 - Produces: configuration mutations available to both company admins and employees without permission metadata.
 - Produces: create methods accepting audit source `SETTINGS | INQUIRY_FORM` and duplicate recovery.
 
-- [ ] **Step 1: Add failing authorization, tenant, duplicate, and audit tests**
+- [x] **Step 1: Add failing authorization, tenant, duplicate, and audit tests**
 
 ```ts
 it('allows an authenticated decoration employee to create configuration', async () => {
@@ -114,20 +114,20 @@ it('returns the tenant record when concurrent normalized creation loses the uniq
 });
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `npm test -- decoration-configuration.spec.ts --runInBand`
 Expected: FAIL on permission metadata, source metadata, and duplicate recovery.
 
-- [ ] **Step 3: Remove configuration permission decorators but retain guards**
+- [x] **Step 3: Remove configuration permission decorators but retain guards**
 
 Keep `JwtAuthGuard`, `RolesGuard`, `BusinessTypeGuard`, company-admin/employee roles, and `EVENT_DECORATION`. Remove controller-level `DECORATION_CONFIGURATION_VIEW` and mutation-level `DECORATION_CONFIGURATION_MANAGE` requirements only for this controller.
 
-- [ ] **Step 4: Implement safe create-or-resolve and audit source**
+- [x] **Step 4: Implement safe create-or-resolve and audit source**
 
 Normalize using the existing helper, attempt create, and on Mongo error `11000` re-read by `{ restaurantId, normalizedName }`. Reject a conflicting inactive record with a clear message instead of silently reactivating it. Include `{ source: 'SETTINGS' | 'INQUIRY_FORM' }` in audit metadata.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm test -- decoration-configuration.spec.ts --runInBand
