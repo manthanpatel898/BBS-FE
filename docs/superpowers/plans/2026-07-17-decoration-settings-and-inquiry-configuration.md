@@ -36,7 +36,7 @@
 - Produces: `DecorationLocationType = 'HOTEL' | 'VENUE'` and required `type` on mapped location responses.
 - Produces: `migrate:decoration-location-types` supporting `--dry-run` and idempotent reruns.
 
-- [ ] **Step 1: Write failing schema/DTO/migration tests**
+- [x] **Step 1: Write failing schema/DTO/migration tests**
 
 ```ts
 it('defaults an existing untyped location to VENUE', () => {
@@ -49,12 +49,12 @@ it('accepts HOTEL and rejects arbitrary location types', async () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `cd apps/BBS-BE && npm test -- decoration-configuration.spec.ts migrate-decoration-location-types.spec.ts --runInBand`
 Expected: FAIL because `type` and the migration helper do not exist.
 
-- [ ] **Step 3: Add the model and DTO contract**
+- [x] **Step 3: Add the model and DTO contract**
 
 ```ts
 export enum DecorationLocationType { HOTEL = 'HOTEL', VENUE = 'VENUE' }
@@ -69,11 +69,11 @@ export class CreateDecorationVenueDto {
 }
 ```
 
-- [ ] **Step 4: Implement dry-run migration and package command**
+- [x] **Step 4: Implement dry-run migration and package command**
 
 The script updates only documents where `type` is missing, reports `matched`, `updated`, and `invalid`, and verifies no untyped records remain after a real run. Add `"migrate:decoration-location-types": "ts-node src/scripts/migrate-decoration-location-types.ts"`.
 
-- [ ] **Step 5: Verify, migrate, reconcile, and commit**
+- [x] **Step 5: Verify, migrate, reconcile, and commit**
 
 ```bash
 npm test -- decoration-configuration.spec.ts migrate-decoration-location-types.spec.ts --runInBand
