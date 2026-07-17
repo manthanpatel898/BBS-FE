@@ -7,6 +7,7 @@ import {
   DecorationSelectionModalContent,
   type CustomCropModalProps,
 } from '../../components/decoration/decoration-selection-modal';
+import { DecorationImageCropModal, type DecorationCropperAdapterProps } from '../../components/decoration/decoration-image-crop-modal';
 
 const page = () => within(document.body);
 const png = (name: string, value = 'source') => new File([value], name, { type: 'image/png' });
@@ -20,6 +21,17 @@ const FakeCropModal: ComponentType<CustomCropModalProps> = ({ file, busy, onCanc
   <button type="button" disabled={busy} onClick={onCancel}>Cancel crop</button>
   <button type="button" disabled={busy} onClick={() => void onConfirm(png(`cropped-${file.name}`, 'cropped'))}>Confirm crop</button>
 </div>;
+
+let actualCropperProps: DecorationCropperAdapterProps;
+const CropperAdapter = (props: DecorationCropperAdapterProps) => {
+  actualCropperProps = props;
+  return <button type="button" onClick={() => props.onCropComplete({ x: 0, y: 0, width: 4, height: 3 }, { x: 0, y: 0, width: 4, height: 3 })}>Set actual crop</button>;
+};
+const ActualCropModal: ComponentType<CustomCropModalProps> = (props) => <DecorationImageCropModal
+  {...props}
+  CropperComponent={CropperAdapter}
+  exportCrop={async () => png('actual-cropped.png', 'actual-crop')}
+/>;
 
 const common = {
   booking,
@@ -103,4 +115,37 @@ test('StrictMode ignores stale selection/upload completion and unmount completio
   await waitFor(() => assert.deepEqual(uploads, ['cropped-new.png']));
   view.unmount();
   resolveUpload({ ...uploadedImage('stale'), url: 'stale' });
+});
+
+test('actual nested crop restores focus to the visible Camera / gallery trigger after cancel, Escape, and confirm', async () => {
+  const uploads: File[] = [];
+  const view = render(<DecorationSelectionModalContent {...common} CropModal={ActualCropModal} uploadCustomImage={async (_token, _id, file) => {
+    uploads.push(file);
+    return uploadedImage();
+  }} />);
+  await page().findByText('Arch');
+  const trigger = page().getByRole('button', { name: 'Camera / gallery' });
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+  fireEvent.click(trigger);
+  fireEvent.change(input, { target: { files: [png('cancel.png')] } });
+  await page().findByRole('heading', { name: 'Crop image' });
+  fireEvent.click(page().getByRole('button', { name: 'Cancel' }));
+  await waitFor(() => assert.equal(document.activeElement, trigger));
+
+  fireEvent.click(trigger);
+  fireEvent.change(input, { target: { files: [png('escape.png')] } });
+  await page().findByRole('heading', { name: 'Crop image' });
+  fireEvent.keyDown(window, { key: 'Escape' });
+  await waitFor(() => assert.equal(document.activeElement, trigger));
+
+  fireEvent.click(trigger);
+  fireEvent.change(input, { target: { files: [png('confirm.png')] } });
+  await page().findByRole('heading', { name: 'Crop image' });
+  fireEvent.click(page().getByRole('button', { name: 'Set actual crop' }));
+  assert.equal(actualCropperProps.aspect, 4 / 3);
+  fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+  await waitFor(() => assert.equal(uploads.length, 1));
+  await waitFor(() => assert.equal(document.activeElement, trigger));
+  assert.equal(await uploads[0].text(), 'actual-crop');
 });

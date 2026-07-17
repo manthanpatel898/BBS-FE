@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType, type RefObject } from 'react';
 import Cropper, { type Area, type Point } from 'react-easy-crop';
 import { BodyPortal } from '@/components/ui/body-portal';
 import { useModalViewport } from '@/components/ui/use-modal-viewport';
@@ -25,6 +25,7 @@ type DecorationImageCropModalProps = {
   busy?: boolean;
   onCancel: () => void;
   onConfirm: (file: File) => void | Promise<void>;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   /** Test seam for exercising modal behavior without browser image layout. */
   CropperComponent?: ComponentType<DecorationCropperAdapterProps>;
   /** Test seam for exercising asynchronous export behavior. */
@@ -39,6 +40,7 @@ export function DecorationImageCropModal({
   busy = false,
   onCancel,
   onConfirm,
+  returnFocusRef,
   CropperComponent = DefaultCropper,
   exportCrop = exportDecorationCrop,
 }: DecorationImageCropModalProps) {
@@ -72,13 +74,13 @@ export function DecorationImageCropModal({
   useModalViewport(requestClose, closeBlocked);
 
   useEffect(() => {
-    const returnTrigger = document.activeElement instanceof HTMLElement
+    const returnTrigger = returnFocusRef?.current ?? (document.activeElement instanceof HTMLElement
       ? document.activeElement
-      : null;
+      : null);
     return () => {
       returnTrigger?.focus();
     };
-  }, []);
+  }, [returnFocusRef]);
 
   useEffect(() => {
     const dialog = dialogElement;
