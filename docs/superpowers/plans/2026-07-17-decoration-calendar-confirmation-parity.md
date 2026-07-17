@@ -40,7 +40,7 @@
 - Produces: `planDecorationEventTypeOrderMigration(records)` returning deterministic positive orders without changing already-valid unique positive orders unnecessarily.
 - Consumes: `createDecorationEventType(token, { name }, source)`; the frontend no longer supplies `displayOrder` during creation.
 
-- [ ] **Step 1: Write failing backend ordering and migration tests**
+- [x] **Step 1: Write failing backend ordering and migration tests**
 
 Add assertions that first creation resolves to `1`, subsequent creation resolves to `2`, two restaurant IDs each begin at `1`, duplicate-key retry obtains the next order, and migration converts `0`, negative, missing, and duplicate values into unique positive sequences per restaurant.
 
@@ -50,13 +50,13 @@ assert.equal(nextDecorationEventTypeOrder([{ restaurantId: restaurantA, displayO
 assert.equal(nextDecorationEventTypeOrder([{ restaurantId: restaurantA, displayOrder: 8 }], restaurantB), 1);
 ```
 
-- [ ] **Step 2: Run backend tests and verify RED**
+- [x] **Step 2: Run backend tests and verify RED**
 
 Run: `npx ts-node src/modules/decoration-configuration/decoration-configuration.spec.ts && npx ts-node src/scripts/decoration-event-type-order-migration.spec.ts`
 
 Expected: FAIL because automatic allocation and migration planner are not implemented.
 
-- [ ] **Step 3: Implement the database invariant and allocator**
+- [x] **Step 3: Implement the database invariant and allocator**
 
 Make `displayOrder` required with minimum `1`, add a unique index on `{ restaurantId: 1, displayOrder: 1 }`, ignore create DTO order, and allocate `max(displayOrder) + 1`. Retry bounded duplicate-key failures by recalculating the maximum; return a conflict after three collisions. Preserve order during name edits. Import-created event types must use the same allocator rather than `displayOrder: 0`.
 
@@ -68,7 +68,7 @@ for (let attempt = 0; attempt < 3; attempt += 1) {
 }
 ```
 
-- [ ] **Step 4: Implement and dry-run the bounded migration**
+- [x] **Step 4: Implement and dry-run the bounded migration**
 
 Migration groups by `restaurantId`, sorts by current positive order/name/ID, assigns unique `1..n`, uses temporary negative values to avoid unique-index collisions, then applies final values. Provide `--apply`; default is dry-run. Only create the unique index after data normalization.
 
@@ -76,7 +76,7 @@ Run: `npm run migrate:decoration-event-type-orders`
 
 Expected: JSON summary with companies, total records, invalid orders, duplicate orders, and proposed updates; no writes without `--apply`.
 
-- [ ] **Step 5: Write failing frontend test for hidden generated order**
+- [x] **Step 5: Write failing frontend test for hidden generated order**
 
 ```js
 assert.equal(buildEventTypeCreatePayload({ name: 'Marriage', displayOrder: '99' }), { name: 'Marriage' });
@@ -86,11 +86,11 @@ Run: `node --test --experimental-strip-types lib/decoration/settings-view.test.m
 
 Expected: FAIL because the current form accepts and sends display order.
 
-- [ ] **Step 6: Remove Display Order from Add Event Type**
+- [x] **Step 6: Remove Display Order from Add Event Type**
 
 Keep the order label read-only on list cards. Do not include `displayOrder` in create payloads. Preserve edit behavior only if the existing edit contract intentionally supports ordering; otherwise show it read-only there too.
 
-- [ ] **Step 7: Run focused and configuration regression tests**
+- [x] **Step 7: Run focused and configuration regression tests**
 
 Run: `npx ts-node src/modules/decoration-configuration/decoration-configuration.spec.ts && npx ts-node src/scripts/decoration-event-type-order-migration.spec.ts`
 

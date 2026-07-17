@@ -29,3 +29,7 @@ export function hasNormalizedDuplicate<T extends { name: string }>(items: T[], n
 export function activeHalls<H extends { id: string; isActive: boolean }>(venues: Array<{ id: string; halls: H[] }>, venueId: string): H[] {
   return venues.find((venue) => venue.id === venueId)?.halls.filter((hall) => hall.isActive) ?? [];
 }
+
+export function buildEventTypeCreatePayload(values: { name: string; displayOrder?: string }) {
+  return { name: values.name.trim().replace(/\s+/g, ' ') };
+}
