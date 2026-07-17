@@ -150,7 +150,7 @@ git commit -m "Open guarded decoration configuration management"
 - Booking create/update snapshots the resolved Event Type name when `eventTypeId` changes.
 - Existing `functionName` response/search/report fields remain intact.
 
-- [ ] **Step 1: Add failing snapshot compatibility tests**
+- [x] **Step 1: Add failing snapshot compatibility tests**
 
 ```ts
 it('derives functionName from the selected event type', async () => {
@@ -164,12 +164,12 @@ it('does not rewrite historical snapshots after configuration rename', async () 
 });
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `npm test -- decoration-booking-domain.spec.ts decoration-booking-view.spec.ts --runInBand`
 Expected: FAIL because the DTO and payload still require client `functionName`.
 
-- [ ] **Step 3: Make the field compatibility-only and derive it in payload construction**
+- [x] **Step 3: Make the field compatibility-only and derive it in payload construction**
 
 ```ts
 // Create DTO: remove functionName. Update DTO: retain optional functionName only for old deployed clients.
@@ -178,7 +178,7 @@ functionName: references.eventType.name,
 
 When an update does not change `eventTypeId`, retain the stored snapshot. When it changes, snapshot the newly resolved name.
 
-- [ ] **Step 4: Run the full booking regression and commit**
+- [x] **Step 4: Run the full booking regression and commit**
 
 ```bash
 npm test -- decoration-booking-domain.spec.ts decoration-booking-view.spec.ts decoration-calendar.spec.ts --runInBand
