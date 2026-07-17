@@ -467,6 +467,6 @@ Render representative downloaded PDFs with `pdftoppm`, inspect every page, and r
 
 No database migration is expected. Confirm backend deployment installs PDFKit, frontend deployment installs react-easy-crop, S3/network policy permits server-side reads of snapshot images, and static route generation remains successful.
 
-- [ ] **Step 7: Final commits**
+- [x] **Step 7: Final commits**
 
 Commit checklist evidence separately in the frontend repository with `docs(decoration): complete PDF and crop verification`. Do not push or merge unless explicitly requested.
