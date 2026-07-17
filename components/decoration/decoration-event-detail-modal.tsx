@@ -15,7 +15,7 @@ import { downloadDecorationCustomerPdf, fetchDecorationBooking } from '@/lib/aut
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import type { DecorationBooking } from '@/lib/auth/types';
 import { getDecorationDetailActions, type DecorationDetailActionId } from '@/lib/decoration/event-detail-view';
-import { saveDownloadedPdf } from '@/lib/decoration/customer-document-download';
+import { createPdfDownloadController, saveDownloadedPdf } from '@/lib/decoration/customer-document-download';
 
 const displayDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -66,7 +66,7 @@ function BottomActions({ booking, onAction }: { booking: DecorationBooking; onAc
   const { accessToken, user } = useAuth(); const admin = user?.role === 'company_admin';
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
-  const downloadInFlight = useRef(false);
+  const downloadController = useRef<ReturnType<typeof createPdfDownloadController> | null>(null);
   const actions = getDecorationDetailActions(booking, {
     canEdit: admin || hasPermission(user, PERMISSIONS.DECORATION_BOOKINGS_UPDATE),
     canConfirm: admin || hasPermission(user, PERMISSIONS.DECORATION_BOOKINGS_CONFIRM),
@@ -75,25 +75,27 @@ function BottomActions({ booking, onAction }: { booking: DecorationBooking; onAc
     canSelectDecoration: admin || hasPermission(user, PERMISSIONS.DECORATION_SELECTION_MANAGE),
     canPrint: admin || hasPermission(user, PERMISSIONS.DECORATION_PRINT),
   });
-  async function download() {
-    if (!accessToken || downloadInFlight.current) return;
-    downloadInFlight.current = true;
-    setDownloading(true);
-    setDownloadError('');
-    try {
-      saveDownloadedPdf(await downloadDecorationCustomerPdf(accessToken, booking.id));
-    } catch (reason) {
-      setDownloadError(reason instanceof Error ? reason.message : 'Unable to download the decoration proposal.');
-    } finally {
-      downloadInFlight.current = false;
-      setDownloading(false);
-    }
-  }
+  useEffect(() => {
+    if (!accessToken) return;
+    let mounted = true;
+    const controller = createPdfDownloadController({
+      download: (signal) => downloadDecorationCustomerPdf(accessToken, booking.id, signal),
+      save: saveDownloadedPdf,
+      onBusy: (value) => { if (mounted) setDownloading(value); },
+      onError: (value) => { if (mounted) setDownloadError(value); },
+    });
+    downloadController.current = controller;
+    return () => {
+      mounted = false;
+      controller.abort();
+      if (downloadController.current === controller) downloadController.current = null;
+    };
+  }, [accessToken, booking.id]);
   return <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 p-3 shadow-[0_-12px_30px_rgba(15,23,42,0.12)] backdrop-blur sm:absolute sm:rounded-b-3xl sm:px-6 sm:py-4">{downloadError ? <p role="alert" className="mx-auto mb-2 max-w-6xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{downloadError}</p> : null}<div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:justify-end sm:overflow-visible">{actions.map((action) => {
     const className = `shrink-0 rounded-xl px-4 py-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50'}`;
     if (action.id === 'choose-decoration' || action.id === 'edit-decoration') return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
     if (action.id === 'view' || action.id === 'print') return <Link key={action.id} href={`/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=${action.id}`} className={className}>{action.label}</Link>;
-    if (action.id === 'download') return <button key={action.id} type="button" onClick={download} disabled={downloading} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{downloading ? 'Downloading…' : action.label}</button>;
+    if (action.id === 'download') return <button key={action.id} type="button" onClick={() => downloadController.current?.start()} disabled={downloading} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{downloading ? 'Downloading…' : action.label}</button>;
     if (action.id === 'followup') return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
     return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
   })}</div></div>;
