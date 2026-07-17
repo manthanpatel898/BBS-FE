@@ -182,7 +182,7 @@ git commit -m "Add decoration workflow view foundation"
 - Produces `DecorationBookingUpdateDto`, `DecorationFollowupUpdateDto`, `PATCH /decoration/bookings/:id/followups/:followupId`, and an enriched dashboard response.
 - Existing endpoints remain backward compatible.
 
-- [ ] **Step 1: Write failing domain tests for partial update merging and follow-up transitions**
+- [x] **Step 1: Write failing domain tests for partial update merging and follow-up transitions**
 
 ```ts
 assert.deepEqual(
@@ -199,11 +199,11 @@ assert.throws(
 );
 ```
 
-- [ ] **Step 2: Run the domain test and verify failure**
+- [x] **Step 2: Run the domain test and verify failure**
 
 Run: `cd apps/BBS-BE && node -r ts-node/register src/modules/decoration-bookings/decoration-booking-view.spec.ts`
 
-- [ ] **Step 3: Add backward-compatible follow-up fields**
+- [x] **Step 3: Add backward-compatible follow-up fields**
 
 ```ts
 export enum DecorationFollowupStatus {
@@ -221,11 +221,11 @@ class Followup {
 
 Map legacy embedded follow-ups with missing `status` as `PENDING` until migration completes.
 
-- [ ] **Step 4: Add an optional update DTO and exact patch semantics**
+- [x] **Step 4: Add an optional update DTO and exact patch semantics**
 
 `DecorationBookingUpdateDto` declares every editable booking property optional with the same validators as create. The service merges the patch with the stored booking, validates the complete merged record, resolves event type/venue/hall only when their effective IDs change, and audits before/after snapshots. Reject empty patches and immutable fields.
 
-- [ ] **Step 5: Add follow-up update/complete API**
+- [x] **Step 5: Add follow-up update/complete API**
 
 ```ts
 export class DecorationFollowupUpdateDto {
@@ -242,11 +242,11 @@ updateFollowup(/* tenant-scoped booking and embedded id */) {}
 
 Use atomic tenant-scoped lookup, reject unknown IDs, prevent edits on cancelled/closed inquiries where the domain disallows them, and audit add/edit/complete separately.
 
-- [ ] **Step 6: Enrich booking and dashboard responses**
+- [x] **Step 6: Enrich booking and dashboard responses**
 
 Booking responses include `createdBySnapshot`, `createdAt`, `updatedAt`, normalized follow-up IDs/status/completion, cancellation reason, and selection timestamps. Dashboard adds bounded arrays (`limit: 8`) for upcoming events and follow-up priorities plus counts for selection pending, inventory conflicts, and maintenance. Use indexed tenant/date queries and do not return unbounded collections.
 
-- [ ] **Step 7: Add and test the idempotent migration**
+- [x] **Step 7: Add and test the idempotent migration**
 
 Add `migrate:decoration-followups` to `package.json`. The script supports `--dry-run`, reports before/after counts, sets missing embedded status to `PENDING`, never rewrites existing statuses, and aborts on invalid values.
 
@@ -260,7 +260,7 @@ npm run lint
 npm run build
 ```
 
-- [ ] **Step 8: Commit backend contract changes**
+- [x] **Step 8: Commit backend contract changes**
 
 ```bash
 git add src/modules/decoration-bookings src/scripts/migrate-decoration-followups.ts package.json
