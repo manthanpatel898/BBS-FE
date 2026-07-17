@@ -41,4 +41,20 @@ The tests cover rotation normalization, fixed aspect ratio, crop clamping, rotat
 
 The pre-existing uncommitted `next-env.d.ts` change was not staged or committed.
 
-Planned commit message: `feat(decoration): add bounded image crop export`.
+## Review Hardening
+
+- Quantized output to integer 4-pixel by 3-pixel units, guaranteeing an exactly reducible 4:3 ratio while retaining the 1600 x 1200 cap and never upscaling. Crops smaller than the minimum feasible 4 x 3 pixels now fail clearly.
+- Replaced the full-resolution rotated intermediate canvas with one final-size canvas. Scale, crop-space translation, rotation, and centered bitmap drawing map the source directly into at most 1600 x 1200 pixels.
+- Added exact transform assertions for 0, 90, 180, and 270 degrees plus odd/small dimension probes.
+- Canvas backing storage is explicitly released by setting width and height to zero. Bitmap close and canvas release are independently guarded so cleanup failures cannot mask the original encoder/decode failure or skip later cleanup.
+- Added a mobile-safe decode fallback: try `createImageBitmap` with EXIF `from-image`, then use the browser's orientation-aware `HTMLImageElement` decoder when the API/options overload is unavailable (including older mobile Safari).
+
+Review verification:
+
+- Focused crop suite: 11 passed, 0 failed.
+- All decoration tests: 116 passed, 0 failed.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0 with the same unrelated ODC warning.
+- `npm run build`: exit 0; all 46 routes generated statically.
+
+Initial commit: `a5214ef` (`feat(decoration): add bounded image crop export`).

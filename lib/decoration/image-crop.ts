@@ -27,6 +27,7 @@ interface CropBitmap extends ImageDimensions {
 }
 
 interface CropCanvasContext {
+  scale(x: number, y: number): void;
   translate(x: number, y: number): void;
   rotate(angle: number): void;
   drawImage(...args: unknown[]): void;
@@ -42,6 +43,11 @@ interface CropCanvas extends ImageDimensions {
 export interface DecorationCropAdapters {
   decodeBitmap(file: File, options: { imageOrientation: 'from-image' }): Promise<CropBitmap>;
   createCanvas(width: number, height: number): CropCanvas;
+}
+
+export interface DecorationBitmapEnvironment {
+  createBitmap?: (file: File, options: { imageOrientation: 'from-image' }) => Promise<CropBitmap>;
+  loadImage: (file: File) => Promise<CropBitmap>;
 }
 
 const CROP_ASPECT = 4 / 3;
@@ -89,7 +95,8 @@ export function calculateCropOutput(
     cropHeight = cropWidth / CROP_ASPECT;
   }
 
-  const scale = Math.min(1, maxWidth / cropWidth, maxHeight / cropHeight);
+  const outputUnit = Math.floor(Math.min(cropWidth / 4, cropHeight / 3, maxWidth / 4, maxHeight / 3));
+  if (outputUnit < 1) throw new Error('Crop must contain at least 4 x 3 pixels.');
   return {
     rotation: normalizedRotation,
     rotatedWidth,
@@ -98,8 +105,8 @@ export function calculateCropOutput(
     sourceY: clamp(crop.y, 0, rotatedHeight - cropHeight),
     sourceWidth: cropWidth,
     sourceHeight: cropHeight,
-    outputWidth: Math.max(1, Math.round(cropWidth * scale)),
-    outputHeight: Math.max(1, Math.round(cropHeight * scale)),
+    outputWidth: outputUnit * 4,
+    outputHeight: outputUnit * 3,
   };
 }
 
@@ -111,8 +118,41 @@ export function createDecorationCropFilename(originalName: string, mimeType: 'im
   return `${safeStem}-cropped.${extension}`;
 }
 
+const loadBrowserImage = (file: File) => new Promise<CropBitmap>((resolve, reject) => {
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => resolve({
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    close: () => URL.revokeObjectURL(url),
+    image,
+  } as CropBitmap & { image: HTMLImageElement });
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error('Unable to decode image.'));
+  };
+  image.src = url;
+});
+
+export async function decodeDecorationBitmap(
+  file: File,
+  environment: DecorationBitmapEnvironment = {
+    createBitmap: typeof createImageBitmap === 'function' ? createImageBitmap : undefined,
+    loadImage: loadBrowserImage,
+  },
+) {
+  if (environment.createBitmap) {
+    try {
+      return await environment.createBitmap(file, { imageOrientation: 'from-image' });
+    } catch {
+      // Mobile Safari versions without the options overload still decode via HTMLImageElement.
+    }
+  }
+  return environment.loadImage(file);
+}
+
 const browserAdapters: DecorationCropAdapters = {
-  decodeBitmap: (file, options) => createImageBitmap(file, options),
+  decodeBitmap: (file) => decodeDecorationBitmap(file),
   createCanvas(width, height) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -150,7 +190,6 @@ export async function exportDecorationCrop(
   adapters: DecorationCropAdapters = browserAdapters,
 ): Promise<File> {
   let bitmap: CropBitmap | undefined;
-  let rotatedCanvas: CropCanvas | undefined;
   let outputCanvas: CropCanvas | undefined;
   try {
     bitmap = await adapters.decodeBitmap(file, { imageOrientation: 'from-image' });
@@ -158,33 +197,27 @@ export async function exportDecorationCrop(
     positiveFinite(bitmap.height, 'dimensions');
     const plan = calculateCropOutput(bitmap, cropPixels, rotation, DEFAULT_MAX);
 
-    rotatedCanvas = adapters.createCanvas(plan.rotatedWidth, plan.rotatedHeight);
-    const rotatedContext = requireContext(rotatedCanvas);
-    rotatedContext.translate(plan.rotatedWidth / 2, plan.rotatedHeight / 2);
-    rotatedContext.rotate((plan.rotation * Math.PI) / 180);
-    rotatedContext.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
-
     outputCanvas = adapters.createCanvas(plan.outputWidth, plan.outputHeight);
     const outputContext = requireContext(outputCanvas);
-    outputContext.drawImage(
-      rotatedCanvas,
-      plan.sourceX,
-      plan.sourceY,
-      plan.sourceWidth,
-      plan.sourceHeight,
-      0,
-      0,
-      plan.outputWidth,
-      plan.outputHeight,
+    outputContext.scale(plan.outputWidth / plan.sourceWidth, plan.outputHeight / plan.sourceHeight);
+    outputContext.translate(
+      plan.rotatedWidth / 2 - plan.sourceX,
+      plan.rotatedHeight / 2 - plan.sourceY,
     );
+    outputContext.rotate((plan.rotation * Math.PI) / 180);
+    const drawable = 'image' in bitmap ? (bitmap as CropBitmap & { image: HTMLImageElement }).image : bitmap;
+    outputContext.drawImage(drawable, -bitmap.width / 2, -bitmap.height / 2);
     const mimeType = containsTransparency(outputContext, plan.outputWidth, plan.outputHeight)
       ? 'image/png'
       : 'image/jpeg';
     const blob = await canvasToBlob(outputCanvas, mimeType);
     return new File([blob], createDecorationCropFilename(file.name, mimeType), { type: mimeType });
   } finally {
-    bitmap?.close?.();
-    rotatedCanvas?.release?.();
-    outputCanvas?.release?.();
+    try { bitmap?.close?.(); } catch { /* Cleanup must not replace the export result or error. */ }
+    if (outputCanvas) {
+      outputCanvas.width = 0;
+      outputCanvas.height = 0;
+      try { outputCanvas.release?.(); } catch { /* Continue cleanup independently. */ }
+    }
   }
 }
