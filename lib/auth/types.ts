@@ -190,6 +190,9 @@ export interface Category {
   pricePerPlate: number;
   description: string | null;
   isActive?: boolean;
+  isArchived?: boolean;
+  archivedAt?: string | null;
+  archiveReason?: string | null;
   createdByUserId?: string;
   updatedByUserId?: string;
   createdAt: string;
@@ -251,11 +254,33 @@ export interface Menu {
   sections: MenuSection[];
   hotSelling?: boolean;
   isActive?: boolean;
+  isArchived?: boolean;
+  archivedAt?: string | null;
+  archiveReason?: string | null;
   createdByUserId?: string;
   updatedByUserId?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface MenuReplacementPreview {
+  menuCount: number;
+  categoryCount: number;
+  oldMenusToArchive: string[];
+  categoriesToArchive: string[];
+  inheritedDescriptionCount: number;
+  errors: string[];
+}
+
+export interface MenuReplacementResult {
+  replacementBatchId: string;
+  menusCreated: number;
+  categoriesActivated: number;
+  menusArchived: number;
+  inheritedDescriptionCount: number;
+}
+
+export type MenuReplacementExportRow = Record<string, string | number>;
 
 export interface PaginatedMenus {
   items: Menu[];

@@ -10,13 +10,16 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { RoleBasedRestaurantSelector } from '@/components/ui/role-based-restaurant-selector';
 import {
   bulkUploadMenus,
+  activateMenuReplacement,
   createMenu,
   deleteMenu,
+  exportMenuReplacementData,
   fetchMenus,
   fetchRestaurants,
+  previewMenuReplacement,
   updateMenu,
 } from '@/lib/auth/api';
-import { BulkUploadError, BulkUploadResult, Menu, MenuSection, Restaurant } from '@/lib/auth/types';
+import { BulkUploadError, BulkUploadResult, Menu, MenuReplacementPreview, MenuSection, Restaurant } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
 import { createExcelBlobFromRecords } from '@/lib/excel';
 
@@ -81,6 +84,22 @@ async function generateSampleExcel(): Promise<Blob> {
   ];
   return createExcelBlobFromRecords('Menus', rows);
 }
+
+const replacementTemplateRows = [
+  {
+    'Category Name': 'Gold Package',
+    'Price Per Plate': 1200,
+    'Category Description': 'Premium package',
+    'Menu Code': 'DINNER-01',
+    'Menu Title': 'Dinner',
+    'Menu Display Order': 1,
+    'Section Title': 'Starter',
+    'Item Name': 'Paneer Tikka',
+    'Item Description': '',
+    'Selection Limit': 1,
+    'Hot Selling': 'No',
+  },
+];
 
 function Spinner() {
   return (
@@ -177,6 +196,7 @@ export default function MenusPage() {
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -189,6 +209,11 @@ export default function MenusPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [menuToDelete, setMenuToDelete] = useState<Menu | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReplacementOpen, setIsReplacementOpen] = useState(false);
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
+  const [replacementPreview, setReplacementPreview] = useState<MenuReplacementPreview | null>(null);
+  const [replacementStatus, setReplacementStatus] = useState<'idle' | 'previewing' | 'activating'>('idle');
+  const [replacementError, setReplacementError] = useState('');
 
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulk, setBulk] = useState<BulkState>(initialBulkState);
@@ -203,6 +228,7 @@ export default function MenusPage() {
       limit,
       search,
       ...(isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {}),
+      ...(showArchived ? { archived: true } : {}),
     };
   }
 
@@ -263,7 +289,7 @@ export default function MenusPage() {
     }
 
     void loadData();
-  }, [accessToken, effectiveRestaurantId, isSuperAdmin, limit, page, search]);
+  }, [accessToken, effectiveRestaurantId, isSuperAdmin, limit, page, search, showArchived]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -519,6 +545,72 @@ export default function MenusPage() {
     }
   }
 
+  async function handleDownloadReplacementTemplate() {
+    const blob = await createExcelBlobFromRecords('Menu Replacement', replacementTemplateRows);
+    downloadFile(blob, 'menu-replacement-template.xlsx', blob.type);
+  }
+
+  async function handleExportCurrentReplacementData() {
+    if (!accessToken) return;
+    try {
+      setReplacementError('');
+      const response = await exportMenuReplacementData(
+        accessToken,
+        isSuperAdmin ? effectiveRestaurantId : undefined,
+      );
+      const blob = await createExcelBlobFromRecords(
+        'Menu Replacement',
+        response.rows.length ? response.rows : replacementTemplateRows,
+      );
+      downloadFile(blob, 'current-menu-data.xlsx', blob.type);
+    } catch (requestError) {
+      setReplacementError(requestError instanceof Error ? requestError.message : 'Unable to export menu data.');
+    }
+  }
+
+  async function handlePreviewReplacement() {
+    if (!accessToken || !replacementFile) return;
+    try {
+      setReplacementStatus('previewing');
+      setReplacementError('');
+      const preview = await previewMenuReplacement(
+        accessToken,
+        replacementFile,
+        isSuperAdmin ? effectiveRestaurantId : undefined,
+      );
+      setReplacementPreview(preview);
+    } catch (requestError) {
+      setReplacementError(requestError instanceof Error ? requestError.message : 'Unable to preview replacement.');
+    } finally {
+      setReplacementStatus('idle');
+    }
+  }
+
+  async function handleActivateReplacement() {
+    if (!accessToken || !replacementFile || !replacementPreview || replacementPreview.errors.length) return;
+    try {
+      setReplacementStatus('activating');
+      setReplacementError('');
+      const result = await activateMenuReplacement(
+        accessToken,
+        replacementFile,
+        isSuperAdmin ? effectiveRestaurantId : undefined,
+      );
+      setSuccessMessage(
+        `Replacement activated: ${result.menusCreated} menus and ${result.categoriesActivated} categories.`,
+      );
+      setIsReplacementOpen(false);
+      setReplacementFile(null);
+      setReplacementPreview(null);
+      setPage(1);
+      await reloadMenus(accessToken, 1);
+    } catch (requestError) {
+      setReplacementError(requestError instanceof Error ? requestError.message : 'Unable to activate replacement.');
+    } finally {
+      setReplacementStatus('idle');
+    }
+  }
+
   const totalConfiguredSubitems = formState.items.length;
   const filteredSubitems = useMemo(() => {
     const query = subitemSearch.trim().toLowerCase();
@@ -540,6 +632,29 @@ export default function MenusPage() {
             </p>
           </div>
           <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowArchived((current) => !current);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              {showArchived ? 'View Active' : 'View Archived'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setReplacementFile(null);
+                setReplacementPreview(null);
+                setReplacementError('');
+                setIsReplacementOpen(true);
+              }}
+              disabled={!effectiveRestaurantId}
+              className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Replace Menu
+            </button>
             <button
               type="button"
               onClick={openBulkModal}
@@ -657,6 +772,11 @@ export default function MenusPage() {
                       <p className="mt-2 text-sm text-slate-500">
                         {subitemCount} subitem{subitemCount === 1 ? '' : 's'}
                       </p>
+                      {showArchived ? (
+                        <p className="mt-1 text-xs font-medium text-red-600">
+                          Archived{menu.archiveReason ? ` — ${menu.archiveReason}` : ''}
+                        </p>
+                      ) : null}
                     </div>
                     <span className="shrink-0 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">
                       {isOpen ? 'Collapse' : 'Expand'}
@@ -696,7 +816,7 @@ export default function MenusPage() {
                           </div>
                         ))}
                       </div>
-                      <div className="mt-5 flex gap-2">
+                      {!showArchived ? <div className="mt-5 flex gap-2">
                         <button
                           type="button"
                           onClick={() => openEditModal(menu)}
@@ -711,7 +831,7 @@ export default function MenusPage() {
                         >
                           Delete
                         </button>
-                      </div>
+                      </div> : null}
                     </div>
                   ) : null}
                 </div>
@@ -1064,6 +1184,122 @@ export default function MenusPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </CommonModal>
+        ) : null}
+
+        {isReplacementOpen ? (
+          <CommonModal
+            title="Replace Menu Catalog"
+            description="Upload the complete new menu and category structure. Nothing changes until you preview and confirm."
+            onClose={() => replacementStatus === 'idle' && setIsReplacementOpen(false)}
+            widthClassName="max-w-3xl"
+          >
+            <div className="space-y-5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">Archive policy</p>
+                <p className="mt-1">
+                  Current menus and any category missing from the uploaded sheet will be archived. Existing booking snapshots will not be changed.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadReplacementTemplate()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Download Blank Template
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleExportCurrentReplacementData()}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Export Current Data
+                </button>
+              </div>
+
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                disabled={replacementStatus !== 'idle'}
+                onChange={(event) => {
+                  setReplacementFile(event.target.files?.[0] ?? null);
+                  setReplacementPreview(null);
+                  setReplacementError('');
+                }}
+                className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-50 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-amber-700"
+              />
+
+              {replacementError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {replacementError}
+                </div>
+              ) : null}
+
+              {replacementPreview ? (
+                <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">New menus</p><p className="text-xl font-bold">{replacementPreview.menuCount}</p></div>
+                    <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Active categories</p><p className="text-xl font-bold">{replacementPreview.categoryCount}</p></div>
+                    <div className="rounded-lg bg-white p-3"><p className="text-xs text-slate-500">Descriptions inherited</p><p className="text-xl font-bold">{replacementPreview.inheritedDescriptionCount}</p></div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Categories to archive</p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      {replacementPreview.categoriesToArchive.length
+                        ? replacementPreview.categoriesToArchive.join(', ')
+                        : 'None'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Old menus to archive</p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      {replacementPreview.oldMenusToArchive.length
+                        ? replacementPreview.oldMenusToArchive.join(', ')
+                        : 'None'}
+                    </p>
+                  </div>
+                  {replacementPreview.errors.length ? (
+                    <ul className="space-y-1 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                      {replacementPreview.errors.map((item) => <li key={item}>{item}</li>)}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={replacementStatus !== 'idle'}
+                  onClick={() => setIsReplacementOpen(false)}
+                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                {!replacementPreview ? (
+                  <LoadingButton
+                    type="button"
+                    disabled={!replacementFile || replacementStatus !== 'idle'}
+                    isLoading={replacementStatus === 'previewing'}
+                    onClick={() => void handlePreviewReplacement()}
+                    className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    Preview Changes
+                  </LoadingButton>
+                ) : (
+                  <LoadingButton
+                    type="button"
+                    disabled={replacementPreview.errors.length > 0 || replacementStatus !== 'idle'}
+                    isLoading={replacementStatus === 'activating'}
+                    onClick={() => void handleActivateReplacement()}
+                    className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    Confirm and Activate
+                  </LoadingButton>
+                )}
+              </div>
             </div>
           </CommonModal>
         ) : null}

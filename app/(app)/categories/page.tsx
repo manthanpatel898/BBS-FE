@@ -168,6 +168,7 @@ export default function CategoriesPage() {
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -234,6 +235,7 @@ export default function CategoriesPage() {
             limit,
             search,
             ...(isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {}),
+            ...(showArchived ? { archived: true } : {}),
           }),
           fetchMenus(token, {
             page: 1,
@@ -259,7 +261,7 @@ export default function CategoriesPage() {
     }
 
     void loadData();
-  }, [accessToken, effectiveRestaurantId, isSuperAdmin, limit, page, search]);
+  }, [accessToken, effectiveRestaurantId, isSuperAdmin, limit, page, search, showArchived]);
 
   async function reloadCategories(token: string, nextPage: number) {
     if (!effectiveRestaurantId) {
@@ -271,6 +273,7 @@ export default function CategoriesPage() {
       limit,
       search,
       ...(isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {}),
+      ...(showArchived ? { archived: true } : {}),
     });
     setCategories(response.items);
     setTotalPages(response.pagination.totalPages);
@@ -590,6 +593,16 @@ export default function CategoriesPage() {
           <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
             <button
               type="button"
+              onClick={() => {
+                setShowArchived((current) => !current);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              {showArchived ? 'View Active' : 'View Archived'}
+            </button>
+            <button
+              type="button"
               onClick={openBulkModal}
               disabled={!canLoad}
               className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -698,6 +711,7 @@ export default function CategoriesPage() {
                     <tr key={category.id} className="border-t border-slate-100 hover:bg-slate-50/60">
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-900">{category.name}</p>
+                        {showArchived ? <p className="mt-1 text-xs text-red-600">{category.archiveReason || 'Archived'}</p> : null}
                       </td>
                       <td className="px-5 py-4 text-slate-700">
                         ₹{category.pricePerPlate.toFixed(2)}
@@ -712,7 +726,7 @@ export default function CategoriesPage() {
                         {category.description || 'No description'}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex gap-2">
+                        {!showArchived ? <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={() => openEditModal(category)}
@@ -727,7 +741,7 @@ export default function CategoriesPage() {
                           >
                             Delete
                           </button>
-                        </div>
+                        </div> : null}
                       </td>
                     </tr>
                   ))
@@ -755,6 +769,7 @@ export default function CategoriesPage() {
                 className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
               >
                 <p className="text-sm font-semibold text-slate-900">{category.name}</p>
+                {showArchived ? <p className="mt-1 text-xs text-red-600">{category.archiveReason || 'Archived'}</p> : null}
                 <p className="mt-1 text-xs font-medium text-slate-700">
                   ₹{category.pricePerPlate.toFixed(2)} / plate
                 </p>
@@ -763,7 +778,7 @@ export default function CategoriesPage() {
                   {category.menuRules.reduce((count, rule) => count + rule.allowedItems.length, 0)} visible subitems
                 </p>
                 <p className="mt-1 text-xs text-slate-500">{category.description || 'No description'}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
+                {!showArchived ? <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => openEditModal(category)}
@@ -778,7 +793,7 @@ export default function CategoriesPage() {
                   >
                     Delete
                   </button>
-                </div>
+                </div> : null}
               </article>
             ))
           )}

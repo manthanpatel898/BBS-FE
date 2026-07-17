@@ -17,6 +17,9 @@ import {
   HotDate,
   ItemSalesReportRow,
   Menu,
+  MenuReplacementExportRow,
+  MenuReplacementPreview,
+  MenuReplacementResult,
   OdcCategory,
   OdcCalendarOrder,
   OdcMenu,
@@ -419,6 +422,7 @@ export async function fetchCategories(
     limit: number;
     search: string;
     restaurantId?: string;
+    archived?: boolean;
   },
 ) {
   const query = new URLSearchParams({
@@ -433,6 +437,7 @@ export async function fetchCategories(
   if (params.restaurantId?.trim()) {
     query.set('restaurantId', params.restaurantId.trim());
   }
+  if (params.archived) query.set('archived', 'true');
 
   return authorizedRequest<PaginatedCategories>(
     `/categories?${query.toString()}`,
@@ -496,6 +501,7 @@ export async function fetchMenus(
     search: string;
     categoryId?: string;
     restaurantId?: string;
+    archived?: boolean;
   },
 ) {
   const query = new URLSearchParams({
@@ -514,6 +520,7 @@ export async function fetchMenus(
   if (params.restaurantId?.trim()) {
     query.set('restaurantId', params.restaurantId.trim());
   }
+  if (params.archived) query.set('archived', 'true');
 
   return authorizedRequest<PaginatedMenus>(
     `/menus?${query.toString()}`,
@@ -553,6 +560,60 @@ export async function deleteMenu(accessToken: string, menuId: string) {
   return authorizedRequest<null>(`/menus/${menuId}`, accessToken, {
     method: 'DELETE',
   });
+}
+
+export async function exportMenuReplacementData(
+  accessToken: string,
+  restaurantId?: string,
+) {
+  const query = restaurantId ? `?restaurantId=${encodeURIComponent(restaurantId)}` : '';
+  return authorizedRequest<{ rows: MenuReplacementExportRow[] }>(
+    `/menus/replacement/export${query}`,
+    accessToken,
+  );
+}
+
+async function uploadMenuReplacement<T>(
+  path: 'preview' | 'activate',
+  accessToken: string,
+  file: File,
+  restaurantId?: string,
+) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const query = restaurantId ? `?restaurantId=${encodeURIComponent(restaurantId)}` : '';
+  const response = await fetch(`${API_URL}/menus/replacement/${path}${query}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+  return parseResponse<T>(response, { notifyOnUnauthorized: true });
+}
+
+export function previewMenuReplacement(
+  accessToken: string,
+  file: File,
+  restaurantId?: string,
+) {
+  return uploadMenuReplacement<MenuReplacementPreview>(
+    'preview',
+    accessToken,
+    file,
+    restaurantId,
+  );
+}
+
+export function activateMenuReplacement(
+  accessToken: string,
+  file: File,
+  restaurantId?: string,
+) {
+  return uploadMenuReplacement<MenuReplacementResult>(
+    'activate',
+    accessToken,
+    file,
+    restaurantId,
+  );
 }
 
 export async function fetchOdcCategories(
