@@ -325,7 +325,7 @@ git commit -m "Build production decoration dashboard"
 - Consumes `fetchDecorationCalendar(token, year, month)` once per visible month.
 - Produces `onOpenDay(date)`, `onAdd(date?)`, and `onOpenBooking(id)` callbacks.
 
-- [ ] **Step 1: Add failing tests for inclusive multi-day grouping, sorting, status counts, and race protection**
+- [x] **Step 1: Add failing tests for inclusive multi-day grouping, sorting, status counts, and race protection**
 
 ```js
 test('sorts selected-day events by slot start then customer name', () => {
@@ -333,23 +333,23 @@ test('sorts selected-day events by slot start then customer name', () => {
 });
 ```
 
-- [ ] **Step 2: Implement pure calendar/day selectors**
+- [x] **Step 2: Implement pure calendar/day selectors**
 
 Never fetch separate sidebar data. Derive the selected-date rows from the month response and include multi-day bookings intersecting adjacent dates returned by the backend calendar range.
 
-- [ ] **Step 3: Build the banquet-equivalent calendar**
+- [x] **Step 3: Build the banquet-equivalent calendar**
 
 Include month arrows, Today, status legend, per-date count, up to three visible event chips, overflow count, keyboard date activation, and stable calendar cell heights. Exclude Hall Slot Status entirely.
 
-- [ ] **Step 4: Build responsive date sidebar cards**
+- [x] **Step 4: Build responsive date sidebar cards**
 
 Desktop/tablet: fixed left drawer with banquet-equivalent header and width. Mobile: full-width sheet. Cards show customer, function, venue/hall, time slot, status, package, received, and outstanding. Header contains date, count, close, and Add Inquiry.
 
-- [ ] **Step 5: Connect overlay reducer and refresh reconciliation**
+- [x] **Step 5: Connect overlay reducer and refresh reconciliation**
 
 After create/edit/payment/follow-up/status/selection success, replace the updated booking in the in-memory month list by ID. Trigger background revalidation without clearing the sidebar or detail state. Ignore stale month responses using an incrementing request ID or `AbortController`.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```bash
 node --test --experimental-strip-types lib/decoration/calendar.test.mjs lib/decoration/overlay-state.test.mjs

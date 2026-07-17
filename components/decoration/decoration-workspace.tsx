@@ -1,0 +1,69 @@
+'use client';
+
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth/auth-provider';
+import { DecorationCalendar } from '@/components/decoration/decoration-calendar';
+import { DecorationDaySidebar } from '@/components/decoration/decoration-day-sidebar';
+import { DecorationPageError, DecorationPageLoading } from '@/components/decoration/decoration-page-state';
+import { fetchDecorationCalendar } from '@/lib/auth/api';
+import type { DecorationBooking } from '@/lib/auth/types';
+import { getDecorationDayBookings, isLatestDecorationCalendarRequest } from '@/lib/decoration/calendar';
+import { decorationOverlayReducer, initialDecorationOverlayState } from '@/lib/decoration/overlay-state';
+
+export function DecorationWorkspace() {
+  const { accessToken } = useAuth();
+  const router = useRouter();
+  const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
+  const [bookings, setBookings] = useState<DecorationBooking[]>([]);
+  const [overlay, dispatch] = useReducer(decorationOverlayReducer, initialDecorationOverlayState);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const latestRequestId = useRef(0);
+
+  const loadMonth = useCallback(async (background = false) => {
+    if (!accessToken) return;
+    const requestId = ++latestRequestId.current;
+    if (!background) setLoading(true);
+    setError('');
+    try {
+      const response = await fetchDecorationCalendar(accessToken, month.getFullYear(), month.getMonth() + 1);
+      if (isLatestDecorationCalendarRequest(requestId, latestRequestId.current)) setBookings(response.bookings);
+    } catch (requestError) {
+      if (isLatestDecorationCalendarRequest(requestId, latestRequestId.current)) setError(requestError instanceof Error ? requestError.message : 'Unable to load events calendar');
+    } finally {
+      if (isLatestDecorationCalendarRequest(requestId, latestRequestId.current)) setLoading(false);
+    }
+  }, [accessToken, month]);
+
+  useEffect(() => { void loadMonth(); }, [loadMonth]);
+
+  const selectedBookings = overlay.date ? getDecorationDayBookings(bookings, overlay.date) : [];
+  const openAdd = (date?: string) => {
+    const query = date ? `?action=add&date=${encodeURIComponent(date)}` : '?action=add';
+    router.push(`/decoration/events${query}`);
+  };
+
+  if (loading && !bookings.length) return <DecorationPageLoading message="Loading events calendar…" />;
+  if (error && !bookings.length) return <DecorationPageError message={error} onRetry={() => void loadMonth()} />;
+
+  return (
+    <div className="space-y-5 text-slate-900">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><p className="text-sm text-slate-600">View inquiries and confirmed decoration events by date.</p></div>
+        <button type="button" onClick={() => openAdd()} className="rounded-xl bg-amber-500 px-5 py-3 font-bold text-white shadow-sm hover:bg-amber-600">Add inquiry</button>
+      </div>
+      {error ? <DecorationPageError message={error} onRetry={() => void loadMonth(true)} /> : null}
+      <DecorationCalendar month={month} bookings={bookings} onMonthChange={setMonth} onOpenDay={(date) => dispatch({ type: 'OPEN_DAY', date, origin: 'EVENTS' })} />
+      {overlay.date ? (
+        <DecorationDaySidebar
+          date={overlay.date}
+          bookings={selectedBookings}
+          onClose={() => dispatch({ type: 'CLOSE_TOP' })}
+          onAdd={() => openAdd(overlay.date ?? undefined)}
+          onOpenBooking={(id) => router.push(`/decoration/event-detail?id=${encodeURIComponent(id)}&origin=events&date=${encodeURIComponent(overlay.date!)}`)}
+        />
+      ) : null}
+    </div>
+  );
+}
