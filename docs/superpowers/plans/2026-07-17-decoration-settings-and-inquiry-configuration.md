@@ -203,7 +203,7 @@ git commit -m "Derive decoration function name snapshots"
 - Consumes: `fetchMyRestaurant`, `updateMyRestaurantBranding`, `uploadLogo`, and auth session setter.
 - Produces: static `/decoration/settings?tab=profile|events|venues` and compatibility navigation from `/decoration/configuration`.
 
-- [ ] **Step 1: Add failing tab and branding normalization tests**
+- [x] **Step 1: Add failing tab and branding normalization tests**
 
 ```js
 test('unknown tab falls back to profile', () => assert.equal(normalizeDecorationSettingsTab('other'), 'profile'));
@@ -212,20 +212,20 @@ test('requires company name and at least one contact number', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `node --test --experimental-strip-types lib/decoration/settings-view.test.mjs`
 Expected: FAIL because the view helpers do not exist.
 
-- [ ] **Step 3: Build the Settings shell and profile card**
+- [x] **Step 3: Build the Settings shell and profile card**
 
 Match banquet Settings card spacing, eyebrow, headings, labels, upload control, preview, validation, loading button, success/error states, and responsive grid. Use decoration copy (`Company Branding`, `Company Name`). Update `restaurantLogoUrl` in the auth session after save. Render the same saved values read-only for employees; only company admins receive upload and Save controls.
 
-- [ ] **Step 4: Update navigation and compatibility route**
+- [x] **Step 4: Update navigation and compatibility route**
 
 Replace decoration `Configuration` nav with `Settings` at `/decoration/settings`. The old page uses `router.replace('/decoration/settings')` after mount and renders a loader while redirecting, preserving static export.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 node --test --experimental-strip-types lib/decoration/settings-view.test.mjs
