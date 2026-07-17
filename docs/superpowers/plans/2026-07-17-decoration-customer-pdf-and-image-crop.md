@@ -470,3 +470,14 @@ No database migration is expected. Confirm backend deployment installs PDFKit, f
 - [x] **Step 7: Final commits**
 
 Commit checklist evidence separately in the frontend repository with `docs(decoration): complete PDF and crop verification`. Do not push or merge unless explicitly requested.
+
+#### Final-review remediation evidence (2026-07-17)
+
+- Catalog Add Item and item-card crop entry points now use visible button refs. Real modal interaction tests cover focus restoration after Cancel, Escape, and Confirm, plus replacement-cancel and failed-upload retry preservation.
+- The visible View-mode Print button uses the same font/image/paint readiness helper as automatic Print mode, blocks duplicate clicks while preparing, and aborts safely on unmount. Automatic `mode=print` behavior is unchanged.
+- A broken company logo now removes its reserved wrapper, and the print-readiness behavior test proves printing waits for the fallback commit and paint.
+- `node --import tsx --test lib/decoration/*.test.mjs lib/decoration/*.behavior.test.tsx`: 148 passed, 0 failed.
+- `npx tsc --noEmit`: exit 0.
+- `npm run lint`: exit 0.
+- `npm run build`: exit 0; 46/46 static pages generated, including `/decoration/print`.
+- `git diff --check`: required before the remediation commits.
