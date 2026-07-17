@@ -250,7 +250,7 @@ git commit -m "Add decoration settings and company profile"
 - Adds `DecorationLocationType` and `type` to `DecorationVenue`.
 - Settings mutations send audit query/body source `SETTINGS`.
 
-- [ ] **Step 1: Add failing filtering and duplicate-client-guard tests**
+- [x] **Step 1: Add failing filtering and duplicate-client-guard tests**
 
 ```js
 test('filters halls to active children of the selected location', () => {
@@ -259,20 +259,20 @@ test('filters halls to active children of the selected location', () => {
 test('normalizes names before duplicate checks', () => assert.equal(hasNormalizedDuplicate([{name:'Grand Hall'}], ' grand  hall '), true));
 ```
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 2: Run tests and confirm RED**
 
 Run: `node --test --experimental-strip-types lib/decoration/settings-view.test.mjs`
 Expected: FAIL on missing helpers and location type.
 
-- [ ] **Step 3: Implement banquet-style Event Type management**
+- [x] **Step 3: Implement banquet-style Event Type management**
 
 Provide search, include-inactive, add/edit modal, display order, active badge, and activate/deactivate confirmation. Show explicit empty, loading, retry, duplicate, and busy states.
 
-- [ ] **Step 4: Implement typed Location and nested Hall management**
+- [x] **Step 4: Implement typed Location and nested Hall management**
 
 Location form requires name and `HOTEL | VENUE`, accepts optional address and initial hall names. Location cards show type badges and nested hall chips/actions. Hall mutations always include the parent location ID.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 node --test --experimental-strip-types lib/decoration/settings-view.test.mjs

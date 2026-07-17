@@ -103,12 +103,14 @@ export interface DecorationHall {
 export interface DecorationVenue {
   id: string;
   name: string;
+  type: 'HOTEL' | 'VENUE';
   address: string | null;
   isActive: boolean;
   halls: DecorationHall[];
   createdAt: string;
   updatedAt: string;
 }
+export type DecorationLocationType = 'HOTEL' | 'VENUE';
 export interface DecorationCategory { id: string; name: string; description: string | null; displayOrder: number; isActive: boolean; }
 export type DecorationTrackingMode = 'BULK' | 'TAGGED';
 export type DecorationLogisticsMode = 'SLOT_ONLY' | 'SETUP_REMOVAL' | 'MOBILE_TURNAROUND';

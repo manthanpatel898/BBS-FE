@@ -63,6 +63,7 @@ import {
   DecorationImportConfirmation,
   DecorationImportCancellation,
   DecorationDashboardData,
+  DecorationLocationType,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -1978,8 +1979,8 @@ export function fetchDecorationEventTypes(accessToken: string, search = '', incl
   );
 }
 
-export function createDecorationEventType(accessToken: string, payload: { name: string; displayOrder?: number }) {
-  return authorizedRequest<DecorationEventType>('/decoration/configuration/event-types', accessToken, {
+export function createDecorationEventType(accessToken: string, payload: { name: string; displayOrder?: number }, source: 'SETTINGS' | 'INQUIRY_FORM' = 'SETTINGS') {
+  return authorizedRequest<DecorationEventType>(`/decoration/configuration/event-types?source=${source}`, accessToken, {
     method: 'POST', body: JSON.stringify(payload),
   });
 }
@@ -2004,13 +2005,13 @@ export function fetchDecorationVenues(accessToken: string, search = '', includeI
   );
 }
 
-export function createDecorationVenue(accessToken: string, payload: { name: string; address?: string; halls?: Array<{ name: string }> }) {
-  return authorizedRequest<DecorationVenue>('/decoration/configuration/venues', accessToken, {
+export function createDecorationVenue(accessToken: string, payload: { name: string; type: DecorationLocationType; address?: string; halls?: Array<{ name: string }> }, source: 'SETTINGS' | 'INQUIRY_FORM' = 'SETTINGS') {
+  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues?source=${source}`, accessToken, {
     method: 'POST', body: JSON.stringify(payload),
   });
 }
 
-export function updateDecorationVenue(accessToken: string, id: string, payload: { name?: string; address?: string }) {
+export function updateDecorationVenue(accessToken: string, id: string, payload: { name?: string; type?: DecorationLocationType; address?: string }) {
   return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${id}`, accessToken, {
     method: 'PATCH', body: JSON.stringify(payload),
   });
@@ -2022,8 +2023,8 @@ export function setDecorationVenueActive(accessToken: string, id: string, isActi
   });
 }
 
-export function addDecorationHall(accessToken: string, venueId: string, name: string) {
-  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${venueId}/halls`, accessToken, {
+export function addDecorationHall(accessToken: string, venueId: string, name: string, source: 'SETTINGS' | 'INQUIRY_FORM' = 'SETTINGS') {
+  return authorizedRequest<DecorationVenue>(`/decoration/configuration/venues/${venueId}/halls?source=${source}`, accessToken, {
     method: 'POST', body: JSON.stringify({ name }),
   });
 }

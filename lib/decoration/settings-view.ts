@@ -16,3 +16,16 @@ export function validateCompanyProfile(values: { name: string; contactNumbers: s
   else if (contacts.some((number) => !/^\d{10}$/.test(number))) errors.contactNumbers = 'Contact numbers must contain 10 digits';
   return errors;
 }
+
+export function normalizeConfigurationName(value: string) {
+  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-IN');
+}
+
+export function hasNormalizedDuplicate<T extends { name: string }>(items: T[], name: string, excludedId?: string) {
+  const normalized = normalizeConfigurationName(name);
+  return items.some((item) => normalizeConfigurationName(item.name) === normalized && (!excludedId || !('id' in item) || item.id !== excludedId));
+}
+
+export function activeHalls<T extends { id: string; halls: Array<{ id: string; isActive: boolean }> }>(venues: T[], venueId: string) {
+  return venues.find((venue) => venue.id === venueId)?.halls.filter((hall) => hall.isActive) ?? [];
+}
