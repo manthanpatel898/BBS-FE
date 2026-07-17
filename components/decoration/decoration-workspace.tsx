@@ -1,24 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { DecorationCalendar } from '@/components/decoration/decoration-calendar';
 import { DecorationDaySidebar } from '@/components/decoration/decoration-day-sidebar';
+import { DecorationInquiryForm } from '@/components/decoration/decoration-inquiry-form';
 import { DecorationPageError, DecorationPageLoading } from '@/components/decoration/decoration-page-state';
 import { fetchDecorationCalendar } from '@/lib/auth/api';
 import type { DecorationBooking } from '@/lib/auth/types';
-import { getDecorationDayBookings, isLatestDecorationCalendarRequest } from '@/lib/decoration/calendar';
+import { getDecorationDayBookings, isLatestDecorationCalendarRequest, replaceDecorationBooking } from '@/lib/decoration/calendar';
 import { decorationOverlayReducer, initialDecorationOverlayState } from '@/lib/decoration/overlay-state';
 
 export function DecorationWorkspace() {
   const { accessToken } = useAuth();
-  const router = useRouter();
   const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
   const [bookings, setBookings] = useState<DecorationBooking[]>([]);
   const [overlay, dispatch] = useReducer(decorationOverlayReducer, initialDecorationOverlayState);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const latestRequestId = useRef(0);
 
   const loadMonth = useCallback(async (background = false) => {
@@ -40,8 +40,8 @@ export function DecorationWorkspace() {
 
   const selectedBookings = overlay.date ? getDecorationDayBookings(bookings, overlay.date) : [];
   const openAdd = (date?: string) => {
-    const query = date ? `?action=add&date=${encodeURIComponent(date)}` : '?action=add';
-    router.push(`/decoration/events${query}`);
+    if (date && date !== overlay.date) dispatch({ type: 'OPEN_DAY', date, origin: 'EVENTS' });
+    setIsInquiryOpen(true);
   };
 
   if (loading && !bookings.length) return <DecorationPageLoading message="Loading events calendar…" />;
@@ -61,9 +61,10 @@ export function DecorationWorkspace() {
           bookings={selectedBookings}
           onClose={() => dispatch({ type: 'CLOSE_TOP' })}
           onAdd={() => openAdd(overlay.date ?? undefined)}
-          onOpenBooking={(id) => router.push(`/decoration/event-detail?id=${encodeURIComponent(id)}&origin=events&date=${encodeURIComponent(overlay.date!)}`)}
+          onOpenBooking={(id) => { window.location.href = `/decoration/event-detail?id=${encodeURIComponent(id)}&origin=events&date=${encodeURIComponent(overlay.date!)}`; }}
         />
       ) : null}
+      {isInquiryOpen ? <DecorationInquiryForm date={overlay.date ?? undefined} onClose={() => setIsInquiryOpen(false)} onSaved={(booking) => { setBookings(current => replaceDecorationBooking(current, booking)); setIsInquiryOpen(false); void loadMonth(true); }} /> : null}
     </div>
   );
 }

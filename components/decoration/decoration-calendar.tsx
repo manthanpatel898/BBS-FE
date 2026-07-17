@@ -1,66 +1,15 @@
 import type { DecorationBooking } from '@/lib/auth/types';
-import { getDecorationStatusMeta } from '@/lib/decoration/booking-view';
-import { groupDecorationBookingsByDate } from '@/lib/decoration/calendar';
+import { countDecorationStatuses, groupDecorationBookingsByDate } from '@/lib/decoration/calendar';
 
-function dateKey(year: number, month: number, day: number) {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
+function key(year:number,month:number,day:number){return `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`}
+function Arrow({next=false}:{next?:boolean}){return <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5"><path strokeLinecap="round" strokeLinejoin="round" d={next?'m7 4 6 6-6 6':'m13 4-6 6 6 6'}/></svg>}
 
-export function DecorationCalendar({ month, bookings, onMonthChange, onOpenDay }: {
-  month: Date;
-  bookings: DecorationBooking[];
-  onMonthChange: (month: Date) => void;
-  onOpenDay: (date: string) => void;
-}) {
-  const year = month.getFullYear();
-  const monthIndex = month.getMonth();
-  const firstDay = new Date(year, monthIndex, 1).getDay();
-  const dayCount = new Date(year, monthIndex + 1, 0).getDate();
-  const grouped = groupDecorationBookingsByDate(bookings);
-  const today = new Date();
-  const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
-  const cells = [...Array.from({ length: firstDay }, () => null), ...Array.from({ length: dayCount }, (_, index) => index + 1)];
-
-  return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6">
-        <div className="flex items-center gap-2">
-          <button type="button" aria-label="Previous month" onClick={() => onMonthChange(new Date(year, monthIndex - 1, 1))} className="rounded-xl border border-slate-200 px-3 py-2 font-bold hover:bg-slate-50">←</button>
-          <button type="button" onClick={() => onMonthChange(new Date(today.getFullYear(), today.getMonth(), 1))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold hover:bg-slate-50">Today</button>
-        </div>
-        <h2 className="text-lg font-black text-slate-950">{month.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</h2>
-        <button type="button" aria-label="Next month" onClick={() => onMonthChange(new Date(year, monthIndex + 1, 1))} className="rounded-xl border border-slate-200 px-3 py-2 font-bold hover:bg-slate-50">→</button>
-      </header>
-
-      <div className="hidden flex-wrap gap-x-4 gap-y-2 border-b border-slate-100 px-6 py-3 sm:flex">
-        {(['INQUIRY', 'CONFIRMED', 'DECORATION_SELECTION_PENDING', 'DECORATION_SELECTED', 'COMPLETED'] as const).map((status) => {
-          const meta = getDecorationStatusMeta(status);
-          return <span key={status} className="flex items-center gap-2 text-xs font-semibold text-slate-600"><span className={`h-2.5 w-2.5 rounded-full ${meta.dotClass}`} />{meta.label}</span>;
-        })}
-      </div>
-
-      <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-[11px] font-black uppercase tracking-wide text-slate-500 sm:text-xs">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day} className="py-3">{day.slice(0, 1)}<span className="hidden sm:inline">{day.slice(1)}</span></div>)}
-      </div>
-      <div className="grid grid-cols-7 bg-slate-200 gap-px">
-        {cells.map((day, index) => {
-          if (!day) return <div key={`empty-${index}`} className="min-h-20 bg-slate-50 sm:min-h-32" />;
-          const key = dateKey(year, monthIndex, day);
-          const rows = grouped.get(key) ?? [];
-          return (
-            <button key={key} type="button" onClick={() => onOpenDay(key)} className="group min-h-20 overflow-hidden bg-white p-1.5 text-left transition hover:bg-amber-50 focus:z-10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-500 sm:min-h-32 sm:p-2" aria-label={`${day}, ${rows.length} events`}>
-              <div className="flex items-center justify-between gap-1"><span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${key === todayKey ? 'bg-amber-500 text-white' : 'text-slate-700'}`}>{day}</span>{rows.length ? <span className="text-[10px] font-bold text-slate-500">{rows.length}</span> : null}</div>
-              <div className="mt-1.5 space-y-1">
-                {rows.slice(0, 3).map((booking) => {
-                  const meta = getDecorationStatusMeta(booking.status);
-                  return <div key={booking.id} className="flex items-center gap-1 rounded bg-slate-50 px-1 py-0.5 text-[9px] font-semibold text-slate-700 sm:text-[10px]"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dotClass}`} /><span className="truncate">{booking.customer.name}</span></div>;
-                })}
-                {rows.length > 3 ? <p className="px-1 text-[9px] font-bold text-amber-700">+{rows.length - 3} more</p> : null}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
+export function DecorationCalendar({month,bookings,onMonthChange,onOpenDay}:{month:Date;bookings:DecorationBooking[];onMonthChange:(month:Date)=>void;onOpenDay:(date:string)=>void}){
+ const year=month.getFullYear(),monthIndex=month.getMonth(),first=new Date(year,monthIndex,1).getDay(),days=new Date(year,monthIndex+1,0).getDate(); const grouped=groupDecorationBookingsByDate(bookings); const today=new Date(),todayKey=key(today.getFullYear(),today.getMonth(),today.getDate()); const cells=[...Array.from({length:first},()=>null),...Array.from({length:days},(_,index)=>index+1)];
+ return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+  <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3"><h2 className="min-w-0 flex-1 truncate text-lg font-bold leading-none text-slate-900 sm:text-[2rem]">{month.toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</h2><div className="flex shrink-0 items-center gap-1.5 sm:gap-3"><button type="button" aria-label="Previous month" onClick={()=>onMonthChange(new Date(year,monthIndex-1,1))} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 sm:h-12 sm:w-12"><Arrow/></button><button type="button" aria-label="Next month" onClick={()=>onMonthChange(new Date(year,monthIndex+1,1))} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 sm:h-12 sm:w-12"><Arrow next/></button><button type="button" onClick={()=>onMonthChange(new Date(today.getFullYear(),today.getMonth(),1))} className="hidden shrink-0 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 sm:block">Today</button></div></div>
+  {!bookings.length?<div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">No events in this range. You can still browse dates and add a new inquiry.</div>:null}
+  <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:gap-3 sm:text-xs">{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(day=><div key={day} className="rounded-2xl border border-slate-200 bg-slate-50 px-1.5 py-2 sm:px-3">{day}</div>)}</div>
+  <div className="grid grid-cols-7 gap-1.5 sm:gap-3">{cells.map((day,index)=>{if(!day)return <div key={`empty-${index}`} className="min-h-[112px] sm:min-h-[132px]"/>;const date=key(year,monthIndex,day),rows=grouped.get(date)??[],counts=countDecorationStatuses(rows),highlight=date===todayKey;const statusRows=[{key:'booked',count:(counts.CONFIRMED??0)+(counts.DECORATION_SELECTION_PENDING??0)+(counts.DECORATION_SELECTED??0)+(counts.IN_PROGRESS??0)+(counts.COMPLETED??0),marker:'bg-emerald-400'},{key:'inquiry',count:counts.INQUIRY??0,marker:'bg-amber-300'},{key:'closed',count:counts.CLOSED_INQUIRY??0,marker:'bg-slate-950'},{key:'cancelled',count:counts.CANCELLED??0,marker:'bg-red-300'}];return <button key={date} type="button" onClick={()=>onOpenDay(date)} className={`relative min-h-[112px] overflow-hidden rounded-[26px] border bg-white text-left transition sm:min-h-[132px] ${highlight?'border-amber-300 ring-2 ring-amber-100':'border-slate-200'}`}><div className={`absolute inset-x-0 top-0 flex min-h-[42px] items-center justify-center rounded-t-[25px] border-b px-2 py-2 sm:min-h-[48px] ${highlight?'border-b-amber-200 bg-amber-50':'border-b-slate-200 bg-slate-50'}`}><p className={`text-2xl font-medium leading-none sm:text-3xl ${highlight?'text-amber-700':'text-slate-500'}`}>{day}</p></div><div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-4 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">{statusRows.map((row,rowIndex)=><div key={row.key} className={`flex h-full items-center gap-1.5 ${rowIndex>0&&row.count?'border-t border-slate-200':''}`}>{row.count?<><span className={`h-2.5 w-2.5 rounded-full sm:h-3 sm:w-3 ${row.marker}`}/><span className="text-[11px] font-medium tabular-nums text-slate-800 sm:text-xs">{row.count}</span></>:null}</div>)}</div></button>})}</div>
+ </section>
 }
