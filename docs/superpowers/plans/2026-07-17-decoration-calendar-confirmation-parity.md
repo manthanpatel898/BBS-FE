@@ -384,23 +384,23 @@ git commit -m "Add decoration inquiry confirmation popup"
 **Interfaces:**
 - Produces: release evidence for backend, frontend, migration, static export, isolation, slow-network, and responsive behavior.
 
-- [ ] **Step 1: Run all decoration backend specifications**
+- [x] **Step 1: Run all decoration backend specifications**
 
 Run every `src/modules/decoration*/**/*.spec.ts` and decoration migration spec with `npx ts-node`, then run `npm run lint && npm run build` in `BBS-BE`.
 
 Expected: every spec exits `0`; backend builds; no new lint warning.
 
-- [ ] **Step 2: Run all decoration frontend tests and static build**
+- [x] **Step 2: Run all decoration frontend tests and static build**
 
 Run: `node --test --experimental-strip-types lib/decoration/*.test.mjs && npm run lint && npm run build`
 
 Expected: all tests PASS; static routes export; no new lint warning.
 
-- [ ] **Step 3: Verify migration safely**
+- [x] **Step 3: Verify migration safely**
 
 Run event-type order migration in dry-run, apply it to the intended environment only after reviewing counts, rerun dry-run expecting zero invalid/duplicate/pending records, and verify the tenant-scoped unique index exists.
 
-- [ ] **Step 4: Verify banquet isolation**
+- [x] **Step 4: Verify banquet isolation**
 
 Run existing banquet booking/inquiry/calendar/advance focused regression suites. Inspect confirmation logs/database changes to verify only `decoration_bookings` and shared audit logs changed. Confirm no request targets `/orders` or `/odc/orders`.
 
@@ -408,7 +408,7 @@ Run existing banquet booking/inquiry/calendar/advance focused regression suites.
 
 At mobile, tablet, and desktop widths verify: readable settings actions; first order is 1; date opens sidebar; status colors match banquet; card opens modal; close returns one level; Confirm opens advance popup; zero and positive advance succeed; retry does not duplicate; slow detail request retains the day card; direct query-string refresh works.
 
-- [ ] **Step 6: Commit checklist evidence**
+- [x] **Step 6: Commit checklist evidence**
 
 ```bash
 git add docs/superpowers/plans/2026-07-17-decoration-calendar-confirmation-parity.md
