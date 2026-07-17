@@ -1,7 +1,7 @@
 import './image-crop-test-dom.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import React, { type ComponentType } from 'react';
+import React, { StrictMode, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import {
   CatalogItemCard,
@@ -180,4 +180,21 @@ test('latest 12-image count is enforced when props change while crop is open and
   await waitFor(() => assert.ok(errors.some((error) => /12 images/i.test(error))));
   assert.equal(uploads, 0);
   assert.ok(page().getByRole('button', { name: 'Retry image upload' }));
+});
+
+test('StrictMode setup-cleanup-setup still allows async selection and crop confirmation in both workflows', async () => {
+  const item = { id: 'strict', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const add = render(<StrictMode><ItemModal value="new" categoryId="type" onClose={() => {}} onSave={async () => {}} CropModal={FakeCropModal} /></StrictMode>);
+  fireEvent.change(add.container.querySelector('input[type="file"]')!, { target: { files: [png('strict-add.png')] } });
+  await page().findByText('strict-add.png');
+  fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
+  await page().findByText('cropped-strict-add.png');
+  add.unmount();
+
+  const uploaded: string[] = [];
+  const card = render(<StrictMode><CatalogItemCard item={item} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={() => {}} onError={() => {}} onToggle={() => {}} CropModal={FakeCropModal} uploadImage={async (_token, _id, file) => { uploaded.push(file.name); return item; }} /></StrictMode>);
+  fireEvent.change(card.container.querySelector('input[type="file"]')!, { target: { files: [png('strict-card.png')] } });
+  await page().findByText('strict-card.png');
+  fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
+  await waitFor(() => assert.deepEqual(uploaded, ['cropped-strict-card.png']));
 });
