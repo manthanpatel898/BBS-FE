@@ -280,7 +280,7 @@ git commit -m "Expand decoration workflow contracts"
 - Consumes the enriched `/decoration/operations/dashboard` response.
 - Produces query-string links such as `/decoration/events?status=INQUIRY` and `/decoration/event-detail?id=<encoded-id>&origin=dashboard`.
 
-- [ ] **Step 1: Test dashboard normalization and action links**
+- [x] **Step 1: Test dashboard normalization and action links**
 
 ```js
 test('maps open inquiries to the filtered Events route', () => {
@@ -289,19 +289,19 @@ test('maps open inquiries to the filtered Events route', () => {
 });
 ```
 
-- [ ] **Step 2: Implement dashboard view models and updated API types**
+- [x] **Step 2: Implement dashboard view models and updated API types**
 
 Use typed metrics for today, upcoming, inquiries, follow-ups, received, outstanding, selection pending, conflicts, and maintenance. Currency uses `Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' })`.
 
-- [ ] **Step 3: Build the dashboard to match banquet page structure**
+- [x] **Step 3: Build the dashboard to match banquet page structure**
 
 Use a page header, responsive metric cards, two actionable list panels, and lower summary panels. Provide skeleton, no-data, error, and retry states. Do not embed the Events calendar on Dashboard.
 
-- [ ] **Step 4: Test slow/error/empty states and responsive breakpoints**
+- [x] **Step 4: Test slow/error/empty states and responsive breakpoints**
 
 At 390px cards stack without horizontal overflow; at 768px use two columns; at 1440px use the full metric grid. Existing loaded data remains visible while refreshing.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 cd apps/BBS-FE

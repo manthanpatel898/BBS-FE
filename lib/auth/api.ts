@@ -62,6 +62,7 @@ import {
   DecorationImportPreview,
   DecorationImportConfirmation,
   DecorationImportCancellation,
+  DecorationDashboardData,
 } from './types';
 import { notifySessionExpired } from './session-events';
 
@@ -2052,7 +2053,7 @@ export const setDecorationBookingStatus=(token:string,id:string,status:Decoratio
 export const addDecorationFollowup=(token:string,id:string,payload:{date:string;nextDate?:string;note:string})=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${id}/followups`,token,{method:'POST',body:JSON.stringify(payload)});
 export const addDecorationPayment=(token:string,id:string,payload:{amount:number;mode:string;date:string;remark?:string})=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${id}/payments`,token,{method:'POST',body:JSON.stringify(payload)});
 export const fetchDecorationCalendar=(token:string,year:number,month:number)=>authorizedRequest<{year:number;month:number;bookings:DecorationBooking[]}>(`/decoration/operations/calendar?year=${year}&month=${month}`,token);
-export const fetchDecorationDashboard=(token:string)=>authorizedRequest<{todayEvents:number;upcoming:number;followupsDue:number;byStatus:Record<string,number>;packageValue:number;collected:number;outstanding:number}>('/decoration/operations/dashboard',token);
+export const fetchDecorationDashboard=(token:string)=>authorizedRequest<DecorationDashboardData>('/decoration/operations/dashboard',token);
 export const fetchDecorationBooking=(token:string,id:string)=>authorizedRequest<DecorationBooking>(`/decoration/bookings/${encodeURIComponent(id)}`,token);
 export const saveDecorationSelection=(token:string,bookingId:string,items:Array<{itemId:string;quantity:number;imageId?:string;description?:string}>,customItems:Array<{name:string;quantity:number;description?:string;imageKey:string;imageUrl:string}>=[])=>authorizedRequest<unknown>(`/decoration/reservations/bookings/${encodeURIComponent(bookingId)}`,token,{method:'PUT',body:JSON.stringify({items,customItems})});
 export async function uploadCustomDecorationImage(token:string,bookingId:string,file:File){const body=new FormData();body.append('file',file);const response=await fetch(`${API_URL}/decoration/selection/bookings/${encodeURIComponent(bookingId)}/custom-images`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body});return parseResponse<{key:string;url:string;mimeType:string;sizeBytes:number}>(response,{notifyOnUnauthorized:true});}
