@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { DecorationCustomerDocument } from '@/lib/auth/types';
+import { printableImageAttributes } from '@/lib/decoration/customer-document-image';
 
 type DocumentItem = DecorationCustomerDocument['categories'][number]['items'][number];
 
@@ -34,7 +35,7 @@ function ImageWithFallback({ item }: { item: DocumentItem }) {
           src={source}
           alt={item.itemName}
           className="h-full w-full object-cover"
-          loading="lazy"
+          {...printableImageAttributes}
           onError={() => setFailed(true)}
         />
       ) : (
@@ -94,6 +95,7 @@ export function DecorationCustomerDocumentView({
                   src={document.company.logoUrl}
                   alt={`${document.company.name} logo`}
                   className="max-h-full max-w-full object-contain"
+                  {...printableImageAttributes}
                 />
               </div>
             ) : null}

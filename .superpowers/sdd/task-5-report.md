@@ -10,6 +10,9 @@
 - Preserved the static query-only route, print-after-assets behavior, and booking-specific Back link.
 - Added responsive phone-first layout and A4 portrait print rules with page-break protection and print-safe image colors.
 - Added retry behavior for failed document requests.
+- Made every printable company/snapshot image eager with asynchronous decoding so below-fold assets begin loading before automatic print.
+- Bounded print readiness to 10 seconds, releases image listeners on timeout, and proceeds to print instead of waiting indefinitely.
+- Added a two-animation-frame paint barrier after image settlement or timeout so React image-error fallbacks are committed before printing.
 
 The normalized `DecorationCustomerDocument` interface was already present at the requested base commit, so `lib/auth/types.ts` required no duplicate change. `fetchDecorationCustomerDocument` now returns that interface.
 
@@ -33,11 +36,21 @@ node --test lib/decoration/customer-document-layout.test.mjs \
 tests 10, pass 10, fail 0
 ```
 
+Review-fix RED/GREEN:
+
+```text
+node --test lib/decoration/customer-document-print-readiness.test.mjs
+RED: missing eager-image contract, no paint hook, and no timeout callback
+GREEN: tests 5, pass 5, fail 0
+```
+
+These executable tests cover below-fold eager loading, delayed error-fallback paint commitment, bounded timeout, listener cleanup, and abort behavior.
+
 ## Verification
 
 ```text
 node --test lib/decoration/*.test.mjs
-tests 102, pass 102, fail 0
+tests 105, pass 105, fail 0
 
 npx tsc --noEmit
 exit 0
