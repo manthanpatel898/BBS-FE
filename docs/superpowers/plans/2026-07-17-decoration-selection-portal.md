@@ -1,10 +1,10 @@
-# Decoration Selection Portal Implementation Plan
+# Decoration Event Detail Child Portal Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make Choose Decoration a viewport-owned, mobile-first modal that closes back to Event Detail without overlapping or scrolling with its parent overlay.
+**Goal:** Make every Event Detail child workflow a viewport-owned, mobile-first modal that closes back to Event Detail without overlapping or scrolling with its parent overlay.
 
-**Architecture:** Add a hydration-safe body portal and render the existing selection dialog through it. Keep catalog and selection state unchanged, while the modal shell owns document scroll locking, Escape handling, viewport layout, and its single internal scroll region.
+**Architecture:** Reuse the hydration-safe body portal for every Event Detail child. Extract viewport scroll locking and Escape behavior into one hook, while each child retains its current form state, validation, busy protection, dirty-close confirmation, and API flow.
 
 **Tech Stack:** Next.js 16 static export, React 19, TypeScript, Tailwind CSS, Node test runner.
 
@@ -13,7 +13,7 @@
 - Preserve Event Detail and its booking state underneath the chooser.
 - Closing the chooser returns exactly one level to Event Detail.
 - Use query strings for static-deployment navigation; this change adds no route.
-- Preserve existing APIs, availability validation, selection payloads, and database collections.
+- Preserve existing APIs, form validation, availability validation, payloads, and database collections.
 - Support desktop, tablet, mobile safe areas, and long decoration lists.
 
 ---
@@ -116,3 +116,91 @@ git commit -m "fix(decoration): portal selection modal to viewport"
 - [ ] **Step 7: Manual viewport verification**
 
 Open Event Detail and Choose Decoration at desktop, tablet, and mobile widths. Verify the header and save footer remain visible, only catalog content scrolls, the parent cannot scroll or receive clicks, Escape/backdrop/close return to Event Detail, and saving returns to the updated Event Detail.
+
+---
+
+### Task 2: Portal all remaining Event Detail child workflows
+
+**Files:**
+- Create: `components/ui/use-modal-viewport.ts`
+- Modify: `components/decoration/decoration-selection-modal.tsx`
+- Modify: `components/decoration/decoration-inquiry-form.tsx`
+- Modify: `components/decoration/decoration-confirmation-modal.tsx`
+- Modify: `components/decoration/decoration-payment-modal.tsx`
+- Modify: `components/decoration/decoration-followup-modal.tsx`
+- Create: `lib/decoration/child-modal-portal.test.mjs`
+
+**Interfaces:**
+- Produces: `useModalViewport(onClose: () => void, blocked?: boolean): void`
+- Consumes: `BodyPortal` from Task 1 and each existing child modal's close/busy state.
+
+- [ ] **Step 1: Write the failing child-portal regression test**
+
+Read the five modal source files and assert every one imports and renders `BodyPortal`, calls `useModalViewport`, and has a dialog shell. Assert the shared hook locks/restores `document.body.style.overflow`, uses refs for the latest close/block state, and listens for Escape.
+
+```js
+const names = ['decoration-inquiry-form', 'decoration-confirmation-modal', 'decoration-payment-modal', 'decoration-followup-modal', 'decoration-selection-modal'];
+for (const name of names) {
+  const source = readFileSync(new URL(`../../components/decoration/${name}.tsx`, import.meta.url), 'utf8');
+  assert.match(source, /<BodyPortal>/);
+  assert.match(source, /useModalViewport\(/);
+  assert.match(source, /role="dialog"/);
+}
+```
+
+- [ ] **Step 2: Run the test and confirm RED**
+
+Run: `node --test lib/decoration/child-modal-portal.test.mjs`
+
+Expected: FAIL because the four remaining child modals do not use `BodyPortal` and `use-modal-viewport.ts` does not exist.
+
+- [ ] **Step 3: Implement the shared viewport hook**
+
+```tsx
+'use client';
+
+import { useEffect, useRef } from 'react';
+
+export function useModalViewport(onClose: () => void, blocked = false) {
+  const closeRef = useRef(onClose);
+  const blockedRef = useRef(blocked);
+  useEffect(() => { closeRef.current = onClose; blockedRef.current = blocked; });
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !blockedRef.current) closeRef.current();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previous;
+    };
+  }, []);
+}
+```
+
+- [ ] **Step 4: Refactor and portal each child modal**
+
+Replace the selection modal's local body/Escape effect with `useModalViewport(onClose, saving || uploading)`. Wrap Edit Inquiry with `BodyPortal` and call `useModalViewport(requestClose, busy)` so Escape keeps its dirty-change confirmation. Wrap Confirm Booking, Add Advance, and Add Follow-up with `BodyPortal` and pass their existing busy state. Preserve backdrop conditions, form code, z-index ordering, dialog labels, and save callbacks.
+
+- [ ] **Step 5: Verify all child modal behavior**
+
+Run:
+
+```bash
+node --test lib/decoration/child-modal-portal.test.mjs
+node --test lib/decoration/*.test.mjs
+npx tsc --noEmit
+npm run lint
+npm run build
+```
+
+Expected: all child-portal and decoration tests pass; TypeScript/build exit 0; lint has no new errors.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add components/ui/use-modal-viewport.ts components/decoration/decoration-selection-modal.tsx components/decoration/decoration-inquiry-form.tsx components/decoration/decoration-confirmation-modal.tsx components/decoration/decoration-payment-modal.tsx components/decoration/decoration-followup-modal.tsx lib/decoration/child-modal-portal.test.mjs
+git commit -m "fix(decoration): portal event detail child modals"
+```
