@@ -2,7 +2,7 @@ import './image-crop-test-dom.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import React, { type ComponentType } from 'react';
-import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import {
   CatalogItemCard,
   ItemModal,
@@ -44,6 +44,12 @@ test('Add Item opens crop first, cancel is inert, and save receives only confirm
   fireEvent.change(input, { target: { files: [png('replacement.png')] } });
   fireEvent.click(await page().findByRole('button', { name: 'Confirm crop' }));
   await page().findByAltText('Selected item preview');
+  assert.match(page().getByText('cropped-replacement.png').textContent ?? '', /cropped-replacement/);
+  const replacementInput = document.querySelector<HTMLInputElement>('input[type="file"]');
+  assert.ok(replacementInput);
+  fireEvent.change(replacementInput, { target: { files: [png('cancelled-replacement.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Cancel crop' }));
+  assert.match(page().getByText('cropped-replacement.png').textContent ?? '', /cropped-replacement/);
   fireEvent.change(page().getByLabelText('Item name'), { target: { value: 'Arch' } });
   fireEvent.click(page().getByRole('button', { name: 'Save item' }));
   await waitFor(() => assert.equal(saved.length, 1));
@@ -96,4 +102,82 @@ test('existing item crops before upload, retries retained crop after failure, an
   assert.ok(limitedInput);
   fireEvent.change(limitedInput, { target: { files: [png('thirteenth.png')] } });
   assert.equal(page().queryByRole('dialog', { name: 'Crop test image' }), null);
+});
+
+test('existing failed crop survives replacement cancel and is superseded only by a confirmed replacement', async () => {
+  const uploads: string[] = [];
+  const errors: string[] = [];
+  const item = { id: 'one', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const view = render(<CatalogItemCard item={item} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={() => {}} onToggle={() => {}} onError={(error) => errors.push(error)} CropModal={FakeCropModal} uploadImage={async (_token, _id, file) => { uploads.push(file.name); throw new Error('offline'); }} />);
+  const choose = () => view.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+  fireEvent.change(choose(), { target: { files: [png('first.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Confirm crop' }));
+  await page().findByRole('button', { name: 'Retry image upload' });
+  fireEvent.change(choose(), { target: { files: [png('second.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Cancel crop' }));
+  fireEvent.click(page().getByRole('button', { name: 'Retry image upload' }));
+  await waitFor(() => assert.deepEqual(uploads, ['cropped-first.png', 'cropped-first.png']));
+  fireEvent.change(choose(), { target: { files: [png('second.png')] } });
+  fireEvent.click(await page().findByRole('button', { name: 'Confirm crop' }));
+  await waitFor(() => assert.equal(uploads.at(-1), 'cropped-second.png'));
+  assert.ok(errors.length);
+});
+
+test('selection generations ignore older materialization and cropped validation errors keep prior Add Item image', async () => {
+  const resolutions = new Map<string, (file: File) => void>();
+  const materialize = (file: File) => file.name.startsWith('cropped-') && file.name.includes('bad')
+    ? Promise.reject(new Error('bad cropped bytes'))
+    : new Promise<File>((resolve) => resolutions.set(file.name, resolve));
+  const view = render(<ItemModal value="new" categoryId="type" onClose={() => {}} onSave={async () => {}} CropModal={FakeCropModal} materializeImage={materialize} />);
+  const input = () => view.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+  fireEvent.change(input(), { target: { files: [png('old.png')] } });
+  fireEvent.change(input(), { target: { files: [png('new.png')] } });
+  await act(async () => resolutions.get('new.png')!(png('new.png')));
+  await page().findByText('new.png');
+  await act(async () => resolutions.get('old.png')!(png('old.png')));
+  await waitFor(() => assert.equal(page().queryByText('old.png'), null));
+  fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
+  await act(async () => resolutions.get('cropped-new.png')!(png('cropped-new.png')));
+  await page().findByText('cropped-new.png');
+  fireEvent.change(input(), { target: { files: [png('bad.png')] } });
+  await act(async () => resolutions.get('bad.png')!(png('bad.png')));
+  await page().findByText('bad.png');
+  fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
+  assert.match((await page().findByText('bad cropped bytes')).textContent ?? '', /bad cropped/);
+  assert.ok(page().getByText('cropped-new.png'));
+});
+
+test('synchronous upload lock blocks duplicate confirm/retry, latest count wins, and stale completion is isolated', async () => {
+  let resolveUpload!: (item: any) => void;
+  const uploads: string[] = [];
+  const changed: string[] = [];
+  const errors: string[] = [];
+  const base = { id: 'one', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const uploadImage = async (_token: string, _id: string, file: File) => { uploads.push(file.name); return new Promise<any>((resolve) => { resolveUpload = resolve; }); };
+  const view = render(<CatalogItemCard item={base} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={(item) => changed.push(item.id)} onToggle={() => {}} onError={(error) => errors.push(error)} CropModal={FakeCropModal} uploadImage={uploadImage} />);
+  const input = () => view.container.querySelector<HTMLInputElement>('input[type="file"]')!;
+  fireEvent.change(input(), { target: { files: [png('one.png')] } });
+  const confirm = await page().findByRole('button', { name: 'Confirm crop' });
+  fireEvent.click(confirm); fireEvent.click(confirm);
+  await waitFor(() => assert.equal(uploads.length, 1));
+  view.rerender(<CatalogItemCard item={{ ...base, id: 'two' }} categoryName="Stage" manage token="token" onEdit={() => {}} onChanged={(item) => changed.push(item.id)} onToggle={() => {}} onError={(error) => errors.push(error)} CropModal={FakeCropModal} uploadImage={uploadImage} />);
+  resolveUpload({ ...base, id: 'stale' });
+  await waitFor(() => assert.deepEqual(changed, []));
+  view.unmount();
+});
+
+test('latest 12-image count is enforced when props change while crop is open and retains crop without uploading', async () => {
+  const errors: string[] = [];
+  let uploads = 0;
+  const base = { id: 'one', categoryId: 'type', name: 'Arch', totalQuantity: 1, availableQuantity: 1, isActive: true, images: [] } as any;
+  const common = { categoryName: 'Stage', manage: true, token: 'token', onEdit() {}, onChanged() {}, onToggle() {}, onError(error: string) { errors.push(error); }, CropModal: FakeCropModal, uploadImage: async () => { uploads += 1; return base; } };
+  const view = render(<CatalogItemCard item={base} {...common} />);
+  fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [png('open.png')] } });
+  await page().findByRole('dialog', { name: 'Crop test image' });
+  const full = { ...base, images: Array.from({ length: 12 }, (_, i) => ({ id: String(i), url: 'x', isCover: !i })) };
+  view.rerender(<CatalogItemCard item={full} {...common} />);
+  fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
+  await waitFor(() => assert.ok(errors.some((error) => /12 images/i.test(error))));
+  assert.equal(uploads, 0);
+  assert.ok(page().getByRole('button', { name: 'Retry image upload' }));
 });
