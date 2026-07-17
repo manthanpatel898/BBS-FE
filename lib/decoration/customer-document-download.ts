@@ -66,14 +66,13 @@ export function createPdfDownloadController(options: {
   onError: (message: string) => void;
 }) {
   let current: { id: symbol; controller: AbortController } | null = null;
-  options.onBusy(false);
-  options.onError('');
   return {
     start(): Promise<void> | false {
       if (current) return false;
       const request = { id: Symbol('download'), controller: new AbortController() };
       current = request;
       options.onBusy(true);
+      options.onError('');
       return options.download(request.controller.signal).then((result) => {
         if (current?.id === request.id && !request.controller.signal.aborted) options.save(result);
       }).catch((reason: unknown) => {
