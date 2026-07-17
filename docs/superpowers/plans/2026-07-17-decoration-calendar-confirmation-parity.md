@@ -281,7 +281,7 @@ git commit -m "Open decoration details over day sidebar"
 - Returns: the updated `DecorationBooking` and `reused: boolean`.
 - Persists: `confirmationRequestId` on the decoration booking with a tenant-scoped unique partial index.
 
-- [ ] **Step 1: Write failing domain and service tests**
+- [x] **Step 1: Write failing domain and service tests**
 
 Cover: inquiry + zero advance confirms; positive advance appends one decoration payment; negative/malformed/over-package values fail; non-inquiry transition fails; same request ID returns the existing result; a different request ID cannot confirm the already-confirmed inquiry; restaurant A cannot confirm restaurant B; no banquet collection is accessed.
 
@@ -290,21 +290,21 @@ assert.deepEqual(validateDecorationConfirmation({ packageRate: 6000, collected: 
 assert.throws(() => validateDecorationConfirmation({ packageRate: 6000, collected: 0, advanceAmount: -1 }));
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `npx ts-node src/modules/decoration-bookings/decoration-booking-domain.spec.ts && npx ts-node src/modules/decoration-bookings/decoration-confirmation.spec.ts`
 
 Expected: FAIL because the atomic confirmation contract does not exist.
 
-- [ ] **Step 3: Implement DTO, validation, persistence, and endpoint**
+- [x] **Step 3: Implement DTO, validation, persistence, and endpoint**
 
 Accept zero advance. Require payment date/mode only when amount is greater than zero. Use one conditional `findOneAndUpdate` scoped by `_id`, `restaurantId`, and `status: INQUIRY`, setting confirmed fields and pushing a payment only for a positive amount. On no match, read by tenant: return `reused: true` only when `confirmationRequestId` matches; otherwise return conflict/not found appropriately.
 
-- [ ] **Step 4: Add audit and index migration**
+- [x] **Step 4: Add audit and index migration**
 
 Write one confirmation audit record containing before/after decoration snapshots and request ID metadata. Add a unique partial index on `{ restaurantId: 1, confirmationRequestId: 1 }` where the ID exists. Do not add or modify indexes in banquet collections.
 
-- [ ] **Step 5: Add typed frontend API**
+- [x] **Step 5: Add typed frontend API**
 
 ```ts
 confirmDecorationBooking(token, bookingId, payload: DecorationConfirmationPayload): Promise<DecorationConfirmationResult>
@@ -312,7 +312,7 @@ confirmDecorationBooking(token, bookingId, payload: DecorationConfirmationPayloa
 
 Only call `/decoration/bookings/${encodeURIComponent(bookingId)}/confirm`.
 
-- [ ] **Step 6: Verify backend and commit**
+- [x] **Step 6: Verify backend and commit**
 
 Run: `npx ts-node src/modules/decoration-bookings/decoration-booking-domain.spec.ts && npx ts-node src/modules/decoration-bookings/decoration-confirmation.spec.ts && npm run lint && npm run build`
 
