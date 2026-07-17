@@ -1,7 +1,7 @@
 import type { DecorationItem } from '@/lib/auth/types';
 import type { DecorationChoice } from '@/lib/decoration/selection-state';
 
-const controlClassName = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-950 placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500';
+const controlClassName = 'decoration-light-field mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-950 placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500';
 
 export function DecorationSelectionItemCard({ item, choice, error, disabled, onToggle, onChange }: { item: DecorationItem; choice?: DecorationChoice; error?: string; disabled: boolean; onToggle: () => void; onChange: (patch: Partial<DecorationChoice>) => void }) {
   const image = item.images.find((entry) => entry.id === choice?.imageId) ?? item.images.find((entry) => entry.isCover) ?? item.images[0];
