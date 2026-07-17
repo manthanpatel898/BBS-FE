@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { DecorationCalendar } from '@/components/decoration/decoration-calendar';
 import { DecorationDaySidebar } from '@/components/decoration/decoration-day-sidebar';
+import { DecorationEventDetailModal } from '@/components/decoration/decoration-event-detail-modal';
 import { DecorationInquiryForm } from '@/components/decoration/decoration-inquiry-form';
 import { DecorationPageError, DecorationPageLoading } from '@/components/decoration/decoration-page-state';
 import { fetchDecorationCalendar } from '@/lib/auth/api';
@@ -61,9 +62,10 @@ export function DecorationWorkspace() {
           bookings={selectedBookings}
           onClose={() => dispatch({ type: 'CLOSE_TOP' })}
           onAdd={() => openAdd(overlay.date ?? undefined)}
-          onOpenBooking={(id) => { window.location.href = `/decoration/event-detail?id=${encodeURIComponent(id)}&origin=events&date=${encodeURIComponent(overlay.date!)}`; }}
+          onOpenBooking={(id) => dispatch({ type: 'OPEN_DETAIL', bookingId: id })}
         />
       ) : null}
+      {overlay.bookingId ? <DecorationEventDetailModal bookingId={overlay.bookingId} initialBooking={bookings.find((booking) => booking.id === overlay.bookingId)} onClose={() => dispatch({ type: 'CLOSE_TOP' })} onUpdated={(updated) => setBookings((current) => replaceDecorationBooking(current, updated))} /> : null}
       {isInquiryOpen ? <DecorationInquiryForm date={overlay.date ?? undefined} onClose={() => setIsInquiryOpen(false)} onSaved={(booking) => { setBookings(current => replaceDecorationBooking(current, booking)); setIsInquiryOpen(false); void loadMonth(true); }} /> : null}
     </div>
   );

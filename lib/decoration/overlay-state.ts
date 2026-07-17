@@ -28,6 +28,12 @@ export const initialDecorationOverlayState: DecorationOverlayState = {
   origin: 'EVENTS',
 };
 
+export function getDecorationOverlayLayer(state: DecorationOverlayState): 'CALENDAR' | 'DAY' | 'DETAIL' | 'DETAIL_CHILD' {
+  if (state.child) return state.bookingId ? 'DETAIL_CHILD' : 'DAY';
+  if (state.bookingId) return 'DETAIL';
+  return state.date ? 'DAY' : 'CALENDAR';
+}
+
 export function decorationOverlayReducer(
   state: DecorationOverlayState,
   action: DecorationOverlayAction,

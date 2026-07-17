@@ -221,7 +221,7 @@ git commit -m "Match decoration calendar to banquet flow"
 - Produces: overlay states `CALENDAR`, `DAY`, `DETAIL`, and later `DETAIL_CHILD`; closing pops one state.
 - Consumes: static-compatible `?date=YYYY-MM-DD&bookingId=<id>` only when URL hydration is required.
 
-- [ ] **Step 1: Write failing overlay transition tests**
+- [x] **Step 1: Write failing overlay transition tests**
 
 ```js
 assert.deepEqual(openDetail(dayState, 'booking-1'), { ...dayState, layer: 'DETAIL', bookingId: 'booking-1' });
@@ -231,25 +231,25 @@ assert.deepEqual(closeTopLayer(dayState), calendarState);
 
 Also assert an already-loaded day booking remains present while detail fetch is pending or fails.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `node --test --experimental-strip-types lib/decoration/overlay-state.test.mjs lib/decoration/booking-view.test.mjs`
 
 Expected: FAIL because cards currently navigate to the standalone page.
 
-- [ ] **Step 3: Extract Event Detail content into a reusable modal**
+- [x] **Step 3: Extract Event Detail content into a reusable modal**
 
 Keep the static page as a thin query-parameter host for direct links/refreshes. The workspace opens the same detail component locally. The modal shows decoration fields, finance, follow-ups, snapshot, and valid actions; no Hall Slot Status or menu snapshot.
 
-- [ ] **Step 4: Replace card navigation with overlay opening**
+- [x] **Step 4: Replace card navigation with overlay opening**
 
 Click and Enter/Space open detail. Closing restores focus to the originating card, preserves selected date and scroll, and does not refetch/clear the day list. Escape closes only the top layer; background scroll is locked.
 
-- [ ] **Step 5: Match banquet sidebar dimensions and responsive behavior**
+- [x] **Step 5: Match banquet sidebar dimensions and responsive behavior**
 
 Desktop/tablet use the banquet-equivalent left drawer. Mobile uses a full-width panel. Add Inquiry inherits the selected date. Include loading skeleton, empty state, error message, and Retry without discarding cached records.
 
-- [ ] **Step 6: Verify static navigation, focused tests, build, and commit**
+- [x] **Step 6: Verify static navigation, focused tests, build, and commit**
 
 Run: `node --test --experimental-strip-types lib/decoration/overlay-state.test.mjs lib/decoration/booking-view.test.mjs && npm run lint && npm run build`
 
