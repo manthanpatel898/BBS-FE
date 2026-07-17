@@ -123,6 +123,8 @@ For the current release, all authenticated users belonging to an `EVENT_DECORATI
 - Create Event Types, Hotels, Venues, and Halls from Settings or Inquiry.
 - Edit and activate/deactivate configuration records.
 
+Company Profile mutation retains the existing company-admin restriction because it changes tenant-wide identity and public branding. Employees may view the saved profile but cannot change it.
+
 Business-type guards and tenant scoping remain mandatory. Every query and mutation is restricted to the authenticated company. The existing RBAC permission constants remain available for a future release but do not block these decoration configuration actions now.
 
 ## Data and Migration
