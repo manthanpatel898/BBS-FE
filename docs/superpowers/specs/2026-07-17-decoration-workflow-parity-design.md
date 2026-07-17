@@ -123,6 +123,17 @@ There is no menu snapshot or banquet Hall Slot Status content in Event Detail.
 
 For an inquiry, Event Detail exposes Confirm Booking. Confirmation opens an advance popup above Event Detail and retains the complete calendar and selected-date hierarchy underneath. Closing the advance popup returns to Event Detail. Successful confirmation keeps Event Detail open, changes the status to Confirmed, refreshes the selected-date card, and enables decoration selection.
 
+Event Detail uses the banquet popup information hierarchy and a sticky bottom action bar at every supported viewport. Content scrolls independently above the bar. On mobile, Event Detail is full-screen, single-column, and padded so the fixed actions never cover content. On tablet and desktop it uses the banquet-equivalent modal width.
+
+Action visibility is status- and permission-aware:
+
+- Inquiry: Edit Inquiry, Add Follow-up, and Confirm Booking
+- Confirmed without a decoration snapshot: Edit Inquiry, Add Advance, Add Follow-up, and Choose Decoration
+- Confirmed or later with a decoration snapshot: Edit Inquiry, Add Advance, Add Follow-up, Edit Decoration, View, Download, and Print
+- Cancelled or closed: permitted read-only actions only
+
+Customer-facing View, Download, and Print actions are unavailable until the booking is confirmed (or later) and contains at least one configured or custom decoration snapshot line.
+
 ## Advance Management
 
 Advance management follows the banquet interaction pattern while writing only decoration payment records.
@@ -133,6 +144,8 @@ Advance management follows the banquet interaction pattern while writing only de
 - Display immutable payment history, total package amount, total received, and outstanding amount
 - Refresh Event Detail, selected-date record, dashboard totals, and reports after a successful payment
 - Retain Event Detail if submission fails and show an actionable error
+
+Event Detail includes an advance summary and ledger matching banquet. Each entry shows date, amount, payment mode, remark, and recorded-by. Desktop and tablet use a table; mobile uses readable stacked payment cards. The empty state is explicit. Add Advance opens above Event Detail and returns there after close or save.
 
 ## Follow-ups
 
@@ -155,6 +168,46 @@ Choose/Edit Decoration becomes available only for statuses permitted by backend 
 
 The selection workflow retains existing availability, setup/removal time, multi-day reservation, quantity, maintenance, conflict, custom-item, upload, and concurrency protections. After saving, Event Detail immediately displays the updated category-grouped snapshot.
 
+Selection is a popup above Event Detail, not a separate navigation page. A static query-string host may remain for direct links and refresh recovery, but ordinary workflow navigation preserves Calendar → Date Sidebar → Event Detail → Decoration Selection.
+
+The popup presents decoration types first. Selecting a type displays only its active items. Users may select multiple different items from the same type, and each selected item has its own quantity, optional description, and image choice when the catalog item has multiple images. Switching types preserves all selections and a visible selected-items summary. Save revalidates availability on the server; conflicts preserve the form.
+
+Custom Decoration accepts name, quantity, optional description, and one camera/gallery image. It is event-specific, does not consume catalog inventory, appears in the immutable snapshot, and is labelled Custom in Event Detail and customer documents.
+
+## Decoration Configuration
+
+Decoration configuration is managed from a Decoration tab in Settings rather than requiring users to leave the Settings workflow. The configuration is hierarchical:
+
+```text
+Decoration Type (for example Sofa)
+  -> Multiple Decoration Items (for example Royal Red Sofa, White Maharaja Sofa)
+```
+
+Types support name, optional description, display order, active state, normalized tenant-scoped duplicate protection, and add/edit/activate/deactivate actions.
+
+Items support name, optional description, multiple images, cover image, total quantity, maintenance quantity, calculated available quantity, bulk or tagged tracking, setup/removal or mobile-turnaround logistics, timing buffers, storage note, active state, and add/edit/activate/deactivate actions. The default mobile form shows common fields first; inventory and logistics controls are grouped as advanced settings.
+
+Catalog images can be uploaded from camera or gallery, have bounded MIME type/size/count validation, generated storage keys, progress/failure feedback, cover selection, removal, and robust display fallbacks.
+
+## Decoration Image Storage
+
+Logical S3 ownership is isolated as follows:
+
+```text
+event-photos/{companyId}/catalog/{decorationItemId}/{uniqueImageId}
+event-photos/{companyId}/events/{bookingId}/custom/{uniqueImageId}
+```
+
+The physical prefix may remain `decoration/`, but company, item, booking, and purpose boundaries are mandatory. User filenames are never trusted as keys. Company A cannot access Company B objects. Custom uploads must belong to the selected company and booking. Failed database/audit operations clean up newly uploaded objects.
+
+## Reservation Rules
+
+Each configured selected item creates an independent reservation, including multiple items from the same type. Bulk items reserve quantity; tagged items reserve exact unit IDs. Setup/removal items include their configured pre/post-event buffers, mobile items include turnaround time, and multi-day bookings reserve the entire effective range.
+
+Replacing a selection releases old active reservations and creates the replacement atomically. Cancellation releases active reservations. Maintenance quantities/units are unavailable. A final transactional availability check protects concurrent users; the loser receives an item-specific available-quantity message without losing their form state.
+
+The booking stores an immutable snapshot containing type/category, item name, selected image, quantity, optional description, logistics metadata, effective reservation range, reserved unit IDs, and custom status. Later catalog changes never rewrite historical event snapshots.
+
 ## Responsive and Accessible Behavior
 
 - Mobile: full-width panels, touch-sized actions, stacked information, and no horizontal page overflow
@@ -164,6 +217,9 @@ The selection workflow retains existing availability, setup/removal time, multi-
 - Escape closes only the topmost dismissible layer
 - Controls have visible focus, labels, readable contrast, and screen-reader dialog titles
 - Background scrolling is locked while an overlay is open
+- Mobile is the primary target: one-column item cards, horizontally scrollable type tabs, large quantity controls, prominent camera/gallery action, visible selected-item count, and a sticky save bar
+- Advance entries use stacked cards on narrow screens and a table where space permits
+- Failed uploads, saves, and conflicts retain all user-entered selection state
 
 ## Loading, Errors, and Slow Networks
 
@@ -221,6 +277,12 @@ Each delivery is independently testable and committed before work begins on the 
 - A new company's first event type receives order 1 automatically, later orders increment safely, and Add Event Type does not expose ordering
 - Configuration actions are readable and operable on mobile, tablet, and desktop
 - Confirm Booking accepts an optional zero advance, is retry-safe, updates the open detail/card, and writes only decoration-domain records
+- Event Detail actions remain at the bottom and Customer View/Download/Print appear only after confirmation and decoration selection
+- Event Detail displays a complete advance summary and payment ledger on mobile, tablet, and desktop
+- Settings supports decoration types with multiple quantity/image-managed items inside each type
+- Selection opens above Event Detail, filters items by type, and supports multiple items from the same type with independent quantities and descriptions
+- Custom decoration supports name, quantity, optional description, and a tenant/booking-owned camera or gallery image
+- Selection save creates conflict-safe independent reservations and immediately refreshes the immutable Event Detail snapshot
 - Follow-ups support the full calendar, sidebar, detail, and management flow
 - Decoration snapshots support images, fallbacks, quantities, descriptions, and custom items
 - Multi-day events appear on every intersecting date
