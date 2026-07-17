@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { BodyPortal } from '@/components/ui/body-portal';
+import { useModalViewport } from '@/components/ui/use-modal-viewport';
 import { DecorationCustomItemEditor } from './decoration-custom-item-editor';
 import { DecorationSelectionItemCard } from './decoration-selection-item-card';
 import { fetchDecorationCategories, fetchDecorationItems, saveDecorationSelection, uploadCustomDecorationImage } from '@/lib/auth/api';
@@ -13,18 +14,7 @@ export function DecorationSelectionModal({ booking, onClose, onSaved }: { bookin
   const { accessToken } = useAuth(); const triggerRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<DecorationCategory[]>([]), [items, setItems] = useState<DecorationItem[]>([]), [categoryId, setCategoryId] = useState(''), [state, setState] = useState<DecorationSelectionState>({ choices: {}, customItems: [] });
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState(''), [errors, setErrors] = useState<ReturnType<typeof validateDecorationSelection>>({ choices: {}, custom: {} });
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving && !uploading) onClose();
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      window.removeEventListener('keydown', closeOnEscape);
-      document.body.style.overflow = previous;
-    };
-  }, [onClose, saving, uploading]);
+  useModalViewport(onClose, saving || uploading);
   useEffect(() => { if (!accessToken) return; let active = true; setLoading(true); Promise.all([fetchDecorationCategories(accessToken), fetchDecorationItems(accessToken)]).then(([nextCategories, nextItems]) => { if (!active) return; setCategories(nextCategories); setItems(nextItems); setCategoryId(nextCategories[0]?.id ?? ''); setState(hydrateDecorationSelection(booking.decorationSnapshot ?? [], nextItems)); }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load decorations.'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [accessToken, booking.id]);
   const shown = useMemo(() => items.filter((item) => item.categoryId === categoryId && item.isActive), [items, categoryId]), summary = selectionSummary(state);
   async function addCustom(file: File) { if (!accessToken || uploading) return; setUploading(true); setError(''); try { const image = await uploadCustomDecorationImage(accessToken, booking.id, file); setState((current) => ({ ...current, customItems: [...current.customItems, { clientId: crypto.randomUUID(), name: '', quantity: 1, description: '', imageKey: image.key, imageUrl: image.url }] })); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to upload custom image.'); } finally { setUploading(false); } }
