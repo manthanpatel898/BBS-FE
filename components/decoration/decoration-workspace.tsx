@@ -12,7 +12,7 @@ import { fetchDecorationCalendar } from '@/lib/auth/api';
 import type { DecorationBooking } from '@/lib/auth/types';
 import { getDecorationDayBookings, isLatestDecorationCalendarRequest, replaceDecorationBooking } from '@/lib/decoration/calendar';
 import { decorationOverlayReducer, initialDecorationOverlayState } from '@/lib/decoration/overlay-state';
-import { canonicalDecorationOverlayUrl, decorationEventsUrl, readDecorationOverlayQuery } from '@/lib/decoration/overlay-query';
+import { canonicalDecorationOverlayUrl, decorationEventsUrl, isDecorationOverlayUrlCurrent, readDecorationOverlayQuery } from '@/lib/decoration/overlay-query';
 
 function monthForDate(date: string | null): Date {
   const value = date ? new Date(`${date}T00:00:00`) : new Date();
@@ -43,8 +43,7 @@ export function DecorationWorkspace() {
   useEffect(() => {
     const restored = readDecorationOverlayQuery(searchParams);
     const canonicalUrl = canonicalDecorationOverlayUrl(searchParams);
-    const currentUrl = `${pathname}${queryString ? `?${queryString}` : ''}`;
-    if (currentUrl !== canonicalUrl) router.replace(canonicalUrl, { scroll: false });
+    if (!isDecorationOverlayUrlCurrent(pathname, searchParams, canonicalUrl)) router.replace(canonicalUrl, { scroll: false });
     dispatch({ type: 'RESTORE_QUERY', ...restored });
     if (restored.date) {
       const restoredMonth = monthForDate(restored.date);
@@ -56,9 +55,7 @@ export function DecorationWorkspace() {
     const next = decorationOverlayReducer(overlay, action);
     dispatch(action);
     const nextUrl = decorationEventsUrl(next);
-    const currentQuery = searchParams.toString();
-    const currentUrl = `${pathname}${currentQuery ? `?${currentQuery}` : ''}`;
-    if (currentUrl !== nextUrl) router.replace(nextUrl, { scroll: false });
+    if (!isDecorationOverlayUrlCurrent(pathname, searchParams, nextUrl)) router.replace(nextUrl, { scroll: false });
   }, [overlay, pathname, router, searchParams]);
 
   const loadMonth = useCallback(async (background = false) => {

@@ -24,15 +24,26 @@ export function readDecorationOverlayQuery(
 
 export function decorationEventsUrl(state: DecorationOverlayQuery): string {
   const date = canonicalDate(state.date);
-  if (!date) return '/decoration/events';
+  if (!date) return '/decoration/events/';
   const query = new URLSearchParams({ date });
   const bookingId = state.bookingId?.trim();
   if (bookingId) query.set('bookingId', bookingId);
-  return `/decoration/events?${query.toString()}`;
+  return `/decoration/events/?${query.toString()}`;
 }
 
 export function canonicalDecorationOverlayUrl(
   searchParams: Pick<URLSearchParams, 'get'>,
 ): string {
   return decorationEventsUrl(readDecorationOverlayQuery(searchParams));
+}
+
+export function isDecorationOverlayUrlCurrent(
+  pathname: string,
+  searchParams: Pick<URLSearchParams, 'toString'>,
+  expectedUrl: string,
+): boolean {
+  const [expectedPath, expectedQuery = ''] = expectedUrl.split('?', 2);
+  const normalizePath = (value: string) => value.replace(/\/+$/, '') || '/';
+  return normalizePath(pathname) === normalizePath(expectedPath)
+    && searchParams.toString() === expectedQuery;
 }
