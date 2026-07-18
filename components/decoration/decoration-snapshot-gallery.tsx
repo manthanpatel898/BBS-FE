@@ -16,7 +16,7 @@ export function DecorationSnapshotGallery({ lines, printable = false, internal =
   const [selected, setSelected] = useState<DecorationSnapshotLine | null>(null);
   const groups = [...groupSnapshotByCategory(lines).entries()];
   if (!lines.length) return <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500">Decoration has not been selected for this event.</div>;
-  return <div className="space-y-7">
+  return <div className="space-y-7 text-slate-900">
     {groups.map(([category, items]) => <section key={category} className="decoration-print-group break-inside-avoid">
       <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-lg font-bold text-slate-900">{category}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{items.length} {items.length === 1 ? 'item' : 'items'}</span></div>
       <div className={`grid gap-4 ${printable ? 'grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
@@ -26,6 +26,6 @@ export function DecorationSnapshotGallery({ lines, printable = false, internal =
         </article>)}
       </div>
     </section>)}
-    {selected && <div className="fixed inset-0 z-50 grid bg-slate-950/90 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label={`${selected.itemName} preview`} onClick={() => setSelected(null)}><div className="m-auto flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-4 border-b p-4"><div><p className="font-bold">{selected.itemName}</p><p className="text-sm text-slate-500">Quantity: {selected.quantity}</p></div><button type="button" onClick={() => setSelected(null)} className="rounded-full border px-3 py-2 text-sm font-bold" aria-label="Close image preview">Close</button></div><div className="min-h-0 flex-1 overflow-auto bg-slate-100"><ImageFallback line={selected} large /></div>{selected.description && <p className="border-t p-4 text-sm text-slate-600">{selected.description}</p>}</div></div>}
+    {selected && <div className="fixed inset-0 z-50 grid bg-slate-950/90 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label={`${selected.itemName} preview`} onClick={() => setSelected(null)}><div className="m-auto flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white text-slate-900" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-4 border-b border-slate-200 p-4"><div><p className="font-bold text-slate-900">{selected.itemName}</p><p className="text-sm text-slate-500">Quantity: {selected.quantity}</p></div><button type="button" onClick={() => setSelected(null)} className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700" aria-label="Close image preview">Close</button></div><div className="min-h-0 flex-1 overflow-auto bg-slate-100"><ImageFallback line={selected} large /></div>{selected.description && <p className="border-t border-slate-200 bg-white p-4 text-sm text-slate-600">{selected.description}</p>}</div></div>}
   </div>;
 }

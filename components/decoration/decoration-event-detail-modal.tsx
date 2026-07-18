@@ -79,25 +79,32 @@ function BottomActions({ booking, onAction }: { booking: DecorationBooking; onAc
 function BookingDownloadActions({ booking, accessToken, actions, onAction }: { booking: DecorationBooking; accessToken: string; actions: ReturnType<typeof getDecorationDetailActions>; onAction: (action: DecorationDetailActionId) => void }) {
   const router = useRouter();
   const [activeDocumentAction, setActiveDocumentAction] = useState<'view' | 'download' | 'print' | null>(null);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   return <BookingDownloadLifecycle controllerFactory={({ onBusy, onError }) => createPdfDownloadController({
     download: (signal) => downloadDecorationCustomerPdf(accessToken, booking.id, signal),
     save: saveDownloadedPdf,
     onBusy,
     onError,
-  })} onBusyChange={(busy) => { if (!busy) setActiveDocumentAction((current) => current === 'download' ? null : current); }}>{({ error: downloadError, start }) => (
-  <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 p-3 shadow-[0_-12px_30px_rgba(15,23,42,0.12)] backdrop-blur sm:absolute sm:rounded-b-3xl sm:px-6 sm:py-4">{downloadError ? <p role="alert" className="mx-auto mb-2 max-w-6xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{downloadError}</p> : null}<div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:justify-end sm:overflow-visible">{actions.map((action) => {
-    const className = `shrink-0 rounded-xl px-4 py-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50'}`;
-    const disabled = activeDocumentAction !== null;
-    if (action.id === 'view' || action.id === 'print') return <button key={action.id} type="button" disabled={disabled} onClick={() => {
-      if (activeDocumentAction) return;
-      setActiveDocumentAction(action.id === 'view' ? 'view' : 'print');
-      const destination = `/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=${action.id}&returnDate=${encodeURIComponent(booking.startDate.slice(0, 10))}`;
-      router.push(destination);
-    }} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action={action.id} active={activeDocumentAction} fallback={action.label} /></button>;
-    if (action.id === 'download') return <button key={action.id} type="button" onClick={() => { if (!activeDocumentAction) { setActiveDocumentAction('download'); start(); } }} disabled={disabled} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action="download" active={activeDocumentAction} fallback={action.label} /></button>;
-    return <button key={action.id} type="button" disabled={disabled} onClick={() => onAction(action.id)} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{action.label}</button>;
-  })}</div></div>
-  )}</BookingDownloadLifecycle>;
+  })} onBusyChange={(busy) => { if (!busy) setActiveDocumentAction((current) => current === 'download' ? null : current); }}>{({ error: downloadError, start }) => {
+    const renderActions = () => actions.map((action) => {
+      const className = `inline-flex min-h-11 min-w-0 items-center justify-center rounded-xl px-3 py-2.5 text-sm font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`;
+      const disabled = activeDocumentAction !== null;
+      if (action.id === 'view' || action.id === 'print') return <button key={action.id} type="button" disabled={disabled} onClick={() => {
+        if (activeDocumentAction) return;
+        setActiveDocumentAction(action.id === 'view' ? 'view' : 'print');
+        const destination = `/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=${action.id}&returnDate=${encodeURIComponent(booking.startDate.slice(0, 10))}`;
+        router.push(destination);
+      }} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action={action.id} active={activeDocumentAction} fallback={action.label} /></button>;
+      if (action.id === 'download') return <button key={action.id} type="button" onClick={() => { if (!activeDocumentAction) { setActiveDocumentAction('download'); start(); } }} disabled={disabled} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action="download" active={activeDocumentAction} fallback={action.label} /></button>;
+      return <button key={action.id} type="button" disabled={disabled} onClick={() => { setMobileActionsOpen(false); onAction(action.id); }} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{action.label}</button>;
+    });
+    return <div className="sticky bottom-0 z-[60] -mx-4 mt-5 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.1)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3 lg:-mx-8 lg:px-8">
+      {downloadError ? <p role="alert" className="mx-auto mb-2 max-w-6xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{downloadError}</p> : null}
+      <div className={`grid grid-cols-2 gap-2 overflow-hidden transition-[max-height,opacity,margin] duration-200 sm:hidden ${mobileActionsOpen ? 'mb-2 max-h-[520px] opacity-100' : 'max-h-0 opacity-0'}`}>{mobileActionsOpen ? renderActions() : null}</div>
+      <button type="button" aria-label={mobileActionsOpen ? 'Hide event actions' : 'Show event actions'} aria-expanded={mobileActionsOpen} onClick={() => setMobileActionsOpen((current) => !current)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:hidden">Actions <span aria-hidden="true" className={`transition-transform ${mobileActionsOpen ? 'rotate-180' : ''}`}>⌃</span></button>
+      <div className="hidden grid-cols-2 gap-2 sm:grid min-[720px]:grid-cols-3 lg:grid-cols-4">{renderActions()}</div>
+    </div>;
+  }}</BookingDownloadLifecycle>;
 }
 
 function DocumentActionLabel({ action, active, fallback }: { action: 'view' | 'download' | 'print'; active: 'view' | 'download' | 'print' | null; fallback: string }) {
