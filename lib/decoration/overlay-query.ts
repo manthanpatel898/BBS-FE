@@ -30,3 +30,9 @@ export function decorationEventsUrl(state: DecorationOverlayQuery): string {
   if (bookingId) query.set('bookingId', bookingId);
   return `/decoration/events?${query.toString()}`;
 }
+
+export function canonicalDecorationOverlayUrl(
+  searchParams: Pick<URLSearchParams, 'get'>,
+): string {
+  return decorationEventsUrl(readDecorationOverlayQuery(searchParams));
+}

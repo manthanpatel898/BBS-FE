@@ -12,7 +12,7 @@ import { fetchDecorationCalendar } from '@/lib/auth/api';
 import type { DecorationBooking } from '@/lib/auth/types';
 import { getDecorationDayBookings, isLatestDecorationCalendarRequest, replaceDecorationBooking } from '@/lib/decoration/calendar';
 import { decorationOverlayReducer, initialDecorationOverlayState } from '@/lib/decoration/overlay-state';
-import { decorationEventsUrl, readDecorationOverlayQuery } from '@/lib/decoration/overlay-query';
+import { canonicalDecorationOverlayUrl, decorationEventsUrl, readDecorationOverlayQuery } from '@/lib/decoration/overlay-query';
 
 function monthForDate(date: string | null): Date {
   const value = date ? new Date(`${date}T00:00:00`) : new Date();
@@ -39,14 +39,18 @@ export function DecorationWorkspace() {
 
   const queryDate = searchParams.get('date');
   const queryBookingId = searchParams.get('bookingId');
+  const queryString = searchParams.toString();
   useEffect(() => {
     const restored = readDecorationOverlayQuery(searchParams);
+    const canonicalUrl = canonicalDecorationOverlayUrl(searchParams);
+    const currentUrl = `${pathname}${queryString ? `?${queryString}` : ''}`;
+    if (currentUrl !== canonicalUrl) router.replace(canonicalUrl, { scroll: false });
     dispatch({ type: 'RESTORE_QUERY', ...restored });
     if (restored.date) {
       const restoredMonth = monthForDate(restored.date);
       setMonth((current) => current.getTime() === restoredMonth.getTime() ? current : restoredMonth);
     }
-  }, [queryBookingId, queryDate, searchParams]);
+  }, [pathname, queryBookingId, queryDate, queryString, router, searchParams]);
 
   const transition = useCallback((action: Parameters<typeof decorationOverlayReducer>[1]) => {
     const next = decorationOverlayReducer(overlay, action);
@@ -100,7 +104,7 @@ export function DecorationWorkspace() {
           onOpenBooking={(id) => transition({ type: 'OPEN_DETAIL', bookingId: id })}
         />
       ) : null}
-      {overlay.bookingId ? <DecorationEventDetailModal bookingId={overlay.bookingId} initialBooking={bookings.find((booking) => booking.id === overlay.bookingId)} onClose={() => transition({ type: 'CLOSE_TOP' })} onUpdated={(updated) => setBookings((current) => replaceDecorationBooking(current, updated))} /> : null}
+      {overlay.bookingId ? <DecorationEventDetailModal key={overlay.bookingId} bookingId={overlay.bookingId} initialBooking={bookings.find((booking) => booking.id === overlay.bookingId)} onClose={() => transition({ type: 'CLOSE_TOP' })} onUpdated={(updated) => setBookings((current) => replaceDecorationBooking(current, updated))} /> : null}
       {isInquiryOpen ? <DecorationInquiryForm date={overlay.date ?? undefined} onClose={() => setIsInquiryOpen(false)} onSaved={(booking) => { setBookings(current => replaceDecorationBooking(current, booking)); setIsInquiryOpen(false); void loadMonth(true); }} /> : null}
     </div>
   );

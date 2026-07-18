@@ -51,7 +51,7 @@ export default function Page() {
         </div>
         <div className="flex flex-wrap gap-2">
           <DecorationPrintControls mode={mode} printableRoot={printableRoot} />
-          <Link href={decorationEventsUrl({ date: returnDate || document.event.startDate, bookingId: document.booking.id })} className="flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2">Back</Link>
+          <Link href={decorationEventsUrl({ date: returnDate || document.event.startDate.slice(0, 10), bookingId: document.booking.id })} className="flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2">Back</Link>
         </div>
       </div>
       <DecorationCustomerDocumentView document={document} />
