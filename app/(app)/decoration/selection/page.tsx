@@ -6,6 +6,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { DecorationSelectionModal } from '@/components/decoration/decoration-selection-modal';
 import { fetchDecorationBooking } from '@/lib/auth/api';
 import type { DecorationBooking } from '@/lib/auth/types';
+import { decorationEventsUrl } from '@/lib/decoration/overlay-query';
 
 export default function DecorationSelectionRecoveryPage() {
   const { accessToken } = useAuth(); const params = useSearchParams(), router = useRouter(), bookingId = params.get('bookingId');
@@ -14,6 +15,6 @@ export default function DecorationSelectionRecoveryPage() {
   if (!bookingId) return <State message="A bookingId query parameter is required." />;
   if (error) return <State message={error} />;
   if (!booking) return <State message="Loading decoration selection…" />;
-  return <DecorationSelectionModal booking={booking} onClose={() => router.replace(`/decoration/event-detail?bookingId=${encodeURIComponent(booking.id)}`)} onSaved={(updated) => { setBooking(updated); router.replace(`/decoration/event-detail?bookingId=${encodeURIComponent(updated.id)}`); }} />;
+  return <DecorationSelectionModal booking={booking} onClose={() => router.replace(decorationEventsUrl({ date: booking.startDate.slice(0, 10), bookingId: booking.id }))} onSaved={(updated) => { setBooking(updated); router.replace(decorationEventsUrl({ date: updated.startDate.slice(0, 10), bookingId: updated.id })); }} />;
 }
 function State({ message }: { message: string }) { return <main className="mx-auto max-w-xl p-10 text-center"><h1 className="text-xl font-bold">Decoration Selection</h1><p className="mt-2 text-slate-500">{message}</p></main>; }

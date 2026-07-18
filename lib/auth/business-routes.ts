@@ -64,7 +64,6 @@ const DECORATION_ROUTE_PERMISSIONS: Array<[string, string]> = [
   ['/decoration/import', 'decoration.import.manage'],
   ['/decoration/catalog', 'decoration.catalog.view'],
   ['/decoration/selection', 'decoration.selection.manage'],
-  ['/decoration/event-detail', 'decoration.bookings.view'],
   ['/decoration/print', 'decoration.bookings.view'],
   ['/decoration/configuration', 'decoration.configuration.view'],
 ];

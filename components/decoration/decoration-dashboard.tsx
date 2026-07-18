@@ -15,6 +15,7 @@ import {
   buildDecorationDashboardCards,
   formatIndianCurrency,
 } from '@/lib/decoration/dashboard-view';
+import { decorationEventsUrl } from '@/lib/decoration/overlay-query';
 
 const cardTone = {
   amber: 'border-amber-200 bg-amber-50 text-amber-950',
@@ -96,7 +97,7 @@ export function DecorationDashboard() {
           {data.upcomingEvents.length ? (
             <div className="divide-y divide-slate-100">
               {data.upcomingEvents.map((booking) => (
-                <Link key={booking.id} href={`/decoration/event-detail?id=${encodeURIComponent(booking.id)}&origin=dashboard`} className="block px-5 py-4 transition hover:bg-slate-50">
+                <Link key={booking.id} href={decorationEventsUrl({ date: booking.startDate.slice(0, 10), bookingId: booking.id })} className="block px-5 py-4 transition hover:bg-slate-50">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div className="min-w-0"><p className="truncate font-bold">{booking.customer.name}</p><p className="mt-1 truncate text-sm text-slate-600">{booking.functionName} · {booking.venue.name}{booking.hall ? ` / ${booking.hall.name}` : ''}</p><p className="mt-1 text-xs font-semibold text-slate-500">{formatEventDate(booking.startDate, booking.endDate)} · {booking.startTime}–{booking.endTime}</p></div>
                     <DecorationStatusBadge status={booking.status} />
@@ -115,7 +116,7 @@ export function DecorationDashboard() {
           {data.followupPriorities.length ? (
             <div className="divide-y divide-slate-100">
               {data.followupPriorities.map(({ booking, followup }) => (
-                <Link key={`${booking.id}-${followup.id}`} href={`/decoration/event-detail?id=${encodeURIComponent(booking.id)}&origin=dashboard`} className="block px-5 py-4 transition hover:bg-slate-50">
+                <Link key={`${booking.id}-${followup.id}`} href={decorationEventsUrl({ date: booking.startDate.slice(0, 10), bookingId: booking.id })} className="block px-5 py-4 transition hover:bg-slate-50">
                   <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="truncate font-bold">{booking.customer.name}</p><p className="mt-1 line-clamp-2 text-sm text-slate-600">{followup.note}</p></div><span className="shrink-0 rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">{followup.nextDate ? new Date(`${followup.nextDate.slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Due'}</span></div>
                 </Link>
               ))}

@@ -8,11 +8,13 @@ import { DecorationCustomerDocumentView } from '@/components/decoration/decorati
 import { DecorationPrintControls } from '@/components/decoration/decoration-print-button';
 import { fetchDecorationCustomerDocument } from '@/lib/auth/api';
 import type { DecorationCustomerDocument } from '@/lib/auth/types';
+import { decorationEventsUrl } from '@/lib/decoration/overlay-query';
 
 export default function Page() {
   const params = useSearchParams();
   const bookingId = params.get('bookingId')?.trim() ?? '';
   const requestedMode = params.get('mode') ?? '';
+  const returnDate = params.get('returnDate')?.trim() ?? '';
   const mode = requestedMode === 'print' ? 'print' : 'view';
   const { accessToken } = useAuth();
   const [document, setDocument] = useState<DecorationCustomerDocument | null>(null);
@@ -49,7 +51,7 @@ export default function Page() {
         </div>
         <div className="flex flex-wrap gap-2">
           <DecorationPrintControls mode={mode} printableRoot={printableRoot} />
-          <Link href={`/decoration/event-detail?bookingId=${encodeURIComponent(document.booking.id)}`} className="flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Back</Link>
+          <Link href={decorationEventsUrl({ date: returnDate || document.event.startDate, bookingId: document.booking.id })} className="flex min-h-11 items-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2">Back</Link>
         </div>
       </div>
       <DecorationCustomerDocumentView document={document} />

@@ -18,6 +18,7 @@ export type DecorationOverlayAction =
   | { type: 'OPEN_DAY'; date: string; origin: DecorationOverlayOrigin }
   | { type: 'OPEN_DETAIL'; bookingId: string }
   | { type: 'OPEN_CHILD'; child: DecorationChildOverlay }
+  | { type: 'RESTORE_QUERY'; date: string | null; bookingId: string | null }
   | { type: 'CLOSE_TOP' }
   | { type: 'RESET'; origin?: DecorationOverlayOrigin };
 
@@ -56,6 +57,13 @@ export function decorationOverlayReducer(
         throw new Error('A selected booking is required to open this workflow');
       }
       return { ...state, child: action.child };
+    case 'RESTORE_QUERY':
+      return {
+        ...state,
+        date: action.date,
+        bookingId: action.date ? action.bookingId : null,
+        child: null,
+      };
     case 'CLOSE_TOP':
       if (state.child) return { ...state, child: null };
       if (state.bookingId) return { ...state, bookingId: null };
