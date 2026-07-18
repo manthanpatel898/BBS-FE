@@ -1,3 +1,3 @@
-export type DecorationFollowupForm = { date:string; nextDate:string; note:string };
+export type DecorationFollowupForm = { date:string; nextDate:string; note:string; closeInquiry:boolean };
 export function validateDecorationFollowupForm(form:DecorationFollowupForm) { const errors:Partial<Record<keyof DecorationFollowupForm,string>>={}; if(!form.date)errors.date='Follow-up date is required.'; if(!form.note.trim())errors.note='Follow-up note is required.'; if(form.date&&form.nextDate&&form.nextDate<form.date)errors.nextDate='Next follow-up must be on or after the recorded date.'; return errors; }
-export function buildDecorationFollowupPayload(form:DecorationFollowupForm){return{date:form.date,...(form.nextDate?{nextDate:form.nextDate}:{}),note:form.note.trim()}}
+export function buildDecorationFollowupPayload(form:DecorationFollowupForm){return{date:form.date,...(form.nextDate?{nextDate:form.nextDate}:{}),note:form.note.trim(),closeInquiry:form.closeInquiry}}

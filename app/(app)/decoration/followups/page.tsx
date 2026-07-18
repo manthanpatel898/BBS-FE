@@ -1,4 +1,5 @@
-import { DecorationModulePlaceholder } from '@/components/decoration/decoration-module-placeholder';
+import { DecorationFollowupWorkspace } from '@/components/decoration/decoration-followup-workspace';
+
 export default function Page() {
-  return <DecorationModulePlaceholder title="Followups" description="Decoration inquiry followups will be managed independently here." />;
+  return <DecorationFollowupWorkspace />;
 }
