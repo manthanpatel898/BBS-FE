@@ -13,6 +13,7 @@ import type { DecorationBooking } from '@/lib/auth/types';
 import { getDecorationDayBookings, isLatestDecorationCalendarRequest, replaceDecorationBooking } from '@/lib/decoration/calendar';
 import { decorationOverlayReducer, initialDecorationOverlayState } from '@/lib/decoration/overlay-state';
 import { canonicalDecorationOverlayUrl, decorationEventsUrl, isDecorationOverlayUrlCurrent, readDecorationOverlayQuery } from '@/lib/decoration/overlay-query';
+import { canCreateDecorationInquiry, decorationBusinessDate } from '@/lib/decoration/booking-date-policy';
 
 function monthForDate(date: string | null): Date {
   const value = date ? new Date(`${date}T00:00:00`) : new Date();
@@ -36,6 +37,7 @@ export function DecorationWorkspace() {
   const [error, setError] = useState('');
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const latestRequestId = useRef(0);
+  const todayKey = decorationBusinessDate();
 
   const queryDate = searchParams.get('date');
   const queryBookingId = searchParams.get('bookingId');
@@ -77,7 +79,9 @@ export function DecorationWorkspace() {
 
   const selectedBookings = overlay.date ? getDecorationDayBookings(bookings, overlay.date) : [];
   const openAdd = (date?: string) => {
-    if (date && date !== overlay.date) transition({ type: 'OPEN_DAY', date, origin: 'EVENTS' });
+    const targetDate = date ?? todayKey;
+    if (!canCreateDecorationInquiry(targetDate, todayKey)) return;
+    if (targetDate !== overlay.date) transition({ type: 'OPEN_DAY', date: targetDate, origin: 'EVENTS' });
     setIsInquiryOpen(true);
   };
 
@@ -96,6 +100,7 @@ export function DecorationWorkspace() {
         <DecorationDaySidebar
           date={overlay.date}
           bookings={selectedBookings}
+          canAdd={canCreateDecorationInquiry(overlay.date, todayKey)}
           onClose={() => transition({ type: 'CLOSE_TOP' })}
           onAdd={() => openAdd(overlay.date ?? undefined)}
           onOpenBooking={(id) => transition({ type: 'OPEN_DETAIL', bookingId: id })}

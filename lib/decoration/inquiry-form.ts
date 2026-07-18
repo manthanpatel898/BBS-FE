@@ -1,3 +1,5 @@
+import { canCreateDecorationInquiry, decorationBusinessDate } from './booking-date-policy';
+
 export const OTHER_DECORATION_OPTION = '__OTHER__';
 
 export type DecorationInquiryValues = {
@@ -16,7 +18,7 @@ export function changeInquiryLocation(values:DecorationInquiryValues,venueId:str
   return { ...values, venueId, hallId:'', customHallName:'', ...(venueId!==OTHER_DECORATION_OPTION?{customVenueName:'',customVenueAddress:''}:{}) };
 }
 
-export function validateDecorationInquiry(values: DecorationInquiryValues) {
+export function validateDecorationInquiry(values: DecorationInquiryValues, options: { mode?: 'create'|'edit'; todayKey?: string } = {}) {
   const errors: Partial<Record<keyof DecorationInquiryValues,string>> = {};
   if (!values.customerName.trim()) errors.customerName='Customer name is required';
   if (!/^\d{10}$/.test(values.mobile)) errors.mobile='Enter a valid 10-digit mobile number';
@@ -26,6 +28,7 @@ export function validateDecorationInquiry(values: DecorationInquiryValues) {
   if (values.venueId===OTHER_DECORATION_OPTION&&!values.customVenueName.trim()) errors.customVenueName='Enter a hotel or venue name';
   if (values.hallId===OTHER_DECORATION_OPTION&&!values.customHallName.trim()) errors.customHallName='Enter a hall name or number';
   if (!values.startDate) errors.startDate='Start date is required';
+  else if (options.mode!=='edit'&&!canCreateDecorationInquiry(values.startDate,options.todayKey??decorationBusinessDate())) errors.startDate='New inquiries cannot be created for a previous date.';
   if (!values.endDate) errors.endDate='End date is required';
   else if (values.startDate&&values.endDate<values.startDate) errors.endDate='End date cannot be before start date';
   if (values.packageRate===''||!Number.isFinite(Number(values.packageRate))||Number(values.packageRate)<0) errors.packageRate='Enter a valid package rate';
