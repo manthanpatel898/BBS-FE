@@ -35,7 +35,8 @@ export async function requestDecorationCustomerPdf(options: {
   notifySessionExpired: () => void;
   shouldInvalidateSession: (status: number, message: string) => boolean;
 }): Promise<DownloadedPdf> {
-  const response = await options.fetchImpl(
+  const fetchImpl = options.fetchImpl;
+  const response = await fetchImpl(
     `${options.apiUrl}/decoration/bookings/${encodeURIComponent(options.bookingId)}/customer-document.pdf`,
     { headers: { Authorization: `Bearer ${options.accessToken}` }, signal: options.signal },
   );

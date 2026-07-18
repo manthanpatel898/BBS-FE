@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { ReactNode, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { DecorationAdvanceLedger } from '@/components/decoration/decoration-advance-ledger';
 import { DecorationConfirmationModal } from '@/components/decoration/decoration-confirmation-modal';
@@ -77,21 +77,32 @@ function BottomActions({ booking, onAction }: { booking: DecorationBooking; onAc
 }
 
 function BookingDownloadActions({ booking, accessToken, actions, onAction }: { booking: DecorationBooking; accessToken: string; actions: ReturnType<typeof getDecorationDetailActions>; onAction: (action: DecorationDetailActionId) => void }) {
+  const router = useRouter();
+  const [activeDocumentAction, setActiveDocumentAction] = useState<'view' | 'download' | 'print' | null>(null);
   return <BookingDownloadLifecycle controllerFactory={({ onBusy, onError }) => createPdfDownloadController({
     download: (signal) => downloadDecorationCustomerPdf(accessToken, booking.id, signal),
     save: saveDownloadedPdf,
     onBusy,
     onError,
-  })}>{({ busy: downloading, error: downloadError, start }) => (
+  })} onBusyChange={(busy) => { if (!busy) setActiveDocumentAction((current) => current === 'download' ? null : current); }}>{({ error: downloadError, start }) => (
   <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 p-3 shadow-[0_-12px_30px_rgba(15,23,42,0.12)] backdrop-blur sm:absolute sm:rounded-b-3xl sm:px-6 sm:py-4">{downloadError ? <p role="alert" className="mx-auto mb-2 max-w-6xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{downloadError}</p> : null}<div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:justify-end sm:overflow-visible">{actions.map((action) => {
     const className = `shrink-0 rounded-xl px-4 py-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50'}`;
-    if (action.id === 'choose-decoration' || action.id === 'edit-decoration') return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
-    if (action.id === 'view' || action.id === 'print') return <Link key={action.id} href={`/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=${action.id}&returnDate=${encodeURIComponent(booking.startDate.slice(0, 10))}`} className={className}>{action.label}</Link>;
-    if (action.id === 'download') return <button key={action.id} type="button" onClick={start} disabled={downloading} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{downloading ? 'Downloading…' : action.label}</button>;
-    if (action.id === 'followup') return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
-    return <button key={action.id} type="button" onClick={() => onAction(action.id)} className={className}>{action.label}</button>;
+    const disabled = activeDocumentAction !== null;
+    if (action.id === 'view' || action.id === 'print') return <button key={action.id} type="button" disabled={disabled} onClick={() => {
+      if (activeDocumentAction) return;
+      setActiveDocumentAction(action.id === 'view' ? 'view' : 'print');
+      const destination = `/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=${action.id}&returnDate=${encodeURIComponent(booking.startDate.slice(0, 10))}`;
+      router.push(destination);
+    }} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action={action.id} active={activeDocumentAction} fallback={action.label} /></button>;
+    if (action.id === 'download') return <button key={action.id} type="button" onClick={() => { if (!activeDocumentAction) { setActiveDocumentAction('download'); start(); } }} disabled={disabled} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action="download" active={activeDocumentAction} fallback={action.label} /></button>;
+    return <button key={action.id} type="button" disabled={disabled} onClick={() => onAction(action.id)} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{action.label}</button>;
   })}</div></div>
   )}</BookingDownloadLifecycle>;
+}
+
+function DocumentActionLabel({ action, active, fallback }: { action: 'view' | 'download' | 'print'; active: 'view' | 'download' | 'print' | null; fallback: string }) {
+  const label = action === 'view' ? 'Opening…' : action === 'download' ? 'Downloading…' : 'Preparing print…';
+  return <span aria-live="polite" className="inline-flex items-center justify-center gap-2">{active === action ? <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" /> : null}{active === action ? label : fallback}</span>;
 }
 
 function State({ title, message }: { title: string; message: string }) { return <main className="mx-auto max-w-xl p-16 text-center"><h1 className="text-2xl font-bold">{title}</h1><p className="mt-2 text-slate-500">{message}</p></main>; }
