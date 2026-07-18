@@ -33,8 +33,8 @@ export function DecorationEventDetailModal({ bookingId, initialBooking, onClose,
     return () => { active = false; };
   }, [accessToken, bookingId]);
   function updated(value: DecorationBooking) { setBooking(value); onUpdated?.(value); setChild(null); }
-  return <div className={onClose ? 'fixed inset-0 z-50 overflow-y-auto bg-slate-900/45 p-0 backdrop-blur-sm sm:p-5' : ''} role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label={onClose ? 'Decoration event details' : undefined} onMouseDown={(event) => { if (onClose && event.target === event.currentTarget && !child) onClose(); }}>
-    <div className={onClose ? 'relative mx-auto min-h-full w-full max-w-6xl bg-slate-50 shadow-2xl sm:min-h-0 sm:rounded-3xl' : ''}>
+  return <div className={onClose ? 'fixed inset-0 z-50 overflow-hidden bg-slate-900/45 p-0 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-5' : ''} role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label={onClose ? 'Decoration event details' : undefined} onMouseDown={(event) => { if (onClose && event.target === event.currentTarget && !child) onClose(); }}>
+    <div className={onClose ? 'relative mx-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden bg-slate-50 shadow-2xl sm:h-[calc(100dvh-2.5rem)] sm:rounded-3xl' : ''}>
       {onClose ? <button type="button" onClick={onClose} aria-label="Close Event Detail" className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl text-slate-500 shadow-sm hover:text-slate-900">×</button> : null}
       {loading && !booking ? <State title="Loading event" message="Fetching the latest event details…" /> : !booking ? <State title="Unable to open event" message={error || 'Decoration event was not found.'} /> : <Detail booking={booking} warning={error} onAction={(action) => { if (action === 'edit' || action === 'confirm' || action === 'advance' || action === 'followup') setChild(action); else if (action === 'choose-decoration' || action === 'edit-decoration') setChild('selection'); }} />}
     </div>
@@ -47,10 +47,11 @@ export function DecorationEventDetailModal({ bookingId, initialBooking, onClose,
 }
 
 function Detail({ booking, warning, onAction }: { booking: DecorationBooking; warning: string; onAction: (action: DecorationDetailActionId) => void }) {
-  return <section className="mx-auto max-w-6xl p-4 pb-32 pt-20 sm:p-6 sm:pb-32 sm:pt-16 lg:p-8 lg:pb-32 lg:pt-16">
-    {warning ? <p role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Latest refresh failed. Showing the already loaded booking. {warning}</p> : null}
-    <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-14"><div><p className="text-xs font-bold uppercase tracking-widest text-amber-600">{booking.bookingNumber}</p><h1 className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{booking.customer.name}</h1><p className="mt-1 text-sm text-slate-500">{booking.eventType.name}</p></div><DecorationStatusBadge status={booking.status} /></div></header>
-    <div className="mt-5 grid gap-5 lg:grid-cols-3"><div className="space-y-5 lg:col-span-2">
+  return <section className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-6 pt-20 sm:p-6 sm:pb-6 sm:pt-16 lg:p-8 lg:pb-8 lg:pt-16">
+      {warning ? <p role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Latest refresh failed. Showing the already loaded booking. {warning}</p> : null}
+      <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-14"><div><p className="text-xs font-bold uppercase tracking-widest text-amber-600">{booking.bookingNumber}</p><h1 className="mt-1 text-2xl font-bold text-slate-950 sm:text-3xl">{booking.customer.name}</h1><p className="mt-1 text-sm text-slate-500">{booking.eventType.name}</p></div><DecorationStatusBadge status={booking.status} /></div></header>
+      <div className="mt-5 grid gap-5 lg:grid-cols-3"><div className="space-y-5 lg:col-span-2">
       <Card title="Event information"><Grid rows={[["Event type", booking.eventType.name], ["Date", booking.startDate === booking.endDate ? displayDate(booking.startDate) : `${displayDate(booking.startDate)} – ${displayDate(booking.endDate)}`], ["Time", `${booking.startTime} – ${booking.endTime}`], ["Slot", booking.timeSlot], ["Location", booking.venue.name], ["Hall", booking.hall?.name || 'Not applicable'], ["Address", booking.address || 'Not provided'], ["Created by", booking.createdBySnapshot?.name || 'Not available']]} /></Card>
       <Card title="Advance payments"><DecorationAdvanceLedger booking={booking} /></Card>
       <Card title={`Decoration snapshot (${booking.decorationSnapshot?.length ?? 0})`}><DecorationSnapshotGallery lines={booking.decorationSnapshot ?? []} /></Card>
@@ -58,7 +59,8 @@ function Detail({ booking, warning, onAction }: { booking: DecorationBooking; wa
       <Card title="Customer"><Grid rows={[["Name", booking.customer.name], ["Mobile", booking.customer.mobile]]} /></Card>
       <Card title={`Follow-ups (${booking.followups.length})`}>{booking.followups.length ? <div className="space-y-3">{booking.followups.slice().reverse().map((item) => <div key={item.id} className="border-b border-slate-100 pb-3 text-sm last:border-0"><p>{item.note}</p><p className="mt-1 text-xs text-slate-500">{displayDate(item.date)} · {item.recordedBy}</p></div>)}</div> : <p className="text-sm text-slate-500">No follow-ups recorded.</p>}</Card>
       {booking.notes ? <Card title="Notes"><p className="whitespace-pre-wrap text-sm text-slate-700">{booking.notes}</p></Card> : null}
-    </aside></div>
+      </aside></div>
+    </div>
     <BottomActions booking={booking} onAction={onAction} />
   </section>;
 }
@@ -98,7 +100,7 @@ function BookingDownloadActions({ booking, accessToken, actions, onAction }: { b
       if (action.id === 'download') return <button key={action.id} type="button" onClick={() => { if (!activeDocumentAction) { setActiveDocumentAction('download'); start(); } }} disabled={disabled} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action="download" active={activeDocumentAction} fallback={action.label} /></button>;
       return <button key={action.id} type="button" disabled={disabled} onClick={() => { setMobileActionsOpen(false); onAction(action.id); }} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{action.label}</button>;
     });
-    return <div className="sticky bottom-0 z-[60] -mx-4 mt-5 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.1)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3 lg:-mx-8 lg:px-8">
+    return <div className="z-[60] shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.1)] backdrop-blur sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3 lg:px-8">
       {downloadError ? <p role="alert" className="mx-auto mb-2 max-w-6xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{downloadError}</p> : null}
       <div className={`grid grid-cols-2 gap-2 overflow-hidden transition-[max-height,opacity,margin] duration-200 sm:hidden ${mobileActionsOpen ? 'mb-2 max-h-[520px] opacity-100' : 'max-h-0 opacity-0'}`}>{mobileActionsOpen ? renderActions() : null}</div>
       <button type="button" aria-label={mobileActionsOpen ? 'Hide event actions' : 'Show event actions'} aria-expanded={mobileActionsOpen} onClick={() => setMobileActionsOpen((current) => !current)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:hidden">Actions <span aria-hidden="true" className={`transition-transform ${mobileActionsOpen ? 'rotate-180' : ''}`}>⌃</span></button>
