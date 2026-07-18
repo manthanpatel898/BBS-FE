@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React, { createRef } from 'react';
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
-import { DecorationPrintButton, DecorationPrintControls } from '../../components/decoration/decoration-print-button';
+import { DecorationPdfViewer, DecorationPrintButton, DecorationPrintControls } from '../../components/decoration/decoration-print-button';
 import { DecorationCustomerDocumentView } from '../../components/decoration/decoration-customer-document';
 import { waitForPrintableDocument } from './customer-document-print-readiness';
 
@@ -95,4 +95,42 @@ test('view mode does not auto-print and exposes the readiness-aware manual Print
   assert.equal(prints, 0);
   fireEvent.click(page().getByRole('button', { name: 'Print' }));
   await waitFor(() => assert.equal(prints, 1));
+});
+
+test('PDF viewer loads one PDF artifact, enables print after load, and revokes its URL', async () => {
+  const created: Blob[] = [];
+  const revoked: string[] = [];
+  let prints = 0;
+  const view = render(<DecorationPdfViewer
+    mode="view"
+    returnHref="/decoration/events?date=2026-07-18&bookingId=b1"
+    loadPdf={async () => ({ blob: new Blob(['%PDF-1.3'], { type: 'application/pdf' }), filename: 'proposal.pdf' })}
+    objectUrls={{ create: (blob) => { created.push(blob); return 'blob:proposal'; }, revoke: (url) => revoked.push(url) }}
+    printFrame={() => { prints += 1; }}
+  />);
+  const frame = await page().findByTitle('Decoration proposal PDF');
+  assert.equal(frame.getAttribute('src'), 'blob:proposal');
+  assert.equal(page().getByRole('button', { name: 'Print' }).hasAttribute('disabled'), true);
+  fireEvent.load(frame);
+  fireEvent.click(page().getByRole('button', { name: 'Print' }));
+  assert.equal(prints, 1);
+  assert.equal(created.length, 1);
+  view.unmount();
+  assert.deepEqual(revoked, ['blob:proposal']);
+});
+
+test('print-mode PDF viewer prints the loaded PDF once', async () => {
+  let prints = 0;
+  render(<DecorationPdfViewer
+    mode="print"
+    returnHref="/decoration/events"
+    loadPdf={async () => ({ blob: new Blob(['%PDF-1.3'], { type: 'application/pdf' }), filename: 'proposal.pdf' })}
+    objectUrls={{ create: () => 'blob:print-proposal', revoke: () => undefined }}
+    printFrame={() => { prints += 1; }}
+  />);
+  const frame = await page().findByTitle('Decoration proposal PDF');
+  fireEvent.load(frame);
+  await waitFor(() => assert.equal(prints, 1));
+  fireEvent.load(frame);
+  assert.equal(prints, 1);
 });
