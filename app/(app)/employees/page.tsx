@@ -24,13 +24,14 @@ import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 import { useToast } from '@/components/ui/toast';
+import {
+  buildEmployeeCreatePayload,
+  buildEmployeeUpdatePayload,
+} from '@/lib/employees/employee-payload';
 
 // Display labels → actual UserRole mapping
 type DisplayRole = 'Company Admin' | 'Manager';
 const DISPLAY_ROLE_OPTIONS: DisplayRole[] = ['Company Admin', 'Manager'];
-function toUserRole(display: DisplayRole): 'company_admin' | 'employee' {
-  return display === 'Company Admin' ? 'company_admin' : 'employee';
-}
 function toDisplayRole(role: string): DisplayRole {
   return role === 'company_admin' ? 'Company Admin' : 'Manager';
 }
@@ -274,29 +275,15 @@ export default function EmployeesPage() {
     try {
       setIsSubmitting(true);
 
-      const { displayRole, permissions: _permissions, ...restFormState } = formState;
-      const role = toUserRole(displayRole);
-      const designation = displayRole;
-      const canAccessOdc = role === 'employee' ? restFormState.canAccessOdc : false;
       if (editingEmployee) {
-        const updatePayload = {
-          ...restFormState,
-          canAccessOdc,
-          role,
-          designation,
-          ...(canManagePassword(displayRole) && restFormState.password.trim()
-            ? { password: restFormState.password.trim() }
-            : {}),
-        };
+        const updatePayload = buildEmployeeUpdatePayload(formState, user?.businessType);
         await updateEmployee(token, editingEmployee.id, updatePayload);
         showToast('Employee updated successfully.', 'success');
       } else {
-        await createEmployee(token, {
-          ...restFormState,
-          canAccessOdc,
-          role,
-          designation,
-        });
+        await createEmployee(
+          token,
+          buildEmployeeCreatePayload(formState, user?.businessType),
+        );
         showToast('Employee created successfully.', 'success');
       }
 
@@ -1213,7 +1200,7 @@ export default function EmployeesPage() {
                     </p>
                   </div>
                 ) : null}
-                <label
+                {user?.businessType !== 'EVENT_DECORATION' ? <label
                   className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm md:col-span-2 ${
                     formState.displayRole === 'Manager'
                       ? 'border-cyan-200 bg-cyan-50 text-slate-700'
@@ -1240,7 +1227,7 @@ export default function EmployeesPage() {
                       Managers can use ODC only when the restaurant has ODC enabled by super admin.
                     </span>
                   </span>
-                </label>
+                </label> : null}
                 {editingEmployee ? (
                   <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 md:col-span-2">
                     <input
