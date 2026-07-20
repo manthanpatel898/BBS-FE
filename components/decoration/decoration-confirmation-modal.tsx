@@ -9,7 +9,7 @@ import { confirmDecorationBooking } from '@/lib/auth/api';
 import type { DecorationBooking } from '@/lib/auth/types';
 import { buildDecorationConfirmationPayload, getDecorationConfirmationRequestId, validateDecorationConfirmationForm } from '@/lib/decoration/confirmation-form';
 
-const inputClass = 'min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
+const inputClass = 'light-form-field min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 const money = (value: number) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
 export function DecorationConfirmationModal({ booking, onClose, onConfirmed }: { booking: DecorationBooking; onClose: () => void; onConfirmed: (booking: DecorationBooking) => void }) {

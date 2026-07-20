@@ -12,7 +12,7 @@ import { getDecorationCoverImage, materializeDecorationImageFile, validateDecora
 import { createDecorationItemWithOptionalImage } from '@/lib/decoration/create-item-workflow';
 import { childrenForParent, decorationPreviewImages, reconcileSelectedParentId } from '@/lib/decoration/settings-view';
 
-const field = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100';
+const field = 'light-form-field mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100';
 const emptyItem = (categoryId = ''): SimpleDecorationItemForm => ({ categoryId, name: '', description: '', totalQuantity: '1' });
 
 export type CatalogCropModalProps = { file: File; busy?: boolean; returnFocusRef?: RefObject<HTMLElement | null>; onCancel: () => void; onConfirm: (file: File) => void | Promise<void> };

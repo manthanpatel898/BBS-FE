@@ -7,7 +7,7 @@ import { fetchMyRestaurant, updateMyRestaurantBranding, uploadLogo } from '@/lib
 import type { Restaurant } from '@/lib/auth/types';
 import { parseCompanyContactNumbers, validateCompanyProfile } from '@/lib/decoration/settings-view';
 
-const inputClass = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:bg-slate-50 disabled:text-slate-500';
+const inputClass = 'light-form-field w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:bg-slate-50 disabled:text-slate-600';
 
 export function CompanyProfileSection() {
   const { accessToken, user, setSession } = useAuth();

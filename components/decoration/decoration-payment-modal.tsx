@@ -8,7 +8,7 @@ import { addDecorationPayment } from '@/lib/auth/api';
 import type { DecorationBooking } from '@/lib/auth/types';
 import { buildDecorationPaymentPayload, type DecorationPaymentForm, validateDecorationPaymentForm } from '@/lib/decoration/payment-form';
 
-const input = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100';
+const input = 'light-form-field mt-1 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100';
 
 export function DecorationPaymentModal({ booking, onClose, onSaved }: { booking: DecorationBooking; onClose: () => void; onSaved: (booking: DecorationBooking) => void }) {
   const { accessToken } = useAuth();

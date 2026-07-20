@@ -7,7 +7,7 @@ import { fetchAuditLogs } from '@/lib/auth/api';
 import { AuditLogItem } from '@/lib/auth/types';
 
 const inputCls =
-  'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
+  'light-form-field w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 const decorationModules=['decoration_bookings','decoration_configuration','decoration_catalog','decoration_reservations','decoration_selection','decoration_imports','decoration_reports','decoration_maintenance'];
 const moduleLabel=(value:string)=>value.startsWith('decoration_')?`Decoration · ${titleCase(value.replace('decoration_',''))}`:titleCase(value);
 
@@ -281,7 +281,37 @@ export default function AuditLogsPage() {
         ) : items.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">No audit log entries found.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="space-y-3 p-3 md:hidden">
+            {items.map((item) => {
+              const expanded = expandedId === item.id;
+              return <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words font-bold text-slate-950">{moduleLabel(item.module)}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-700">{titleCase(item.action)}</p>
+                  </div>
+                  {operationBadge(item.operation)}
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-600">When</dt><dd className="mt-1 text-slate-900">{new Date(item.createdAt).toLocaleString('en-IN')}</dd></div>
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-600">Actor</dt><dd className="mt-1 break-words text-slate-900">{item.actor?.name || 'System'}</dd></div>
+                </dl>
+                <p className="mt-3 break-words text-sm leading-6 text-slate-700">{item.summary || 'No summary recorded.'}</p>
+                <button type="button" onClick={() => setExpandedId(expanded ? null : item.id)} className="mt-4 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800">{expanded ? 'Hide details' : 'View details'}</button>
+                {expanded ? <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+                  <DetailSection title="Before Values" emptyMessage="No old values recorded." value={item.before} />
+                  <DetailSection title="After Values" emptyMessage="No new values recorded." value={item.after} />
+                  <DetailSection title="Context" emptyMessage="No extra context recorded." value={item.metadata} />
+                  <dl className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                    <div><dt className="font-semibold text-slate-600">Entity</dt><dd className="mt-1 break-all text-slate-900">{item.entityType || '—'} · {item.entityId || '—'}</dd></div>
+                    <div><dt className="font-semibold text-slate-600">Request</dt><dd className="mt-1 break-all text-slate-900">{item.method || '—'} {item.route || '—'}</dd></div>
+                  </dl>
+                </div> : null}
+              </article>;
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50">
                 <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -357,11 +387,12 @@ export default function AuditLogsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
-      <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
-        <p className="text-sm text-slate-500">
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <p className="text-sm font-medium text-slate-600">
           Page {page} of {totalPages}
         </p>
         <div className="flex gap-2">

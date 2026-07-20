@@ -10,7 +10,7 @@ import { activeHalls, decorationLocationTypeLabel, normalizeConfigurationName } 
 import { buildDecorationBookingPatch, changeInquiryLocation, createDecorationInquiryValues, OTHER_DECORATION_OPTION, validateDecorationInquiry, type DecorationInquiryValues } from '@/lib/decoration/inquiry-form';
 import { decorationBusinessDate } from '@/lib/decoration/booking-date-policy';
 
-const input='min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:bg-slate-50 disabled:text-slate-500';
+const input='light-form-field min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:bg-slate-50 disabled:text-slate-500';
 function Field({label,error,children,required}:{label:string;error?:string;children:React.ReactNode;required?:boolean}){return <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">{label}{required?<span className="text-red-500"> *</span>:null}</span>{children}{error?<span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>:null}</label>}
 
 function bookingValues(booking:DecorationBooking):DecorationInquiryValues{return {...createDecorationInquiryValues(),customerName:booking.customer.name,mobile:booking.customer.mobile,eventTypeId:booking.eventType.id,venueId:booking.venue.id,hallId:booking.hall?.id??'',address:booking.address??'',timeSlot:booking.timeSlot,startDate:booking.startDate.slice(0,10),endDate:booking.endDate.slice(0,10),packageRate:String(booking.packageRate),notes:booking.notes??''}}
