@@ -3,8 +3,6 @@ import type {
   DecorationFollowup,
 } from '@/lib/auth/types';
 
-const EXCLUDED_STATUSES = new Set(['CLOSED_INQUIRY', 'CANCELLED', 'COMPLETED']);
-
 export type DecorationFollowupState = 'TAKEN_TODAY' | 'PENDING' | 'OVERDUE' | 'DUE_TODAY' | 'SCHEDULED';
 
 export interface DecorationFollowupScheduleEntry {
@@ -63,7 +61,7 @@ export function buildDecorationFollowupSchedule(
   todayKey = decorationDateKey(new Date()),
 ): DecorationFollowupScheduleEntry[] {
   return bookings
-    .filter((booking) => !EXCLUDED_STATUSES.has(booking.status) && decorationDateKey(booking.endDate) >= todayKey)
+    .filter((booking) => booking.status === 'INQUIRY' && decorationDateKey(booking.endDate) >= todayKey)
     .map((booking) => {
       const followup = latestPendingFollowup(booking);
       const dateKey = decorationDateKey(booking.startDate);

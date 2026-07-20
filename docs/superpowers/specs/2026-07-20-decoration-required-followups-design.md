@@ -8,7 +8,7 @@ Replace the decoration follow-up month/date calendar with a full-width actionabl
 
 A decoration booking appears when all of the following are true:
 
-- The booking is not completed, cancelled, or a closed inquiry.
+- The booking status is `INQUIRY`. Confirmed and every other booking status are excluded.
 - The event has not ended before today.
 - It has no pending follow-up history, or its latest pending follow-up is overdue or due today.
 
@@ -18,7 +18,7 @@ A booking is hidden when:
 
 - A follow-up was taken today.
 - Its next follow-up is scheduled after today. It becomes visible automatically on that scheduled date.
-- The booking is completed, cancelled, closed, or its event is in the past.
+- The booking is confirmed, completed, cancelled, closed, or its event is in the past.
 
 ## Page design
 
