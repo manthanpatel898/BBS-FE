@@ -8,6 +8,19 @@
 
 **Tech Stack:** NestJS 11, Mongoose 8, class-validator, ExcelJS, Next.js 16 static export, React 19, TypeScript, Tailwind CSS, Node/tsx tests.
 
+## Implementation Status — Complete (20 July 2026)
+
+- [x] Four company-scoped, paginated report APIs and deterministic totals
+- [x] Inquiry-only worksheet editing with server-side status recheck
+- [x] Payment-date advance report and committed-booking pending report
+- [x] Bounded, audited CSV/XLSX/print exports with formula-injection protection
+- [x] Banquet-style four-card landing page and responsive report workspace
+- [x] Static-deployment-safe query-string routing
+- [x] Mobile worksheet editor and dependent banquet/hall selection
+- [x] Print layout and shared filtered report definition
+- [x] Idempotent report/payment index migration update
+- [x] Backend and frontend production builds, targeted lint, and domain/export tests
+
 ## Global Constraints
 
 - The report landing page contains exactly four reports.

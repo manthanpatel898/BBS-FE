@@ -617,7 +617,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <TcModal tc={profileTerms} onClose={() => setProfileTermsModalOpen(false)} />
       ) : null}
       <div className="flex min-h-screen flex-col bg-slate-50">
-        <header className="sticky top-0 z-40 flex h-16 flex-none items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:px-6">
+        <header className="app-header sticky top-0 z-40 flex h-16 flex-none items-center border-b border-slate-200 bg-white/90 px-4 backdrop-blur-md sm:px-6">
           <button
             type="button"
             onClick={() => {
@@ -731,7 +731,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="app-shell-height flex flex-1 overflow-hidden">
         <aside
-          className={`app-shell-height sticky top-16 hidden shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:flex ${
+          className={`app-sidebar app-shell-height sticky top-16 hidden shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:flex ${
             desktopSidebarCollapsed ? 'w-20' : 'w-64'
           }`}
         >
@@ -766,7 +766,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm lg:hidden"
               onClick={() => setSidebarOpen(false)}
             />
-            <aside className="safe-pad-bottom fixed inset-y-0 left-0 z-[60] flex h-screen w-full max-w-[18rem] flex-col overflow-hidden bg-white shadow-2xl lg:hidden">
+            <aside className="app-sidebar safe-pad-bottom fixed inset-y-0 left-0 z-[60] flex h-screen w-full max-w-[18rem] flex-col overflow-hidden bg-white shadow-2xl lg:hidden">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
                 <Link
                   href="/dashboard"
