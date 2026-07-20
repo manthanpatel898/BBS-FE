@@ -2,6 +2,7 @@ export type DecorationDashboardSummary = {
   todayEvents: number;
   upcoming: number;
   followupsDue: number;
+  openInquiries?: number;
   selectionPending: number;
   byStatus: Record<string, number>;
   packageValue: number;
@@ -14,7 +15,7 @@ export type DecorationDashboardCard = {
   label: string;
   value: string;
   description: string;
-  href: string;
+  recordType: import('@/lib/auth/types').DecorationDashboardRecordType;
   tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate' | 'violet';
 };
 
@@ -37,7 +38,7 @@ export function buildDecorationDashboardCards(
       label: "Today's events",
       value: String(summary.todayEvents ?? 0),
       description: 'Events scheduled for today',
-      href: '/decoration/events?scope=today',
+      recordType: 'today',
       tone: 'amber',
     },
     {
@@ -45,15 +46,15 @@ export function buildDecorationDashboardCards(
       label: 'Upcoming events',
       value: String(summary.upcoming ?? 0),
       description: 'Confirmed future events',
-      href: '/decoration/events?scope=upcoming',
+      recordType: 'upcoming',
       tone: 'blue',
     },
     {
       id: 'open-inquiries',
       label: 'Open inquiries',
-      value: String(summary.byStatus?.INQUIRY ?? 0),
+      value: String(summary.openInquiries ?? summary.byStatus?.INQUIRY ?? 0),
       description: 'Awaiting confirmation',
-      href: '/decoration/events?status=INQUIRY',
+      recordType: 'open_inquiries',
       tone: 'amber',
     },
     {
@@ -61,7 +62,7 @@ export function buildDecorationDashboardCards(
       label: 'Follow-ups due',
       value: String(summary.followupsDue ?? 0),
       description: 'Due and overdue customer actions',
-      href: '/decoration/followups?state=due',
+      recordType: 'followups',
       tone: 'violet',
     },
     {
@@ -69,7 +70,7 @@ export function buildDecorationDashboardCards(
       label: 'Advance received',
       value: formatIndianCurrency(summary.collected),
       description: 'Total collection across bookings',
-      href: '/decoration/reports?paymentState=PARTIAL',
+      recordType: 'advance_received',
       tone: 'emerald',
     },
     {
@@ -77,7 +78,7 @@ export function buildDecorationDashboardCards(
       label: 'Outstanding',
       value: formatIndianCurrency(summary.outstanding),
       description: 'Pending customer collection',
-      href: '/decoration/reports?paymentState=UNPAID',
+      recordType: 'outstanding',
       tone: 'red',
     },
     {
@@ -85,7 +86,7 @@ export function buildDecorationDashboardCards(
       label: 'Selection pending',
       value: String(summary.selectionPending ?? 0),
       description: 'Confirmed events needing decoration selection',
-      href: '/decoration/events?status=DECORATION_SELECTION_PENDING',
+      recordType: 'selection_pending',
       tone: 'blue',
     },
   ];
