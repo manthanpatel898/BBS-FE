@@ -942,8 +942,7 @@ export default function BookingsPage() {
     isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_ADVANCE_PAYMENTS_DELETE);
   const canManageCancelAdvance =
     isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CANCEL_ADVANCE_MANAGE);
-  const canUseAdvancedCancelManagement =
-    hasLegacyCancelAdvanceManagement || canManageCancelAdvance;
+  const canUseAdvancedCancelManagement = hasLegacyCancelAdvanceManagement;
   const canTransferBooking =
     canEditFunctionDate || canEditServiceSlot || canEditFunctionTimeAfterMenu;
   const hasSavedMenuSelection = (editingOrder?.menuSelectionSnapshot.length ?? 0) > 0;
@@ -1984,7 +1983,7 @@ export default function BookingsPage() {
       return;
     }
     const trimmedReason = reason?.trim() ?? '';
-    if (canUseAdvancedCancelManagement && !trimmedReason) {
+    if (!trimmedReason) {
       setToast({ type: 'error', message: 'Cancellation reason is required.' });
       return;
     }
@@ -2003,7 +2002,7 @@ export default function BookingsPage() {
     try {
       setIsCancelSubmitting(true);
       await cancelOrder(accessToken, orderId, {
-        reason: trimmedReason || undefined,
+        reason: trimmedReason,
         advanceOption: canUseAdvancedCancelManagement ? advanceOption ?? undefined : undefined,
         advanceExpiryDate,
       });
@@ -4934,33 +4933,27 @@ function selectionStatus(order: Order) {
             title={`Cancel ${cancelPopup.order.orderId}`}
             eyebrow="Cancel Booking"
             onClose={() => { setCancelPopup(null); setCancelledOrderId(null); }}
-            widthClassName={cancelPopup.order.advanceAmount > 0 ? 'max-w-2xl' : 'max-w-md'}
+            widthClassName={canUseAdvancedCancelManagement && cancelPopup.order.advanceAmount > 0 ? 'max-w-2xl' : 'max-w-md'}
           >
             <>
-              <p className="mt-4 text-sm text-slate-500">
+              <p className="mt-4 text-sm text-slate-600">
                 {canUseAdvancedCancelManagement
                   ? 'Add the cancellation reason and confirm how the advance should be handled.'
-                  : 'Confirm that you want to cancel this booking. It will be listed in Cancelled Bookings.'}
+                  : 'Enter the cancellation reason. The booking will be moved to Cancelled Bookings.'}
               </p>
-              {canUseAdvancedCancelManagement ? (
-                <div className="mt-4 space-y-2">
-                  <label className="text-sm font-semibold text-slate-800">Cancellation Reason</label>
-                  <textarea
-                    value={cancelPopup.reason}
-                    onChange={(event) =>
-                      setCancelPopup((current) =>
-                        current ? { ...current, reason: event.target.value } : current,
-                      )
-                    }
-                    placeholder="Enter cancellation reason"
-                    className={`${inputCls} min-h-24 resize-none`}
-                  />
-                </div>
-              ) : (
-                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  This action will move <span className="font-semibold">{cancelPopup.order.orderId}</span> to Cancelled Bookings.
-                </div>
-              )}
+              <div className="mt-4 space-y-2">
+                <label className="text-sm font-semibold text-slate-800">Cancellation Reason</label>
+                <textarea
+                  value={cancelPopup.reason}
+                  onChange={(event) =>
+                    setCancelPopup((current) =>
+                      current ? { ...current, reason: event.target.value } : current,
+                    )
+                  }
+                  placeholder="Enter cancellation reason"
+                  className={`${inputCls} min-h-24 resize-none`}
+                />
+              </div>
 
               {canUseAdvancedCancelManagement && cancelPopup.order.advanceAmount > 0 ? (
                 <>
@@ -5111,7 +5104,7 @@ function selectionStatus(order: Order) {
                     type="button"
                     disabled={
                       isCancelSubmitting ||
-                      (canUseAdvancedCancelManagement && !cancelPopup.reason.trim()) ||
+                      !cancelPopup.reason.trim() ||
                       (canUseAdvancedCancelManagement &&
                         cancelPopup.order.advanceAmount > 0 &&
                         (!cancelPopup.advanceOption ||

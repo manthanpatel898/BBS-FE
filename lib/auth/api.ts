@@ -1204,8 +1204,8 @@ export async function saveOrderSignature(
 export async function cancelOrder(
   accessToken: string,
   orderId: string,
-  payload?: {
-    reason?: string;
+  payload: {
+    reason: string;
     generateVoucher?: boolean;
     advanceOption?: CancelAdvanceOption;
     advanceExpiryDate?: string;
@@ -1213,7 +1213,7 @@ export async function cancelOrder(
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/cancel`, accessToken, {
     method: 'PATCH',
-    body: JSON.stringify(payload ?? {}),
+    body: JSON.stringify(payload),
   });
 }
 
