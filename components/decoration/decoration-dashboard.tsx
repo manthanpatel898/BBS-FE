@@ -9,6 +9,7 @@ import {
   DecorationPageLoading,
 } from '@/components/decoration/decoration-page-state';
 import { DecorationStatusBadge } from '@/components/decoration/decoration-status-badge';
+import { DecorationDashboardCharts } from '@/components/decoration/decoration-dashboard-charts';
 import { fetchDecorationDashboard } from '@/lib/auth/api';
 import type { DecorationDashboardData } from '@/lib/auth/types';
 import {
@@ -88,6 +89,8 @@ export function DecorationDashboard() {
         ))}
       </div>
 
+      <DecorationDashboardCharts data={data} />
+
       <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -115,9 +118,9 @@ export function DecorationDashboard() {
           </div>
           {data.followupPriorities.length ? (
             <div className="divide-y divide-slate-100">
-              {data.followupPriorities.map(({ booking, followup }) => (
-                <Link key={`${booking.id}-${followup.id}`} href={decorationEventsUrl({ date: booking.startDate.slice(0, 10), bookingId: booking.id })} className="block px-5 py-4 transition hover:bg-slate-50">
-                  <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="truncate font-bold">{booking.customer.name}</p><p className="mt-1 line-clamp-2 text-sm text-slate-600">{followup.note}</p></div><span className="shrink-0 rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">{followup.nextDate ? new Date(`${followup.nextDate.slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Due'}</span></div>
+              {data.followupPriorities.map(({ booking, followup, state }) => (
+                <Link key={`${booking.id}-${followup?.id ?? 'pending'}`} href={decorationEventsUrl({ date: booking.startDate.slice(0, 10), bookingId: booking.id })} className="block px-5 py-4 transition hover:bg-slate-50">
+                  <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="truncate font-bold">{booking.customer.name}</p><p className="mt-1 line-clamp-2 text-sm text-slate-600">{followup?.note || 'Customer follow-up has not been recorded yet.'}</p></div><span className="shrink-0 rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">{state === 'DUE_TODAY' ? 'Today' : state === 'OVERDUE' ? 'Overdue' : state === 'PENDING' ? 'Pending' : followup?.nextDate ? new Date(`${followup.nextDate.slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : state}</span></div>
                 </Link>
               ))}
             </div>

@@ -3,8 +3,6 @@ export type DecorationDashboardSummary = {
   upcoming: number;
   followupsDue: number;
   selectionPending: number;
-  inventoryConflicts: number;
-  maintenanceItems: number;
   byStatus: Record<string, number>;
   packageValue: number;
   collected: number;
@@ -89,22 +87,6 @@ export function buildDecorationDashboardCards(
       description: 'Confirmed events needing decoration selection',
       href: '/decoration/events?status=DECORATION_SELECTION_PENDING',
       tone: 'blue',
-    },
-    {
-      id: 'inventory-conflicts',
-      label: 'Inventory conflicts',
-      value: String(summary.inventoryConflicts ?? 0),
-      description: 'Overlapping reservations requiring attention',
-      href: '/decoration/reports?tab=inventory&conflicts=true',
-      tone: summary.inventoryConflicts > 0 ? 'red' : 'slate',
-    },
-    {
-      id: 'maintenance',
-      label: 'Maintenance items',
-      value: String(summary.maintenanceItems ?? 0),
-      description: 'Catalog items currently under maintenance',
-      href: '/decoration/reports?tab=inventory&maintenance=true',
-      tone: 'slate',
     },
   ];
 }

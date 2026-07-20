@@ -7,10 +7,11 @@ import { useModalViewport } from '@/components/ui/use-modal-viewport';
 import { DecorationImageCropModal } from './decoration-image-crop-modal';
 import { DecorationCustomItemEditor } from './decoration-custom-item-editor';
 import { DecorationSelectionItemCard } from './decoration-selection-item-card';
-import { fetchDecorationCategories, fetchDecorationItems, saveDecorationSelection, uploadCustomDecorationImage } from '@/lib/auth/api';
+import { fetchDecorationAvailability, fetchDecorationCategories, fetchDecorationItems, saveDecorationSelection, uploadCustomDecorationImage } from '@/lib/auth/api';
 import type { DecorationBooking, DecorationCategory, DecorationItem } from '@/lib/auth/types';
 import { buildDecorationSelectionPayload, hydrateDecorationSelection, selectionSummary, toggleDecorationChoice, updateDecorationChoice, validateDecorationSelection, type DecorationSelectionState } from '@/lib/decoration/selection-state';
 import { materializeDecorationImageFile, validateDecorationImageFile } from '@/lib/decoration/catalog-images';
+import { applyDecorationAvailability } from '@/lib/decoration/availability';
 
 export type CustomCropModalProps = {
   file: File;
@@ -27,6 +28,7 @@ type SelectionModalProps = {
   accessToken?: string | null;
   loadCategories?: typeof fetchDecorationCategories;
   loadItems?: typeof fetchDecorationItems;
+  loadAvailability?: typeof fetchDecorationAvailability;
   uploadCustomImage?: typeof uploadCustomDecorationImage;
   materializeImage?: typeof materializeDecorationImageFile;
   CropModal?: ComponentType<CustomCropModalProps>;
@@ -34,10 +36,10 @@ type SelectionModalProps = {
 
 export function DecorationSelectionModal(props: SelectionModalProps) {
   const auth = useAuth();
-  return <DecorationSelectionModalContent {...props} accessToken={props.accessToken === undefined ? auth.accessToken : props.accessToken} />;
+  return <DecorationSelectionModalContent {...props} loadAvailability={props.loadAvailability ?? fetchDecorationAvailability} accessToken={props.accessToken === undefined ? auth.accessToken : props.accessToken} />;
 }
 
-export function DecorationSelectionModalContent({ booking, onClose, onSaved, accessToken, loadCategories = fetchDecorationCategories, loadItems = fetchDecorationItems, uploadCustomImage = uploadCustomDecorationImage, materializeImage = materializeDecorationImageFile, CropModal = DecorationImageCropModal }: SelectionModalProps) {
+export function DecorationSelectionModalContent({ booking, onClose, onSaved, accessToken, loadCategories = fetchDecorationCategories, loadItems = fetchDecorationItems, loadAvailability, uploadCustomImage = uploadCustomDecorationImage, materializeImage = materializeDecorationImageFile, CropModal = DecorationImageCropModal }: SelectionModalProps) {
   const triggerRef = useRef<HTMLButtonElement>(null), fileInputRef = useRef<HTMLInputElement>(null), restoreUploadFocusRef = useRef(false);
   const [categories, setCategories] = useState<DecorationCategory[]>([]), [items, setItems] = useState<DecorationItem[]>([]), [categoryId, setCategoryId] = useState(''), [state, setState] = useState<DecorationSelectionState>({ choices: {}, customItems: [] });
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState(''), [errors, setErrors] = useState<ReturnType<typeof validateDecorationSelection>>({ choices: {}, custom: {} }), [pendingSource, setPendingSource] = useState<File | null>(null), [confirmedCrop, setConfirmedCrop] = useState<File | null>(null);
@@ -45,7 +47,8 @@ export function DecorationSelectionModalContent({ booking, onClose, onSaved, acc
   useModalViewport(onClose, saving || uploading);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; selectionRef.current += 1; uploadGenerationRef.current += 1; uploadLockRef.current = false; }; }, []);
   useEffect(() => { if (!uploading && restoreUploadFocusRef.current) { restoreUploadFocusRef.current = false; triggerRef.current?.focus(); } }, [uploading]);
-  useEffect(() => { if (!accessToken) return; let active = true; setLoading(true); Promise.all([loadCategories(accessToken), loadItems(accessToken)]).then(([nextCategories, nextItems]) => { if (!active) return; setCategories(nextCategories); setItems(nextItems); setCategoryId(nextCategories[0]?.id ?? ''); setState(hydrateDecorationSelection(booking.decorationSnapshot ?? [], nextItems)); }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load decorations.'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [accessToken, booking.id, loadCategories, loadItems]);
+  useEffect(() => { if (!accessToken) return; let active = true; setLoading(true); Promise.all([loadCategories(accessToken), loadItems(accessToken), loadAvailability?.(accessToken, booking.id)]).then(([nextCategories, catalogItems, availability]) => { if (!active) return; const nextItems = applyDecorationAvailability(catalogItems, availability); setCategories(nextCategories); setItems(nextItems); setCategoryId(nextCategories[0]?.id ?? ''); setState(hydrateDecorationSelection(booking.decorationSnapshot ?? [], nextItems)); }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load decorations.'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [accessToken, booking.id, loadAvailability, loadCategories, loadItems]);
+  useEffect(() => { if (!accessToken || !loadAvailability || loading) return; let active = true; const refresh = async () => { try { const availability = await loadAvailability(accessToken, booking.id); if (!active) return; setItems((current) => applyDecorationAvailability(current, availability)); } catch { /* Keep the last known values; save performs authoritative validation. */ } }; const interval = window.setInterval(() => void refresh(), 30000); const onFocus = () => void refresh(); window.addEventListener('focus', onFocus); return () => { active = false; window.clearInterval(interval); window.removeEventListener('focus', onFocus); }; }, [accessToken, booking.id, loadAvailability, loading]);
   const shown = useMemo(() => items.filter((item) => item.categoryId === categoryId && item.isActive), [items, categoryId]), summary = selectionSummary(state);
   async function selectCustomSource(file: File) { const selection = ++selectionRef.current; const validation = validateDecorationImageFile(file, 0); if (validation) { setError(validation); return; } try { const stableFile = await materializeImage(file); if (!mountedRef.current || selection !== selectionRef.current) return; setPendingSource(stableFile); setError(''); } catch (reason) { if (mountedRef.current && selection === selectionRef.current) setError(reason instanceof Error ? reason.message : 'The selected image could not be read.'); } }
   async function uploadCustom(file: File, revalidate = true) { if (!accessToken || uploadLockRef.current) return; uploadLockRef.current = true; restoreUploadFocusRef.current = true; const generation = ++uploadGenerationRef.current; setUploading(true); setError(''); try { const stableFile = revalidate ? await materializeImage(file) : file; if (!mountedRef.current || generation !== uploadGenerationRef.current) return; const validation = validateDecorationImageFile(stableFile, 0); if (validation) { setError(validation); return; } if (revalidate) { setConfirmedCrop(stableFile); setPendingSource(null); } const image = await uploadCustomImage(accessToken, booking.id, stableFile); if (!mountedRef.current || generation !== uploadGenerationRef.current) return; setState((current) => ({ ...current, customItems: [...current.customItems, { clientId: crypto.randomUUID(), name: '', quantity: 1, description: '', imageKey: image.key, imageUrl: image.url }] })); setConfirmedCrop(null); } catch (reason) { if (mountedRef.current && generation === uploadGenerationRef.current) setError(reason instanceof Error ? reason.message : 'Unable to upload custom image.'); } finally { if (mountedRef.current && generation === uploadGenerationRef.current) setUploading(false); uploadLockRef.current = false; } }

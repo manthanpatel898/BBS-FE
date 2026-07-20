@@ -5,7 +5,7 @@ import type {
 
 const EXCLUDED_STATUSES = new Set(['CLOSED_INQUIRY', 'CANCELLED', 'COMPLETED']);
 
-export type DecorationFollowupState = 'TAKEN' | 'PENDING' | 'OVERDUE';
+export type DecorationFollowupState = 'TAKEN_TODAY' | 'PENDING' | 'OVERDUE' | 'DUE_TODAY' | 'SCHEDULED';
 
 export interface DecorationFollowupScheduleEntry {
   booking: DecorationBooking;
@@ -36,9 +36,12 @@ export function decorationFollowupState(
   todayKey = decorationDateKey(new Date()),
 ): DecorationFollowupState {
   if (!followup) return 'PENDING';
-  if (decorationDateKey(followup.date) === todayKey) return 'TAKEN';
-  const dueKey = decorationDateKey(followup.nextDate ?? followup.date);
-  return dueKey < todayKey ? 'OVERDUE' : 'PENDING';
+  if (decorationDateKey(followup.date) === todayKey) return 'TAKEN_TODAY';
+  if (!followup.nextDate) return 'PENDING';
+  const dueKey = decorationDateKey(followup.nextDate);
+  if (dueKey < todayKey) return 'OVERDUE';
+  if (dueKey === todayKey) return 'DUE_TODAY';
+  return 'SCHEDULED';
 }
 
 function latestPendingFollowup(booking: DecorationBooking) {
@@ -60,12 +63,10 @@ export function buildDecorationFollowupSchedule(
   todayKey = decorationDateKey(new Date()),
 ): DecorationFollowupScheduleEntry[] {
   return bookings
-    .filter((booking) => !EXCLUDED_STATUSES.has(booking.status))
+    .filter((booking) => !EXCLUDED_STATUSES.has(booking.status) && decorationDateKey(booking.endDate) >= todayKey)
     .map((booking) => {
       const followup = latestPendingFollowup(booking);
-      const dateKey = decorationDateKey(
-        followup?.nextDate ?? followup?.date ?? booking.startDate ?? booking.createdAt!,
-      );
+      const dateKey = decorationDateKey(booking.startDate);
       return {
         booking,
         followup,

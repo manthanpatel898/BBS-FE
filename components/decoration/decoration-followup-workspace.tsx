@@ -19,9 +19,11 @@ import {
 type SelectedDay = { dateKey: string; entries: DecorationFollowupScheduleEntry[] };
 
 const stateMeta: Record<DecorationFollowupState, { label: string; badge: string; dot: string }> = {
-  TAKEN: { label: 'FOLLOW UP TAKEN', badge: 'border-emerald-300 bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
+  TAKEN_TODAY: { label: 'FOLLOW UP TAKEN TODAY', badge: 'border-emerald-300 bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
   PENDING: { label: 'FOLLOW UP PENDING', badge: 'border-amber-300 bg-amber-50 text-amber-700', dot: 'bg-amber-400' },
   OVERDUE: { label: 'FOLLOW UP OVERDUE', badge: 'border-red-300 bg-red-50 text-red-700', dot: 'bg-red-500' },
+  DUE_TODAY: { label: 'FOLLOW UP DUE TODAY', badge: 'border-orange-300 bg-orange-50 text-orange-700', dot: 'bg-orange-500' },
+  SCHEDULED: { label: 'FOLLOW UP SCHEDULED', badge: 'border-blue-300 bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
 };
 
 function displayDate(value: string, options?: Intl.DateTimeFormatOptions) {
