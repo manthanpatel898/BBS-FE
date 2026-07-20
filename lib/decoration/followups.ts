@@ -80,6 +80,25 @@ export function buildDecorationFollowupSchedule(
     );
 }
 
+const REQUIRED_STATE_PRIORITY: Partial<Record<DecorationFollowupState, number>> = {
+  OVERDUE: 0,
+  DUE_TODAY: 1,
+  PENDING: 2,
+};
+
+export function buildDecorationRequiredFollowupQueue(
+  bookings: DecorationBooking[],
+  todayKey = decorationDateKey(new Date()),
+): DecorationFollowupScheduleEntry[] {
+  return buildDecorationFollowupSchedule(bookings, todayKey)
+    .filter((entry) => REQUIRED_STATE_PRIORITY[entry.state] !== undefined)
+    .sort((left, right) =>
+      REQUIRED_STATE_PRIORITY[left.state]! - REQUIRED_STATE_PRIORITY[right.state]! ||
+      left.dateKey.localeCompare(right.dateKey) ||
+      left.booking.customer.name.localeCompare(right.booking.customer.name),
+    );
+}
+
 export function groupDecorationFollowupsByMonth(
   entries: DecorationFollowupScheduleEntry[],
 ): DecorationFollowupMonth[] {
