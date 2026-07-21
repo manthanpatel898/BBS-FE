@@ -8,6 +8,7 @@ export type DecorationDashboardSummary = {
   packageValue: number;
   collected: number;
   outstanding: number;
+  futureBookings: number;
 };
 
 export type DecorationDashboardCard = {
@@ -27,6 +28,17 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 
 export function formatIndianCurrency(value: number): string {
   return currencyFormatter.format(Number.isFinite(value) ? value : 0);
+}
+
+export function buildDecorationMobileCalendarCard(
+  summary: Pick<DecorationDashboardSummary, 'futureBookings'>,
+) {
+  return {
+    label: 'Calendar',
+    value: String(summary.futureBookings ?? 0),
+    description: 'Future booking entries',
+    href: '/decoration/events/',
+  };
 }
 
 export function buildDecorationDashboardCards(

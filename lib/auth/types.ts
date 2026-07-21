@@ -130,7 +130,7 @@ export interface DecorationSelectionResult { booking:DecorationBooking; reservat
 export interface DecorationAvailabilityItem { itemId:string; totalQuantity:number; serviceableQuantity:number; maintenanceQuantity:number; reservedQuantity:number; availableQuantity:number; }
 export interface DecorationAvailabilityResult { calculatedAt:string; items:DecorationAvailabilityItem[]; }
 export type DecorationFollowupPriorityState='OVERDUE'|'DUE_TODAY'|'PENDING'|'SCHEDULED'|'TAKEN_TODAY';
-export interface DecorationDashboardData { todayEvents:number; upcoming:number; openInquiries:number; followupsDue:number; selectionPending:number; byStatus:Record<string,number>; statusDistribution:Array<{status:DecorationBookingStatus;count:number}>; sevenDayWorkload:Array<{date:string;count:number}>; packageValue:number; collected:number; outstanding:number; upcomingEvents:DecorationBooking[]; followupPriorities:Array<{booking:DecorationBooking;followup:DecorationFollowup|null;state:DecorationFollowupPriorityState}>; }
+export interface DecorationDashboardData { todayEvents:number; upcoming:number; openInquiries:number; followupsDue:number; selectionPending:number; futureBookings:number; byStatus:Record<string,number>; sevenDayWorkload:Array<{date:string;count:number}>; packageValue:number; collected:number; outstanding:number; }
 export type DecorationDashboardRecordType='today'|'upcoming'|'open_inquiries'|'followups'|'advance_received'|'outstanding'|'selection_pending';
 export interface DecorationDashboardRecords { type:DecorationDashboardRecordType; items:DecorationBooking[]; pagination:{page:number;limit:number;total:number;totalPages:number}; }
 export interface DecorationReportRange { start:string; end:string; timezone:'Asia/Kolkata' }
