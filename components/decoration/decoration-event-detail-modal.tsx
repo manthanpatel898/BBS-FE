@@ -17,6 +17,7 @@ import type { DecorationBooking } from '@/lib/auth/types';
 import { getDecorationDetailActions, type DecorationDetailActionId } from '@/lib/decoration/event-detail-view';
 import { createPdfDownloadController, saveDownloadedPdf } from '@/lib/decoration/customer-document-download';
 import { BookingDownloadLifecycle } from '@/lib/decoration/booking-download-lifecycle';
+import { canSharePdf, sharePdf } from '@/lib/decoration/customer-document-share';
 
 const displayDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -74,13 +75,15 @@ function BottomActions({ booking, onAction }: { booking: DecorationBooking; onAc
     canManageFollowups: admin || hasPermission(user, PERMISSIONS.DECORATION_FOLLOWUPS_MANAGE),
     canSelectDecoration: admin || hasPermission(user, PERMISSIONS.DECORATION_SELECTION_MANAGE),
     canPrint: admin || hasPermission(user, PERMISSIONS.DECORATION_PRINT),
+    canShare: canSharePdf(),
   });
   return <BookingDownloadActions key={`${booking.id}:${accessToken ?? ''}`} booking={booking} accessToken={accessToken ?? ''} actions={actions} onAction={onAction} />;
 }
 
 function BookingDownloadActions({ booking, accessToken, actions, onAction }: { booking: DecorationBooking; accessToken: string; actions: ReturnType<typeof getDecorationDetailActions>; onAction: (action: DecorationDetailActionId) => void }) {
   const router = useRouter();
-  const [activeDocumentAction, setActiveDocumentAction] = useState<'view' | 'download' | 'print' | null>(null);
+  const [activeDocumentAction, setActiveDocumentAction] = useState<'view' | 'download' | 'share' | null>(null);
+  const [shareError, setShareError] = useState('');
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   return <BookingDownloadLifecycle controllerFactory={({ onBusy, onError }) => createPdfDownloadController({
     download: (signal) => downloadDecorationCustomerPdf(accessToken, booking.id, signal),
@@ -91,17 +94,29 @@ function BookingDownloadActions({ booking, accessToken, actions, onAction }: { b
     const renderActions = () => actions.map((action) => {
       const className = `inline-flex min-h-11 min-w-0 items-center justify-center rounded-xl px-3 py-2.5 text-sm font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`;
       const disabled = activeDocumentAction !== null;
-      if (action.id === 'view' || action.id === 'print') return <button key={action.id} type="button" disabled={disabled} onClick={() => {
+      if (action.id === 'view') return <button key={action.id} type="button" disabled={disabled} onClick={() => {
         if (activeDocumentAction) return;
-        setActiveDocumentAction(action.id === 'view' ? 'view' : 'print');
-        const destination = `/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=${action.id}&returnDate=${encodeURIComponent(booking.startDate.slice(0, 10))}`;
+        setActiveDocumentAction('view');
+        const destination = `/decoration/print?bookingId=${encodeURIComponent(booking.id)}&mode=view&returnDate=${encodeURIComponent(booking.startDate.slice(0, 10))}`;
         router.push(destination);
       }} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action={action.id} active={activeDocumentAction} fallback={action.label} /></button>;
       if (action.id === 'download') return <button key={action.id} type="button" onClick={() => { if (!activeDocumentAction) { setActiveDocumentAction('download'); start(); } }} disabled={disabled} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action="download" active={activeDocumentAction} fallback={action.label} /></button>;
+      if (action.id === 'share') return <button key={action.id} type="button" disabled={disabled} onClick={async () => {
+        if (activeDocumentAction) return;
+        setActiveDocumentAction('share'); setShareError('');
+        try {
+          const result = await downloadDecorationCustomerPdf(accessToken, booking.id, new AbortController().signal);
+          await sharePdf(result.blob, result.filename, `${booking.customer.name} decoration proposal`);
+        } catch (reason) {
+          setShareError(reason instanceof Error ? reason.message : 'Unable to share the decoration proposal.');
+        } finally {
+          setActiveDocumentAction(null);
+        }
+      }} className={`${className} disabled:cursor-wait disabled:opacity-60`}><DocumentActionLabel action="share" active={activeDocumentAction} fallback={action.label} /></button>;
       return <button key={action.id} type="button" disabled={disabled} onClick={() => { setMobileActionsOpen(false); onAction(action.id); }} className={`${className} disabled:cursor-wait disabled:opacity-60`}>{action.label}</button>;
     });
     return <div className="z-[60] shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.1)] backdrop-blur sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3 lg:px-8">
-      {downloadError ? <p role="alert" className="mx-auto mb-2 max-w-6xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{downloadError}</p> : null}
+      {downloadError || shareError ? <p role="alert" className="mx-auto mb-2 max-w-6xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{downloadError || shareError}</p> : null}
       <div className={`grid grid-cols-2 gap-2 overflow-hidden transition-[max-height,opacity,margin] duration-200 sm:hidden ${mobileActionsOpen ? 'mb-2 max-h-[520px] opacity-100' : 'max-h-0 opacity-0'}`}>{mobileActionsOpen ? renderActions() : null}</div>
       <button type="button" aria-label={mobileActionsOpen ? 'Hide event actions' : 'Show event actions'} aria-expanded={mobileActionsOpen} onClick={() => setMobileActionsOpen((current) => !current)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:hidden">Actions <span aria-hidden="true" className={`transition-transform ${mobileActionsOpen ? 'rotate-180' : ''}`}>⌃</span></button>
       <div className="hidden grid-cols-2 gap-2 sm:grid min-[720px]:grid-cols-3 lg:grid-cols-4">{renderActions()}</div>
@@ -109,8 +124,8 @@ function BookingDownloadActions({ booking, accessToken, actions, onAction }: { b
   }}</BookingDownloadLifecycle>;
 }
 
-function DocumentActionLabel({ action, active, fallback }: { action: 'view' | 'download' | 'print'; active: 'view' | 'download' | 'print' | null; fallback: string }) {
-  const label = action === 'view' ? 'Opening…' : action === 'download' ? 'Downloading…' : 'Preparing print…';
+function DocumentActionLabel({ action, active, fallback }: { action: 'view' | 'download' | 'share'; active: 'view' | 'download' | 'share' | null; fallback: string }) {
+  const label = action === 'view' ? 'Opening…' : action === 'download' ? 'Downloading…' : 'Preparing share…';
   return <span aria-live="polite" className="inline-flex items-center justify-center gap-2">{active === action ? <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" /> : null}{active === action ? label : fallback}</span>;
 }
 

@@ -18,12 +18,6 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
 }
 
-function formatDateRange(startDate: string, endDate: string) {
-  return startDate === endDate
-    ? formatDate(startDate)
-    : `${formatDate(startDate)} – ${formatDate(endDate)}`;
-}
-
 function ImageWithFallback({ item }: { item: DocumentItem }) {
   const [failed, setFailed] = useState(false);
   const source = failed ? null : item.image?.url.trim();
@@ -134,7 +128,7 @@ export function DecorationCustomerDocumentView({
           title="Event & Venue"
           rows={[
             ['Event Type', document.event.eventType],
-            ['Date', formatDateRange(document.event.startDate, document.event.endDate)],
+            ['Event Date', formatDate(document.event.startDate)],
             ['Time', `${document.event.startTime} – ${document.event.endTime}`],
             ['Time Slot', document.event.timeSlot],
             ['Venue', document.event.location],
