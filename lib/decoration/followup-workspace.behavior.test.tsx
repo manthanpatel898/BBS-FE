@@ -2,7 +2,7 @@ import './image-crop-test-dom.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
-import { cleanup, render, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { DecorationRequiredFollowupList } from '../../components/decoration/decoration-followup-workspace';
 
 const booking = {
@@ -14,13 +14,13 @@ const booking = {
 
 test.afterEach(() => cleanup());
 
-test('renders a full actionable queue without month or date navigation', () => {
+test('renders banquet-style date cards and opens a day sidebar with icon actions', async () => {
   render(<DecorationRequiredFollowupList entries={[{ booking, followup: null, dateKey: '2026-07-22', state: 'PENDING' }]} onDetail={() => {}} onFollowup={() => {}} />);
   const page = within(document.body);
-  assert.ok(page.getByText('Action Customer'));
-  assert.equal(page.queryByText('July 2026'), null);
-  assert.equal(page.queryByRole('button', { name: /July 22/i }), null);
+  assert.ok(page.getByText('July 2026'));
+  fireEvent.click(page.getByRole('button', { name: /Jul 22.*1 inquiry/i }));
+  assert.ok(await page.findByText('Action Customer'));
   assert.ok(page.getByRole('link', { name: 'Call Action Customer' }));
-  assert.ok(page.getByRole('button', { name: 'View Details' }));
-  assert.ok(page.getByRole('button', { name: 'Add Follow-up' }));
+  assert.ok(page.getByRole('button', { name: 'View booking' }));
+  assert.ok(page.getByRole('button', { name: 'Follow ups' }));
 });

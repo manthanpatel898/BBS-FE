@@ -42,9 +42,8 @@ export function decorationFollowupState(
   return 'SCHEDULED';
 }
 
-function latestPendingFollowup(booking: DecorationBooking) {
+function latestFollowup(booking: DecorationBooking) {
   return [...booking.followups]
-    .filter((followup) => followup.status !== 'COMPLETED')
     .sort((left, right) => {
       const dateDifference = decorationDateKey(right.date).localeCompare(
         decorationDateKey(left.date),
@@ -61,10 +60,13 @@ export function buildDecorationFollowupSchedule(
   todayKey = decorationDateKey(new Date()),
 ): DecorationFollowupScheduleEntry[] {
   return bookings
-    .filter((booking) => booking.status === 'INQUIRY' && decorationDateKey(booking.endDate) >= todayKey)
-    .map((booking) => {
-      const followup = latestPendingFollowup(booking);
-      const dateKey = decorationDateKey(booking.startDate);
+    .filter((booking) => booking.status === 'INQUIRY' && decorationDateKey(booking.startDate) >= todayKey)
+    .map<DecorationFollowupScheduleEntry | null>((booking) => {
+      const followup = latestFollowup(booking);
+      if (followup?.status === 'COMPLETED') return null;
+      const dateKey = followup?.nextDate
+        ? decorationDateKey(followup.nextDate)
+        : decorationDateKey(booking.startDate);
       return {
         booking,
         followup,
@@ -72,6 +74,7 @@ export function buildDecorationFollowupSchedule(
         state: decorationFollowupState(followup, todayKey),
       };
     })
+    .filter((entry): entry is DecorationFollowupScheduleEntry => entry !== null)
     .sort((left, right) =>
       left.dateKey.localeCompare(right.dateKey) ||
       left.booking.customer.name.localeCompare(right.booking.customer.name),
