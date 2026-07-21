@@ -20,14 +20,21 @@ function roleFor(displayRole: EmployeeDisplayRole): 'company_admin' | 'employee'
 
 function commonPayload(form: EmployeePayloadForm, businessType?: BusinessType | null) {
   const { displayRole, password: _password, canAccessOdc, ...values } = form;
+  if (businessType === 'EVENT_DECORATION') {
+    return {
+      ...values,
+      role: 'company_admin' as const,
+      designation: 'Company Admin',
+      canAccessOdc: false,
+      permissions: [],
+    };
+  }
   const role = roleFor(displayRole);
   return {
     ...values,
     role,
     designation: displayRole,
-    ...(businessType === 'EVENT_DECORATION'
-      ? {}
-      : { canAccessOdc: role === 'employee' ? canAccessOdc : false }),
+    canAccessOdc: role === 'employee' ? canAccessOdc : false,
   };
 }
 
@@ -38,7 +45,7 @@ export function buildEmployeeUpdatePayload(
   const password = form.password.trim();
   return {
     ...commonPayload(form, businessType),
-    ...(form.displayRole === 'Manager' && password ? { password } : {}),
+    ...((businessType === 'EVENT_DECORATION' || form.displayRole === 'Manager') && password ? { password } : {}),
   };
 }
 

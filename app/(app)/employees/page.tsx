@@ -128,10 +128,11 @@ export default function EmployeesPage() {
   const [isPermissionSaving, setIsPermissionSaving] = useState(false);
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingSignatureRef = useRef(false);
+  const isEventCompany = user?.businessType === 'EVENT_DECORATION';
   const canViewPermissions =
-    hasPermission(user, PERMISSIONS.EMPLOYEES_PERMISSIONS_VIEW) ||
-    hasPermission(user, PERMISSIONS.EMPLOYEES_PERMISSIONS_MANAGE);
-  const canManagePermissions = hasPermission(
+    !isEventCompany && (hasPermission(user, PERMISSIONS.EMPLOYEES_PERMISSIONS_VIEW) ||
+    hasPermission(user, PERMISSIONS.EMPLOYEES_PERMISSIONS_MANAGE));
+  const canManagePermissions = !isEventCompany && hasPermission(
     user,
     PERMISSIONS.EMPLOYEES_PERMISSIONS_MANAGE,
   );
@@ -869,13 +870,13 @@ export default function EmployeesPage() {
                       </td>
                       <td className="px-5 py-4 text-slate-700">
                         {employee.designation || 'Not set'}
-                        {employee.signatureSummary ? (
+                        {!isEventCompany && (employee.signatureSummary ? (
                           <p className="mt-1 text-xs text-emerald-600">
                             Signature saved {formatSignatureDate(employee.signatureSummary.signedAt)}
                           </p>
                         ) : (
                           <p className="mt-1 text-xs text-slate-400">Signature not added</p>
-                        )}
+                        ))}
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -890,13 +891,13 @@ export default function EmployeesPage() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex gap-2">
-                          <button
+                          {!isEventCompany ? <button
                             type="button"
                             onClick={() => void openSignatureModal(employee)}
                             className="rounded-xl border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50"
                           >
                             {employee.signatureSummary ? 'View signature' : 'Add signature'}
-                          </button>
+                          </button> : null}
                           <button
                             type="button"
                             onClick={() => openEditModal(employee)}
@@ -980,23 +981,23 @@ export default function EmployeesPage() {
                     <span className="text-slate-500">Designation</span>
                     <span className="font-semibold text-slate-800">{employee.designation || 'Not set'}</span>
                   </div>
-                  <div className="flex items-start justify-between gap-3">
+                  {!isEventCompany ? <div className="flex items-start justify-between gap-3">
                     <span className="text-slate-500">Signature</span>
                     <span className={`text-right font-semibold ${employee.signatureSummary ? 'text-emerald-600' : 'text-slate-400'}`}>
                       {employee.signatureSummary
                         ? formatSignatureDate(employee.signatureSummary.signedAt)
                         : 'Not added'}
                     </span>
-                  </div>
+                  </div> : null}
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button
+                  {!isEventCompany ? <button
                     type="button"
                     onClick={() => void openSignatureModal(employee)}
                     className="min-h-11 rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50"
                   >
                     {employee.signatureSummary ? 'View signature' : 'Add signature'}
-                  </button>
+                  </button> : null}
                   <button
                     type="button"
                     onClick={() => openEditModal(employee)}
@@ -1095,7 +1096,11 @@ export default function EmployeesPage() {
                   className={inputCls}
                 />
                 {/* Role selector */}
-                <select
+                {isEventCompany ? (
+                  <div className={`${inputCls} flex items-center text-slate-700`} aria-label="User type">
+                    Company Admin
+                  </div>
+                ) : <select
                   value={formState.displayRole}
                   onChange={(event) =>
                     setFormState((current) => ({
@@ -1110,7 +1115,7 @@ export default function EmployeesPage() {
                   {DISPLAY_ROLE_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
-                </select>
+                </select>}
                 <input
                   type="tel"
                   inputMode="numeric"
@@ -1264,7 +1269,7 @@ export default function EmployeesPage() {
           </CommonModal>
         ) : null}
 
-        {permissionEditor ? (
+        {!isEventCompany && permissionEditor ? (
           <CommonModal
             title={`Permissions - ${employeeName(permissionEditor.employee)}`}
             description="View role-default access and manage custom permission overrides for this user."
@@ -1315,7 +1320,7 @@ export default function EmployeesPage() {
           </CommonModal>
         ) : null}
 
-        {signatureModal ? (
+        {!isEventCompany && signatureModal ? (
           <CommonModal
             title={`${signatureModal.signature ? 'Employee signature' : 'Add signature'} - ${employeeName(signatureModal.employee)}`}
             description="Company admins can add or replace an employee signature when the employee is present."
