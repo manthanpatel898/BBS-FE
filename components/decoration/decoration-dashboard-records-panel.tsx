@@ -84,9 +84,9 @@ export function DecorationDashboardRecordsPanel({
               </div>
               <p className="mt-3 text-sm font-semibold text-slate-600">{booking.startTime}–{booking.endTime} · {booking.timeSlot}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-xs">
-                <div className="min-w-0"><p className="text-slate-500">Package</p><p className="break-words font-bold text-slate-900">{formatIndianCurrency(booking.packageRate)}</p></div>
+                <div className="min-w-0"><p className="text-slate-500">Package</p><p className="break-words font-bold text-slate-900">{booking.isPackagePriceFinalized?formatIndianCurrency(booking.packageRate):'Not finalized'}</p></div>
                 <div className="min-w-0"><p className="text-slate-500">Received</p><p className="break-words font-bold text-emerald-700">{formatIndianCurrency(booking.totalCollected)}</p></div>
-                <div className="min-w-0"><p className="text-slate-500">Pending</p><p className="break-words font-bold text-red-700">{formatIndianCurrency(booking.outstandingAmount)}</p></div>
+                <div className="min-w-0"><p className="text-slate-500">Pending</p><p className="break-words font-bold text-red-700">{booking.isPackagePriceFinalized?formatIndianCurrency(booking.outstandingAmount):'Not finalized'}</p></div>
               </div>
             </button>)}
           </div>

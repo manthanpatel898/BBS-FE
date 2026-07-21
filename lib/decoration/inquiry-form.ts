@@ -7,11 +7,11 @@ export type DecorationInquiryValues = {
   eventTypeId:string; customEventTypeName:string;
   venueId:string; customVenueName:string; customVenueType:'HOTEL'|'VENUE'; customVenueAddress:string;
   hallId:string; customHallName:string; address:string;
-  timeSlot:'MORNING'|'AFTERNOON'|'EVENING'; startDate:string; endDate:string; packageRate:string; notes:string;
+  timeSlot:'MORNING'|'AFTERNOON'|'EVENING'; startDate:string; packageRate:string; notes:string;
 };
 
 export function createDecorationInquiryValues(date = ''): DecorationInquiryValues {
-  return { customerName:'',mobile:'',eventTypeId:'',customEventTypeName:'',venueId:'',customVenueName:'',customVenueType:'VENUE',customVenueAddress:'',hallId:'',customHallName:'',address:'',timeSlot:'MORNING',startDate:date,endDate:date,packageRate:'',notes:'' };
+  return { customerName:'',mobile:'',eventTypeId:'',customEventTypeName:'',venueId:'',customVenueName:'',customVenueType:'VENUE',customVenueAddress:'',hallId:'',customHallName:'',address:'',timeSlot:'MORNING',startDate:date,packageRate:'',notes:'' };
 }
 
 export function changeInquiryLocation(values:DecorationInquiryValues,venueId:string):DecorationInquiryValues {
@@ -27,14 +27,12 @@ export function validateDecorationInquiry(values: DecorationInquiryValues, optio
   if (!values.venueId) errors.venueId='Select a hotel or venue';
   if (values.venueId===OTHER_DECORATION_OPTION&&!values.customVenueName.trim()) errors.customVenueName='Enter a hotel or venue name';
   if (values.hallId===OTHER_DECORATION_OPTION&&!values.customHallName.trim()) errors.customHallName='Enter a hall name or number';
-  if (!values.startDate) errors.startDate='Start date is required';
+  if (!values.startDate) errors.startDate='Event date is required';
   else if (options.mode!=='edit'&&!canCreateDecorationInquiry(values.startDate,options.todayKey??decorationBusinessDate())) errors.startDate='New inquiries cannot be created for a previous date.';
-  if (!values.endDate) errors.endDate='End date is required';
-  else if (values.startDate&&values.endDate<values.startDate) errors.endDate='End date cannot be before start date';
-  if (values.packageRate===''||!Number.isFinite(Number(values.packageRate))||Number(values.packageRate)<0) errors.packageRate='Enter a valid package rate';
+  if (values.packageRate!==''&&(!Number.isFinite(Number(values.packageRate))||Number(values.packageRate)<0)) errors.packageRate='Enter a valid package rate';
   return errors;
 }
 
-function normalize(values:DecorationInquiryValues){return {customerName:values.customerName.trim(),mobile:values.mobile,eventTypeId:values.eventTypeId,venueId:values.venueId,hallId:values.hallId||null,address:values.address.trim()||null,timeSlot:values.timeSlot,startDate:values.startDate,endDate:values.endDate,packageRate:Number(values.packageRate),notes:values.notes.trim()||null}}
+function normalize(values:DecorationInquiryValues){return {customerName:values.customerName.trim(),mobile:values.mobile,eventTypeId:values.eventTypeId,venueId:values.venueId,hallId:values.hallId||null,address:values.address.trim()||null,timeSlot:values.timeSlot,startDate:values.startDate,...(values.packageRate!==''?{packageRate:Number(values.packageRate)}:{}),notes:values.notes.trim()||null}}
 
 export function buildDecorationBookingPatch(original:DecorationInquiryValues|null,current:DecorationInquiryValues){const next=normalize(current);if(!original)return next;const before=normalize(original);return Object.fromEntries(Object.entries(next).filter(([key,value])=>before[key as keyof typeof before]!==value))}

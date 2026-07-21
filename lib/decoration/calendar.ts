@@ -9,13 +9,8 @@ function dateKey(value: string) {
 export function groupDecorationBookingsByDate<T extends DateRangeBooking>(bookings: T[]) {
   const grouped = new Map<string, T[]>();
   for (const booking of bookings) {
-    const start = new Date(`${dateKey(booking.startDate)}T00:00:00.000Z`);
-    const end = new Date(`${dateKey(booking.endDate)}T00:00:00.000Z`);
-    if (end < start) continue;
-    for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
-      const key = cursor.toISOString().slice(0, 10);
-      grouped.set(key, [...(grouped.get(key) ?? []), booking]);
-    }
+    const key = dateKey(booking.startDate);
+    grouped.set(key, [...(grouped.get(key) ?? []), booking]);
   }
   return grouped;
 }

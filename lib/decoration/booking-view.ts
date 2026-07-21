@@ -148,8 +148,5 @@ export function bookingIntersectsDate(
   date: string,
 ): boolean {
   const selectedDate = toDateKey(date);
-  return (
-    toDateKey(booking.startDate) <= selectedDate &&
-    toDateKey(booking.endDate) >= selectedDate
-  );
+  return toDateKey(booking.startDate) === selectedDate;
 }

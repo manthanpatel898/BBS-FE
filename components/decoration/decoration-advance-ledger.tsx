@@ -9,9 +9,9 @@ export function DecorationAdvanceLedger({ booking }: { booking: DecorationBookin
   const rows = getDecorationAdvanceRows(booking);
   return <div className="space-y-4 text-slate-700">
     <div className="grid grid-cols-3 gap-2 sm:gap-3">
-      <Summary label="Package" value={money(summary.packageAmount)} />
+      <Summary label="Package" value={booking.isPackagePriceFinalized ? money(summary.packageAmount) : 'Not finalized'} />
       <Summary label="Received" value={money(summary.receivedAmount)} tone="text-emerald-700" />
-      <Summary label="Pending" value={money(summary.outstandingAmount)} tone={summary.outstandingAmount ? 'text-red-700' : 'text-emerald-700'} />
+      <Summary label="Pending" value={booking.isPackagePriceFinalized ? money(summary.outstandingAmount) : 'Not finalized'} tone={booking.isPackagePriceFinalized && summary.outstandingAmount ? 'text-red-700' : 'text-slate-900'} />
     </div>
     {!rows.length ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">No advance payments recorded.</p> : <>
       <div className="space-y-3 sm:hidden">{rows.map((row) => <article key={row.id} className="rounded-xl border border-slate-200 bg-white p-4 text-slate-700"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-900">{money(row.amount)}</p><p className="text-xs text-slate-500">{date(row.date)}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{row.mode}</span></div><dl className="mt-3 grid gap-2 text-sm"><div><dt className="text-xs text-slate-400">Remark</dt><dd className="text-slate-700">{row.remark}</dd></div><div><dt className="text-xs text-slate-400">Recorded by</dt><dd className="text-slate-700">{row.recordedBy}</dd></div></dl></article>)}</div>
