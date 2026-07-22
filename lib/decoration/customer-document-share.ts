@@ -4,6 +4,9 @@ type NavigatorShareLike = {
   canShare?: (data: ShareDataLike) => boolean;
 };
 
+export type PreparedPdf = { blob: Blob; filename: string };
+export type PdfShareStatus = 'idle' | 'preparing' | 'ready' | 'sharing' | 'error';
+
 function pdfFile(blob: Blob, filename: string): File {
   return new File([blob], filename, { type: 'application/pdf' });
 }
@@ -34,4 +37,68 @@ export async function sharePdf(
     if (reason instanceof DOMException && reason.name === 'AbortError') return;
     throw reason;
   }
+}
+
+export function createPdfShareController(options: {
+  download: (signal: AbortSignal) => Promise<PreparedPdf>;
+  share: (document: PreparedPdf) => Promise<void> | void;
+  onStatus: (status: PdfShareStatus) => void;
+  onError: (message: string) => void;
+}) {
+  let prepared: PreparedPdf | null = null;
+  let request: { id: symbol; controller: AbortController } | null = null;
+  let sharing = false;
+
+  return {
+    prepare(): Promise<void> | false {
+      if (prepared || request) return false;
+      const current = { id: Symbol('pdf-share'), controller: new AbortController() };
+      request = current;
+      options.onError('');
+      options.onStatus('preparing');
+      return options.download(current.controller.signal).then((document) => {
+        if (request?.id !== current.id || current.controller.signal.aborted) return;
+        prepared = document;
+        options.onStatus('ready');
+      }).catch((reason: unknown) => {
+        if (request?.id !== current.id || current.controller.signal.aborted) return;
+        options.onStatus('error');
+        options.onError(reason instanceof Error ? reason.message : 'Unable to prepare the decoration proposal for sharing.');
+      }).finally(() => {
+        if (request?.id === current.id) request = null;
+      });
+    },
+    share(): Promise<void> | false {
+      if (!prepared || sharing) return false;
+      sharing = true;
+      options.onError('');
+      options.onStatus('sharing');
+
+      let result: Promise<void> | void;
+      try {
+        // Keep this invocation synchronous. Mobile Safari requires navigator.share()
+        // to run in the same user-activation task as the button tap.
+        result = options.share(prepared);
+      } catch (reason) {
+        sharing = false;
+        options.onStatus('ready');
+        options.onError(reason instanceof Error ? reason.message : 'Unable to share the decoration proposal.');
+        return Promise.resolve();
+      }
+
+      return Promise.resolve(result).catch((reason: unknown) => {
+        options.onError(reason instanceof Error ? reason.message : 'Unable to share the decoration proposal.');
+      }).finally(() => {
+        sharing = false;
+        options.onStatus('ready');
+      });
+    },
+    abort(): void {
+      request?.controller.abort();
+      request = null;
+      prepared = null;
+      sharing = false;
+      options.onStatus('idle');
+    },
+  };
 }
