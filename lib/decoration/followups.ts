@@ -66,7 +66,9 @@ export function buildDecorationFollowupSchedule(
       if (followup?.status === 'COMPLETED') return null;
       const dateKey = followup?.nextDate
         ? decorationDateKey(followup.nextDate)
-        : decorationDateKey(booking.startDate);
+        : followup
+          ? decorationDateKey(booking.startDate)
+          : todayKey;
       return {
         booking,
         followup,
