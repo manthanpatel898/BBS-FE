@@ -149,7 +149,7 @@ export function DecorationCustomerDocumentView({
             {document.categories.map((category, categoryIndex) => {
               const headingId = `decoration-category-${categoryIndex}`;
               return (
-                <section key={category.id || category.name} aria-labelledby={headingId} className="decoration-document-group">
+                <section key={`${category.id || category.name}:${categoryIndex}`} aria-labelledby={headingId} className="decoration-document-group">
                   <h3 id={headingId} className="mb-3 border-b border-slate-300 pb-2 text-lg font-bold">
                     {category.name}
                   </h3>
@@ -176,6 +176,13 @@ export function DecorationCustomerDocumentView({
           <p className="rounded-xl border border-dashed p-8 text-center text-sm text-slate-500">No decoration items are included in this proposal.</p>
         )}
       </section>
+
+      {document.generalNotes?.trim() ? (
+        <section aria-labelledby="decoration-general-notes-heading" className="decoration-general-notes mt-7 break-inside-avoid rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <h2 id="decoration-general-notes-heading" className="text-lg font-bold text-slate-950">General Notes</h2>
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{document.generalNotes.trim()}</p>
+        </section>
+      ) : null}
 
       <footer className="mt-10 border-t pt-4 text-center text-xs text-slate-400">
         Generated from immutable event snapshot · {document.booking.bookingNumber}

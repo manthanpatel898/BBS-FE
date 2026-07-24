@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { DecorationSnapshotLine } from '@/lib/auth/types';
-import { groupSnapshotByCategory, safeSnapshotImage, snapshotItemKey } from '@/lib/decoration/snapshot-view';
+import { orderedSnapshotGroups, safeSnapshotImage, snapshotItemKey } from '@/lib/decoration/snapshot-view';
 
 function ImageFallback({ line, large = false }: { line: DecorationSnapshotLine; large?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -14,10 +14,10 @@ function ImageFallback({ line, large = false }: { line: DecorationSnapshotLine; 
 
 export function DecorationSnapshotGallery({ lines, printable = false, internal = false }: { lines: DecorationSnapshotLine[]; printable?: boolean; internal?: boolean }) {
   const [selected, setSelected] = useState<DecorationSnapshotLine | null>(null);
-  const groups = [...groupSnapshotByCategory(lines).entries()];
+  const groups = orderedSnapshotGroups(lines);
   if (!lines.length) return <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500">Decoration has not been selected for this event.</div>;
   return <div className="space-y-7 text-slate-900">
-    {groups.map(([category, items]) => <section key={category} className="decoration-print-group break-inside-avoid">
+    {groups.map(({ key, category, items }) => <section key={key} className="decoration-print-group break-inside-avoid">
       <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-lg font-bold text-slate-900">{category}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{items.length} {items.length === 1 ? 'item' : 'items'}</span></div>
       <div className={`grid gap-4 ${printable ? 'grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
         {items.map((line, index) => <article key={snapshotItemKey(line, index)} className="decoration-print-item overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

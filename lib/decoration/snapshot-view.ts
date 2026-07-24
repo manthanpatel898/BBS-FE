@@ -2,7 +2,29 @@ export type SnapshotViewLine = {
   itemId?: string | null;
   categoryName?: string | null;
   itemName: string;
+  position?: number;
 };
+
+export function orderedSnapshotLines<T extends SnapshotViewLine>(lines: T[]) {
+  return lines
+    .map((line, index) => ({ line, index }))
+    .sort((left, right) =>
+      (left.line.position ?? left.index) - (right.line.position ?? right.index)
+      || left.index - right.index)
+    .map(({ line }) => line);
+}
+
+export function orderedSnapshotGroups<T extends SnapshotViewLine>(lines: T[]) {
+  const groups: Array<{ key: string; category: string; items: T[] }> = [];
+  for (const line of orderedSnapshotLines(lines)) {
+    const category = line.categoryName?.trim() || 'Other Decoration';
+    const current = groups.at(-1);
+    if (!current || current.category !== category) {
+      groups.push({ key: `${groups.length}:${category}`, category, items: [line] });
+    } else current.items.push(line);
+  }
+  return groups;
+}
 
 export function groupSnapshotByCategory<T extends SnapshotViewLine>(lines: T[]) {
   const groups = new Map<string, T[]>();
