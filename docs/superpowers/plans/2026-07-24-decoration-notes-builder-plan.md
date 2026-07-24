@@ -108,7 +108,7 @@ export type NormalizedDecorationDraft = {
 };
 ```
 
-Throw `BadRequestException` with block-indexed messages for invalid input. Sort a copied array by `position`; never mutate the DTO.
+Throw `BadRequestException` with block-indexed messages for structurally unsafe input. Draft normalization permits a temporarily blank title and quantity `0` so autosave can recover an in-progress edit; Preview and Final Save enforce the mandatory trimmed title and quantity of at least `1`. Sort a copied array by `position`; never mutate the DTO.
 
 - [ ] **Step 4: Extend final selection DTO backward-compatibly**
 
