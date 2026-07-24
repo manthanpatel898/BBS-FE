@@ -9,7 +9,7 @@ import type { DecorationDraftBlock, DecorationSelectionDraft } from '@/lib/auth/
 
 export type DecorationDraftPayload = {
   revision: number;
-  blocks: DecorationDraftBlock[];
+  blocks: Array<Omit<DecorationDraftBlock, 'description'> & { description: string }>;
   generalNotes: string | null;
   finalPackagePrice: string;
 };
@@ -34,7 +34,10 @@ export function useDecorationNotesAutosave({
   });
   const [runtime] = useState(() => {
     let activeAbort: AbortController | null = null;
-    const controller = createDecorationNotesAutosave({
+    const controller = createDecorationNotesAutosave<
+      DecorationDraftPayload,
+      DecorationSelectionDraft
+    >({
       save: async (_payload: DecorationDraftPayload) => {
         throw new Error('Draft save is not ready.');
       },
