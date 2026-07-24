@@ -38,6 +38,7 @@ const common = {
   accessToken: 'token',
   loadCategories: async () => categories,
   loadItems: async () => items,
+  loadDraft: async () => null,
   materializeImage: async (file: File) => file,
   CropModal: FakeCropModal,
 };
@@ -50,25 +51,26 @@ test('custom Camera / gallery crops first, cancel preserves parent choices, and 
     uploads.push(file);
     return uploadedImage();
   }} />);
-  await page().findByText('Arch');
-  fireEvent.click(page().getByRole('button', { name: /Arch/ }));
+  await page().findByText('General Notes');
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [png('camera.png')] } });
   assert.ok(await page().findByRole('dialog', { name: 'Crop custom image' }));
   assert.equal(uploads.length, 0);
   fireEvent.click(page().getByRole('button', { name: 'Cancel crop' }));
-  assert.match(page().getByText(/1 items/).textContent ?? '', /1 items/);
+  assert.equal(page().queryByLabelText('Custom item name'), null);
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [png('gallery.png')] } });
   fireEvent.click(await page().findByRole('button', { name: 'Confirm crop' }));
   await waitFor(() => assert.equal(uploads.length, 1));
   assert.equal(await uploads[0].text(), 'cropped');
-  assert.equal(page().getAllByLabelText('Custom item name').length, 1);
-  fireEvent.change(page().getByLabelText('Custom item name'), { target: { value: 'Preserved arch' } });
+  assert.equal(page().getAllByText('Title').length, 1);
+  fireEvent.change(page().getByLabelText(/Link inventory item/), { target: { value: 'item-1' } });
+  assert.equal((page().getByLabelText(/Link inventory item/) as HTMLSelectElement).value, 'item-1');
+  fireEvent.change(page().getByLabelText(/Title/), { target: { value: 'Preserved arch' } });
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [png('cancel-next.png')] } });
   fireEvent.click(await page().findByRole('button', { name: 'Cancel crop' }));
-  assert.equal((page().getByLabelText('Custom item name') as HTMLInputElement).value, 'Preserved arch');
+  assert.equal((page().getByLabelText(/Title/) as HTMLInputElement).value, 'Preserved arch');
 });
 
-test('duplicate confirmation is synchronous, failed upload retains the crop for retry, and unrelated choices stay enabled', async () => {
+test('duplicate confirmation is synchronous, failed upload retains the crop for retry, and unrelated fields stay enabled', async () => {
   let resolveUpload!: (value: ReturnType<typeof uploadedImage>) => void;
   let rejectUpload!: (reason: Error) => void;
   const uploads: File[] = [];
@@ -76,20 +78,20 @@ test('duplicate confirmation is synchronous, failed upload retains the crop for 
     uploads.push(file);
     return new Promise((resolve, reject) => { resolveUpload = resolve; rejectUpload = reject; });
   }} />);
-  await page().findByText('Arch');
+  await page().findByText('General Notes');
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [png('one.png')] } });
   const confirm = await page().findByRole('button', { name: 'Confirm crop' });
   fireEvent.click(confirm);
   fireEvent.click(confirm);
   await waitFor(() => assert.equal(uploads.length, 1));
-  assert.equal(page().getByRole('button', { name: /Arch/ }).hasAttribute('disabled'), false);
+  assert.equal(page().getByText('General Notes').closest('section')?.querySelector('textarea')?.hasAttribute('disabled'), false);
   rejectUpload(new Error('offline'));
-  assert.ok(await page().findByRole('button', { name: 'Retry custom image upload' }));
-  fireEvent.click(page().getByRole('button', { name: 'Retry custom image upload' }));
+  assert.ok(await page().findByText('offline'));
+  fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
   await waitFor(() => assert.equal(uploads.length, 2));
-  assert.equal(uploads[1], uploads[0]);
+  assert.equal(await uploads[1].text(), await uploads[0].text());
   resolveUpload(uploadedImage());
-  await waitFor(() => assert.equal(page().getAllByLabelText('Custom item name').length, 1));
+  await waitFor(() => assert.equal(page().getAllByText('Title').length, 1));
 });
 
 test('StrictMode ignores stale selection/upload completion and unmount completion', async () => {
@@ -100,15 +102,18 @@ test('StrictMode ignores stale selection/upload completion and unmount completio
     materializeImage={(file) => new Promise((resolve) => selected.set(file.name, resolve))}
     uploadCustomImage={async (_token, _id, file) => { uploads.push(file.name); return new Promise((resolve) => { resolveUpload = resolve; }); }}
   /></StrictMode>);
-  await page().findByText('Arch');
+  await page().findByText('General Notes');
   const input = () => document.querySelector<HTMLInputElement>('input[type="file"]')!;
   fireEvent.change(input(), { target: { files: [png('old.png')] } });
   fireEvent.change(input(), { target: { files: [png('new.png')] } });
+  await waitFor(() => assert.equal(typeof selected.get('new.png'), 'function'));
   selected.get('new.png')!(png('new.png'));
   assert.ok(await page().findByText('new.png'));
+  await waitFor(() => assert.equal(typeof selected.get('old.png'), 'function'));
   selected.get('old.png')!(png('old.png'));
   await waitFor(() => assert.equal(page().queryByText('old.png'), null));
   fireEvent.click(page().getByRole('button', { name: 'Confirm crop' }));
+  await waitFor(() => assert.equal(typeof selected.get('cropped-new.png'), 'function'));
   selected.get('cropped-new.png')!(png('cropped-new.png', 'cropped'));
   await waitFor(() => assert.deepEqual(uploads, ['cropped-new.png']));
   view.unmount();
@@ -121,8 +126,8 @@ test('actual nested crop restores focus to the visible Camera / gallery trigger 
     uploads.push(file);
     return uploadedImage();
   }} />);
-  await page().findByText('Arch');
-  const trigger = page().getByRole('button', { name: 'Camera / gallery' });
+  await page().findByText('General Notes');
+  const trigger = page().getByRole('button', { name: /Add Photo Note/ });
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
 
   fireEvent.click(trigger);

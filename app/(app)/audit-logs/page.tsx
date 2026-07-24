@@ -8,7 +8,7 @@ import { AuditLogItem } from '@/lib/auth/types';
 
 const inputCls =
   'light-form-field w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
-const decorationModules=['decoration_bookings','decoration_configuration','decoration_catalog','decoration_reservations','decoration_selection','decoration_imports','decoration_reports','decoration_maintenance'];
+const decorationModules=['decoration_bookings','decoration_configuration','decoration_catalog','decoration_reservations','decoration_selection','decoration_selection_drafts','decoration_imports','decoration_reports','decoration_maintenance'];
 const moduleLabel=(value:string)=>value.startsWith('decoration_')?`Decoration · ${titleCase(value.replace('decoration_',''))}`:titleCase(value);
 
 function prettyJson(value: Record<string, unknown> | null) {

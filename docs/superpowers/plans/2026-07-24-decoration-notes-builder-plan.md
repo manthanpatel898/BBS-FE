@@ -34,7 +34,7 @@
 - Produces shared limits `MAX_DECORATION_BLOCKS = 100` and `MAX_GENERAL_NOTES_LENGTH = 5000`.
 - Produces backward-compatible optional `position` on final catalog/custom lines and optional `generalNotes` on `ReplaceDecorationReservationsDto`.
 
-- [ ] **Step 1: Write failing domain tests**
+- [x] **Step 1: Write failing domain tests**
 
 Cover mixed custom/catalog blocks, stable ordering, mandatory images, duplicate positions, title/description limits, quantity, General Notes trimming, 100-block limit, and payload-size bounds:
 
@@ -72,7 +72,7 @@ assert.deepEqual(result.blocks.map((block) => block.clientId), [
 assert.equal(result.generalNotes, "Complete setup by 4 PM.");
 ```
 
-- [ ] **Step 2: Run the domain test and verify RED**
+- [x] **Step 2: Run the domain test and verify RED**
 
 Run:
 
@@ -83,7 +83,7 @@ node -r ts-node/register src/modules/decoration-selection-drafts/decoration-sele
 
 Expected: compile failure because the domain module does not exist.
 
-- [ ] **Step 3: Implement strict normalization**
+- [x] **Step 3: Implement strict normalization**
 
 Define:
 
@@ -110,7 +110,7 @@ export type NormalizedDecorationDraft = {
 
 Throw `BadRequestException` with block-indexed messages for structurally unsafe input. Draft normalization permits a temporarily blank title and quantity `0` so autosave can recover an in-progress edit; Preview and Final Save enforce the mandatory trimmed title and quantity of at least `1`. Sort a copied array by `position`; never mutate the DTO.
 
-- [ ] **Step 4: Extend final selection DTO backward-compatibly**
+- [x] **Step 4: Extend final selection DTO backward-compatibly**
 
 Add optional `position` to both line DTOs and optional General Notes:
 
@@ -129,7 +129,7 @@ generalNotes?: string;
 
 Retain mandatory `imageKey` and `imageUrl` on custom items.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run the focused test and `npm run build`, then commit:
 
@@ -156,7 +156,7 @@ git commit -m "feat(decoration): define ordered proposal blocks"
 - Produces guarded GET/PUT/DELETE endpoints under `/decoration/selection-drafts/bookings/:bookingId`.
 - Produces `DecorationSelectionDraftsService.deleteForBooking(restaurantId, bookingId, session?)` for Task 3.
 
-- [ ] **Step 1: Write failing service/controller tests**
+- [x] **Step 1: Write failing service/controller tests**
 
 Assert:
 
@@ -169,7 +169,7 @@ Assert:
 - DELETE is idempotent.
 - Audit entries contain counts/revision, never private image keys or descriptions.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 node -r ts-node/register src/modules/decoration-selection-drafts/decoration-selection-drafts.spec.ts
@@ -177,7 +177,7 @@ node -r ts-node/register src/modules/decoration-selection-drafts/decoration-sele
 
 Expected: module-not-found failure.
 
-- [ ] **Step 3: Implement schema and optimistic revision**
+- [x] **Step 3: Implement schema and optimistic revision**
 
 Use collection `decoration_selection_drafts` with:
 
@@ -194,7 +194,7 @@ DecorationSelectionDraftSchema.index(
 
 PUT performs company-scoped `findOneAndUpdate` where the previous revision is lower than the incoming revision. If no update occurs, re-read and return a conflict unless this is the first revision.
 
-- [ ] **Step 4: Guard endpoints and validate booking ownership**
+- [x] **Step 4: Guard endpoints and validate booking ownership**
 
 Apply:
 
@@ -206,7 +206,7 @@ Apply:
 
 Before every operation, confirm the booking belongs to the user's restaurant.
 
-- [ ] **Step 5: Register module and migration**
+- [x] **Step 5: Register module and migration**
 
 Add:
 
@@ -216,7 +216,7 @@ Add:
 
 The migration creates the two named indexes and prints both names.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run the focused test, business-guard tests, build and lint. Commit:
 
@@ -241,7 +241,7 @@ git commit -m "feat(decoration): persist proposal drafts"
 - Consumes `DecorationSelectionDraftsService.deleteForBooking`.
 - Produces ordered `decorationSnapshot` lines with `position` and optional `decorationGeneralNotes`.
 
-- [ ] **Step 1: Write failing finalization tests**
+- [x] **Step 1: Write failing finalization tests**
 
 Create catalog and custom lines interleaved by position and assert:
 
@@ -256,7 +256,7 @@ assert.equal(await drafts.countDocuments({ bookingId }), 0);
 
 Also assert failed availability or transaction leaves the draft, prior snapshot, General Notes, price and status unchanged.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 node -r ts-node/register src/modules/decoration-reservations/decoration-notes-finalization.spec.ts
@@ -264,11 +264,11 @@ node -r ts-node/register src/modules/decoration-reservations/decoration-notes-fi
 
 Expected: assertions fail because positions and General Notes are discarded.
 
-- [ ] **Step 3: Implement ordered immutable snapshot lines**
+- [x] **Step 3: Implement ordered immutable snapshot lines**
 
 Extend `buildDecorationSnapshotLine` with `position`. For omitted historical/client positions, assign stable input-order positions after explicitly positioned blocks, then sort a copy.
 
-- [ ] **Step 4: Persist notes and delete draft after success**
+- [x] **Step 4: Persist notes and delete draft after success**
 
 Normalize General Notes with:
 
@@ -278,7 +278,7 @@ booking.decorationGeneralNotes = generalNotes?.trim() || null;
 
 Delete the draft using the same Mongo session only after reservations and booking save succeed. Never delete it in error handling.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run reservation, availability, snapshot and finalization tests plus build. Commit:
 
@@ -301,7 +301,7 @@ git commit -m "feat(decoration): finalize ordered proposal notes"
 - Produces bounded `cleanupExpiredDrafts({ before, limit })`.
 - Draft service opportunistically invokes cleanup at most once per process hour after a successful write; cleanup failure never fails the user's save.
 
-- [ ] **Step 1: Write failing cleanup tests**
+- [x] **Step 1: Write failing cleanup tests**
 
 Assert cleanup:
 
@@ -311,17 +311,17 @@ Assert cleanup:
 - Leaves draft and object intact when reference verification or S3 deletion fails.
 - Audits successful expiry without recording descriptions or image URLs.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 node -r ts-node/register src/modules/decoration-selection-drafts/decoration-selection-draft-cleanup.spec.ts
 ```
 
-- [ ] **Step 3: Implement conservative cleanup**
+- [x] **Step 3: Implement conservative cleanup**
 
 Use a 30-day cutoff and reference-first deletion. Delete the draft only after all unreferenced owned objects are removed. After a successful draft PUT, trigger a non-blocking bounded cleanup only when the in-memory `lastCleanupStartedAt` is more than one hour old. Catch and log cleanup failure without changing the autosave response; do not add a scheduling dependency.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run cleanup/upload tests, build and lint. Commit:
 
@@ -345,7 +345,7 @@ git commit -m "feat(decoration): clean expired proposal drafts safely"
 - Produces `fetchDecorationSelectionDraft`, `saveDecorationSelectionDraft`, and `deleteDecorationSelectionDraft`.
 - Produces an ordered final payload compatible with Task 3.
 
-- [ ] **Step 1: Write failing pure-state tests**
+- [x] **Step 1: Write failing pure-state tests**
 
 Cover:
 
@@ -358,14 +358,14 @@ Cover:
 - General Notes 5,000-character validation.
 - Ordered final and draft payload generation.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 cd apps/BBS-FE
 node --import tsx --test lib/decoration/notes-builder-state.test.mjs
 ```
 
-- [ ] **Step 3: Implement pure state**
+- [x] **Step 3: Implement pure state**
 
 Use:
 
@@ -385,11 +385,11 @@ export type DecorationNoteBlock = {
 
 All state functions return new arrays/objects. Reindex positions after every move/remove.
 
-- [ ] **Step 4: Add typed API clients**
+- [x] **Step 4: Add typed API clients**
 
 Use static-safe encoded booking IDs only in API paths; no dynamic Next.js routes. Add `AbortSignal` support to GET/PUT.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run state, selection and API tests plus lint. Commit:
 
@@ -409,7 +409,7 @@ git commit -m "feat(decoration): model ordered proposal notes"
 - Consumes the typed draft API and normalized note state.
 - Produces `{ status, error, retry, flush, discard }`.
 
-- [ ] **Step 1: Write failing controller tests**
+- [x] **Step 1: Write failing controller tests**
 
 With fake timers and injected save function, assert:
 
@@ -421,13 +421,13 @@ With fake timers and injected save function, assert:
 - Abort/unmount prevents state updates.
 - `flush()` saves pending edits before Preview or Final Save.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 node --import tsx --test lib/decoration/notes-autosave.test.mjs
 ```
 
-- [ ] **Step 3: Implement transport-independent controller**
+- [x] **Step 3: Implement transport-independent controller**
 
 Use an injected clock and save operation in the pure controller. The React hook owns lifecycle, abort controller and display state:
 
@@ -435,7 +435,7 @@ Use an injected clock and save operation in the pure controller. The React hook 
 type DraftSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 ```
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run autosave tests and lint. Commit:
 
@@ -459,7 +459,7 @@ git commit -m "feat(decoration): autosave proposal drafts"
 - Consumes Tasks 5–6 and existing crop/upload/availability clients.
 - Produces the approved Notes Builder UI.
 
-- [ ] **Step 1: Write failing view and source tests**
+- [x] **Step 1: Write failing view and source tests**
 
 Assert the rendered/source contract contains:
 
@@ -473,25 +473,25 @@ Assert the rendered/source contract contains:
 - no page-level horizontal overflow
 - existing amber/slate/white/green/red palette
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 node --import tsx --test lib/decoration/notes-builder-view.test.mjs lib/decoration/mobile-responsive-audit.test.mjs lib/decoration/selection-modal-view.test.mjs
 ```
 
-- [ ] **Step 3: Split the current oversized modal**
+- [x] **Step 3: Split the current oversized modal**
 
 Keep `DecorationSelectionModal` as the orchestration boundary. Move one-block editing and inventory-link selection into focused components. Reuse `DecorationImageCropModal`, upload validation, live availability and reservation error mapping.
 
-- [ ] **Step 4: Implement recovery and discard flow**
+- [x] **Step 4: Implement recovery and discard flow**
 
 Load booking snapshot, draft, categories, items and availability concurrently with stale-request protection. Prefer a draft when present. **Discard Draft** requires confirmation, calls DELETE, and rehydrates the last finalized snapshot.
 
-- [ ] **Step 5: Implement Preview and Final Save safety**
+- [x] **Step 5: Implement Preview and Final Save safety**
 
 Preview calls `flush()` first. Final Save validates locally, flushes the latest draft, invokes the authoritative selection API, then calls `onSaved`. API failure leaves the modal and draft open with block-specific errors.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run notes, crop, availability, selection, contrast and mobile suites; run lint and static build. Restore `next-env.d.ts`, then commit:
 
@@ -521,7 +521,7 @@ git commit -m "feat(decoration): add mobile proposal notes builder"
 - Consumes finalized `decorationGeneralNotes` and positions.
 - Produces identical ordered content for Event Detail, View and downloaded PDF.
 
-- [ ] **Step 1: Write failing backend document tests**
+- [x] **Step 1: Write failing backend document tests**
 
 Assert normalized document data contains:
 
@@ -534,23 +534,23 @@ Assert normalized document data contains:
 
 Assert blank notes become `null` and PDF output contains no General Notes heading.
 
-- [ ] **Step 2: Write failing frontend document tests**
+- [x] **Step 2: Write failing frontend document tests**
 
 Assert Event Detail and HTML preview render General Notes after all blocks, preserve position order, use the existing black/white/slate PDF palette and omit empty notes.
 
-- [ ] **Step 3: Run both test groups and verify RED**
+- [x] **Step 3: Run both test groups and verify RED**
 
 Run the focused BE specs and FE document/snapshot tests.
 
-- [ ] **Step 4: Implement normalized output**
+- [x] **Step 4: Implement normalized output**
 
 Add `decorationGeneralNotes` to booking view and `generalNotes` to `DecorationCustomerDocument`. Sort only by explicit position with stable array-index fallback; do not regroup in a way that changes order.
 
-- [ ] **Step 5: Implement PDF and UI presentation**
+- [x] **Step 5: Implement PDF and UI presentation**
 
 Use the existing 50/50 image/text item layout. Add a page-break-safe General Notes section after the final block. Use black headings and slate body text.
 
-- [ ] **Step 6: Verify and commit both repositories**
+- [x] **Step 6: Verify and commit both repositories**
 
 Run customer document, PDF, image fallback, detail and download tests plus builds. Commit:
 
@@ -566,7 +566,7 @@ git commit -m "feat(decoration): include proposal notes in customer documents"
 **Interfaces:**
 - Validates every prior task and banquet isolation.
 
-- [ ] **Step 1: Run every backend spec**
+- [x] **Step 1: Run every backend spec**
 
 ```bash
 cd apps/BBS-BE
@@ -577,7 +577,7 @@ done
 
 Expected: all files exit zero, including banquet cancellation, Hot Dates, ODC, permissions and business-type guards.
 
-- [ ] **Step 2: Run backend release checks**
+- [x] **Step 2: Run backend release checks**
 
 ```bash
 npm run build
@@ -587,7 +587,7 @@ npm audit --audit-level=moderate
 
 Expected: successful build, zero lint errors and zero moderate-or-higher vulnerabilities.
 
-- [ ] **Step 3: Run the migration**
+- [x] **Step 3: Run the migration**
 
 ```bash
 npm run migrate:decoration-selection-drafts
@@ -595,7 +595,7 @@ npm run migrate:decoration-selection-drafts
 
 Verify MongoDB contains `decoration_selection_draft_booking_unique` and `decoration_selection_draft_updated_at`.
 
-- [ ] **Step 4: Run every event and banquet-isolation frontend test**
+- [x] **Step 4: Run every event and banquet-isolation frontend test**
 
 ```bash
 cd apps/BBS-FE
@@ -605,7 +605,7 @@ node --import tsx --test lib/bookings/*.test.mjs lib/auth/business-routes.test.m
 
 Expected: zero failures.
 
-- [ ] **Step 5: Run frontend release checks**
+- [x] **Step 5: Run frontend release checks**
 
 ```bash
 npm run lint
@@ -616,7 +616,7 @@ git restore next-env.d.ts
 
 Expected: all routes remain static and no moderate-or-higher vulnerabilities exist.
 
-- [ ] **Step 6: Inspect final scope**
+- [x] **Step 6: Inspect final scope**
 
 ```bash
 git -C apps/BBS-BE diff --check
@@ -627,7 +627,7 @@ git -C apps/BBS-FE status --short
 
 Expected: clean worktrees and no banquet production behavior changes.
 
-- [ ] **Step 7: Mark the checklist and commit**
+- [x] **Step 7: Mark the checklist and commit**
 
 Change every verified checkbox to `[x]`, record any pre-existing lint warnings accurately, and commit:
 
