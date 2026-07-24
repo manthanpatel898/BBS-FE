@@ -66,7 +66,7 @@
   - `selectCatalogNoteBlock(state, item, clientId?): { state: DecorationNotesState; selectedClientId: string; added: boolean }`
   - `selectCatalogNoteImage(state, clientId, image): DecorationNotesState`
 
-- [ ] **Step 1: Write failing gallery-domain tests**
+- [x] **Step 1: Write failing gallery-domain tests**
 
 Add tests proving search is case-insensitive, category filters use IDs, inactive items are removed, availability does not affect visibility, cover images win over the first image, and disabled reasons are deterministic:
 
@@ -83,7 +83,7 @@ test('requires an image and prefers the configured cover', () => {
 });
 ```
 
-- [ ] **Step 2: Write failing catalog-note transition tests**
+- [x] **Step 2: Write failing catalog-note transition tests**
 
 ```js
 test('adds one catalog note with cover image, defaults, and prevents duplicates', () => {
@@ -108,7 +108,7 @@ test('changes only the presentation image for a catalog note', () => {
 });
 ```
 
-- [ ] **Step 3: Run tests and verify RED**
+- [x] **Step 3: Run tests and verify RED**
 
 Run:
 
@@ -118,7 +118,7 @@ node --import tsx --test lib/decoration/inventory-gallery.test.mjs lib/decoratio
 
 Expected: FAIL because the five new pure functions do not exist.
 
-- [ ] **Step 4: Implement the minimal pure functions**
+- [x] **Step 4: Implement the minimal pure functions**
 
 Use immutable transitions and preserve current draft/final payload shapes:
 
@@ -156,7 +156,7 @@ export function selectCatalogNoteBlock(
 }
 ```
 
-- [ ] **Step 5: Run focused tests and commit**
+- [x] **Step 5: Run focused tests and commit**
 
 Run:
 
@@ -196,7 +196,7 @@ type DecorationInventoryGalleryModalProps = {
 };
 ```
 
-- [ ] **Step 1: Write a failing source contract**
+- [x] **Step 1: Write a failing source contract**
 
 Assert that the new component contains:
 
@@ -213,7 +213,7 @@ assert.match(source, /overflow-y-auto/);
 assert.match(source, /returnFocusRef/);
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -223,7 +223,7 @@ node --import tsx --test lib/decoration/inventory-gallery-view.test.mjs
 
 Expected: FAIL because the gallery component is missing.
 
-- [ ] **Step 3: Implement the gallery**
+- [x] **Step 3: Implement the gallery**
 
 The popup must:
 
@@ -254,7 +254,7 @@ Card content:
 </button>
 ```
 
-- [ ] **Step 4: Run the source test and commit**
+- [x] **Step 4: Run the source test and commit**
 
 Run:
 
@@ -290,7 +290,7 @@ catalogItem?: DecorationItem;
 onImageChange: (image: DecorationItem['images'][number]) => void;
 ```
 
-- [ ] **Step 1: Extend the failing source contract**
+- [x] **Step 1: Extend the failing source contract**
 
 ```js
 assert.doesNotMatch(editor, /Link inventory item \(optional\)/);
@@ -300,7 +300,7 @@ assert.match(picker, /Choose presentation image/);
 assert.match(picker, /aria-pressed/);
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -310,7 +310,7 @@ node --import tsx --test lib/decoration/inventory-gallery-view.test.mjs
 
 Expected: FAIL because the editor still imports the dropdown and the picker is absent.
 
-- [ ] **Step 3: Implement read-only catalog identity**
+- [x] **Step 3: Implement read-only catalog identity**
 
 For catalog blocks, show:
 
@@ -331,7 +331,7 @@ Quantity commits must reject values above `catalogItem.availableQuantity`; displ
 ) : null}
 ```
 
-- [ ] **Step 4: Implement the alternate-image picker**
+- [x] **Step 4: Implement the alternate-image picker**
 
 The picker:
 
@@ -343,7 +343,7 @@ The picker:
 - uses a responsive one/two/three-column image grid;
 - has broken-image fallbacks.
 
-- [ ] **Step 5: Delete the dropdown, run tests, and commit**
+- [x] **Step 5: Delete the dropdown, run tests, and commit**
 
 Run:
 
@@ -378,7 +378,7 @@ git commit -m "feat(decoration): make catalog notes image first"
   - `selectCatalogNoteImage`
 - Maintains existing `change()` autosave semantics for every selection.
 
-- [ ] **Step 1: Write failing workflow tests**
+- [x] **Step 1: Write failing workflow tests**
 
 Source assertions:
 
@@ -400,7 +400,7 @@ React behaviour must prove:
 8. Custom upload and crop still add a custom note.
 9. Draft autosave receives catalog metadata after selection.
 
-- [ ] **Step 2: Run workflow tests and verify RED**
+- [x] **Step 2: Run workflow tests and verify RED**
 
 Run:
 
@@ -410,7 +410,7 @@ node --import tsx --test lib/decoration/notes-builder-view.test.mjs lib/decorati
 
 Expected: FAIL because the parent modal has not integrated the gallery.
 
-- [ ] **Step 3: Integrate categories and gallery state**
+- [x] **Step 3: Integrate categories and gallery state**
 
 Keep categories returned by the existing initial `Promise.all`:
 
@@ -437,7 +437,7 @@ Render the two approved actions before selected notes:
 </div>
 ```
 
-- [ ] **Step 4: Integrate selection and focus**
+- [x] **Step 4: Integrate selection and focus**
 
 On gallery selection:
 
@@ -458,7 +458,7 @@ function selectInventory(item: DecorationItem) {
 
 Do not increment the autosave change counter when a duplicate produces the identical state. Adjust `change` to compare `nextState === current`.
 
-- [ ] **Step 5: Run focused integration tests and commit**
+- [x] **Step 5: Run focused integration tests and commit**
 
 Run:
 
@@ -485,7 +485,7 @@ git commit -m "feat(decoration): integrate inventory gallery notes"
 **Interfaces:**
 - Validates the completed feature without changing backend or banquet behaviour.
 
-- [ ] **Step 1: Run every decoration and booking-isolation frontend test**
+- [x] **Step 1: Run every decoration and booking-isolation frontend test**
 
 Run:
 
@@ -500,7 +500,7 @@ node --import tsx --test --test-reporter=dot \
 
 Expected: all tests PASS.
 
-- [ ] **Step 2: Run frontend release checks**
+- [x] **Step 2: Run frontend release checks**
 
 Run:
 
@@ -522,7 +522,7 @@ Restore `next-env.d.ts` if the build rewrites its generated route reference:
 git restore next-env.d.ts
 ```
 
-- [ ] **Step 3: Inspect backend and banquet isolation**
+- [x] **Step 3: Inspect backend and banquet isolation**
 
 Run:
 
@@ -540,7 +540,7 @@ Expected:
 - new gallery references exist only in decoration frontend code;
 - the obsolete dropdown copy has no production matches.
 
-- [ ] **Step 4: Mark the checklist and commit**
+- [x] **Step 4: Mark the checklist and commit**
 
 Change every verified checkbox in this plan to `[x]`, then run:
 
