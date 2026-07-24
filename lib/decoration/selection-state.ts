@@ -1,13 +1,13 @@
 import type { DecorationItem, DecorationSnapshotLine } from '@/lib/auth/types';
 
 export type DecorationChoice = { quantity: number; description: string; imageId?: string; fallbackImageUrl?: string };
-export type CustomDecorationChoice = { clientId: string; name: string; quantity: number; description: string; imageKey: string; imageUrl: string };
+export type CustomDecorationChoice = { clientId: string; name: string; quantity: number; description: string; imageKey: string; imageUrl: string; position?: number };
 export type DecorationSelectionState = { choices: Record<string, DecorationChoice>; customItems: CustomDecorationChoice[] };
 
 export function hydrateDecorationSelection(snapshot: Partial<DecorationSnapshotLine>[], items: Pick<DecorationItem, 'id' | 'images'>[]): DecorationSelectionState {
   const choices: Record<string, DecorationChoice> = {}, customItems: CustomDecorationChoice[] = [];
   snapshot.forEach((line, index) => {
-    if (line.isCustom) { customItems.push({ clientId: `existing-${index}`, name: line.itemName ?? '', quantity: line.quantity ?? 1, description: line.description ?? '', imageKey: line.image?.key ?? '', imageUrl: line.image?.url ?? '' }); return; }
+    if (line.isCustom) { customItems.push({ clientId: `existing-${index}`, name: line.itemName ?? '', quantity: line.quantity ?? 1, description: line.description ?? '', imageKey: line.image?.key ?? '', imageUrl: line.image?.url ?? '', position: line.position ?? index }); return; }
     if (!line.itemId) return; const item = items.find((entry) => entry.id === line.itemId);
     choices[line.itemId] = { quantity: line.quantity ?? 1, description: line.description ?? '', imageId: item?.images.find((image) => image.url === line.image?.url)?.id, fallbackImageUrl: line.image?.url };
   });
@@ -27,6 +27,6 @@ export function validateDecorationSelection(state: DecorationSelectionState, ite
 export function buildDecorationSelectionPayload(state: DecorationSelectionState) {
   return {
     items: Object.entries(state.choices).map(([itemId, line]) => ({ itemId, quantity: line.quantity, ...(line.imageId ? { imageId: line.imageId } : {}), ...(line.description.trim() ? { description: line.description.trim() } : {}) })),
-    customItems: state.customItems.map((line) => ({ name: line.name.trim(), quantity: line.quantity, ...(line.description.trim() ? { description: line.description.trim() } : {}), imageKey: line.imageKey, imageUrl: line.imageUrl })),
+    customItems: state.customItems.map((line, index) => ({ name: line.name.trim(), quantity: line.quantity, position: line.position ?? index, ...(line.description.trim() ? { description: line.description.trim() } : {}), imageKey: line.imageKey, imageUrl: line.imageUrl })),
   };
 }
