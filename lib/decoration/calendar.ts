@@ -43,6 +43,80 @@ export function isLatestDecorationCalendarRequest(requestId: number, latestReque
   return requestId === latestRequestId;
 }
 
-export function getDecorationCalendarCellState(date: string, today: string, selectedDate: string | null) {
-  return { isToday: date === today, isSelected: date === selectedDate };
+export type DecorationHotDateLike = {
+  date: string;
+  description: string;
+};
+
+export function indexDecorationHotDates<T extends DecorationHotDateLike>(
+  hotDates: T[],
+) {
+  return new Map(hotDates.map((hotDate) => [hotDate.date, hotDate]));
+}
+
+export async function getOrLoadDecorationHotDateYear<T>(
+  cache: Map<number, T[]>,
+  pending: Map<number, Promise<T[]>>,
+  year: number,
+  loader: () => Promise<T[]>,
+): Promise<T[]> {
+  const cached = cache.get(year);
+  if (cached) return cached;
+  const active = pending.get(year);
+  if (active) return active;
+  const request = loader()
+    .then((records) => {
+      cache.set(year, records);
+      pending.delete(year);
+      return records;
+    })
+    .catch((error) => {
+      pending.delete(year);
+      throw error;
+    });
+  pending.set(year, request);
+  return request;
+}
+
+export function isLatestDecorationHotDateRequest(
+  requestId: number,
+  latestRequestId: number,
+) {
+  return requestId === latestRequestId;
+}
+
+export function getDecorationCalendarCellState(
+  date: string,
+  today: string,
+  selectedDate: string | null,
+): { isToday: boolean; isSelected: boolean };
+export function getDecorationCalendarCellState<T extends DecorationHotDateLike>(
+  date: string,
+  today: string,
+  selectedDate: string | null,
+  bookingCount: number,
+  hotDates: Map<string, T>,
+): {
+  isToday: boolean;
+  isSelected: boolean;
+  hasBookings: boolean;
+  isHotDate: boolean;
+  hotDateDescription: string | null;
+};
+export function getDecorationCalendarCellState<T extends DecorationHotDateLike>(
+  date: string,
+  today: string,
+  selectedDate: string | null,
+  bookingCount?: number,
+  hotDates?: Map<string, T>,
+) {
+  const base = { isToday: date === today, isSelected: date === selectedDate };
+  if (bookingCount === undefined || !hotDates) return base;
+  const hotDate = hotDates.get(date);
+  return {
+    ...base,
+    hasBookings: bookingCount > 0,
+    isHotDate: Boolean(hotDate),
+    hotDateDescription: hotDate?.description ?? null,
+  };
 }

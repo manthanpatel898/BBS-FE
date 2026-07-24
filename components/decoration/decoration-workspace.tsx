@@ -8,9 +8,9 @@ import { DecorationDaySidebar } from '@/components/decoration/decoration-day-sid
 import { DecorationEventDetailModal } from '@/components/decoration/decoration-event-detail-modal';
 import { DecorationInquiryForm } from '@/components/decoration/decoration-inquiry-form';
 import { DecorationPageError, DecorationPageLoading } from '@/components/decoration/decoration-page-state';
-import { fetchDecorationCalendar } from '@/lib/auth/api';
-import type { DecorationBooking } from '@/lib/auth/types';
-import { getDecorationDayBookings, isLatestDecorationCalendarRequest, replaceDecorationBooking } from '@/lib/decoration/calendar';
+import { fetchDecorationCalendar, fetchDecorationHotDates } from '@/lib/auth/api';
+import type { DecorationBooking, HotDate } from '@/lib/auth/types';
+import { getDecorationDayBookings, getOrLoadDecorationHotDateYear, isLatestDecorationCalendarRequest, isLatestDecorationHotDateRequest, replaceDecorationBooking } from '@/lib/decoration/calendar';
 import { decorationOverlayReducer, initialDecorationOverlayState } from '@/lib/decoration/overlay-state';
 import { canonicalDecorationOverlayUrl, decorationEventsUrl, isDecorationOverlayUrlCurrent, readDecorationOverlayQuery } from '@/lib/decoration/overlay-query';
 import { canCreateDecorationInquiry, decorationBusinessDate } from '@/lib/decoration/booking-date-policy';
@@ -36,7 +36,12 @@ export function DecorationWorkspace() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
+  const [hotDates, setHotDates] = useState<HotDate[]>([]);
   const latestRequestId = useRef(0);
+  const latestHotDateRequestId = useRef(0);
+  const hotDatesByYear = useRef(new Map<number, HotDate[]>());
+  const pendingHotDateYears = useRef(new Map<number, Promise<HotDate[]>>());
+  const hotDateToken = useRef<string | null>(null);
   const todayKey = decorationBusinessDate();
 
   const queryDate = searchParams.get('date');
@@ -77,6 +82,46 @@ export function DecorationWorkspace() {
 
   useEffect(() => { void loadMonth(); }, [loadMonth]);
 
+  const hotDateYear = month.getFullYear();
+  useEffect(() => {
+    if (!accessToken) {
+      setHotDates([]);
+      return;
+    }
+    if (hotDateToken.current !== accessToken) {
+      hotDateToken.current = accessToken;
+      hotDatesByYear.current.clear();
+      pendingHotDateYears.current.clear();
+    }
+    const requestId = ++latestHotDateRequestId.current;
+    void getOrLoadDecorationHotDateYear(
+      hotDatesByYear.current,
+      pendingHotDateYears.current,
+      hotDateYear,
+      () => fetchDecorationHotDates(accessToken, hotDateYear),
+    )
+      .then((records) => {
+        if (
+          isLatestDecorationHotDateRequest(
+            requestId,
+            latestHotDateRequestId.current,
+          )
+        ) {
+          setHotDates(records);
+        }
+      })
+      .catch(() => {
+        if (
+          isLatestDecorationHotDateRequest(
+            requestId,
+            latestHotDateRequestId.current,
+          )
+        ) {
+          setHotDates([]);
+        }
+      });
+  }, [accessToken, hotDateYear]);
+
   const selectedBookings = overlay.date ? getDecorationDayBookings(bookings, overlay.date) : [];
   const openAdd = (date?: string) => {
     const targetDate = date ?? todayKey;
@@ -95,7 +140,7 @@ export function DecorationWorkspace() {
         <button type="button" onClick={() => openAdd()} className="rounded-xl bg-amber-500 px-5 py-3 font-bold text-white shadow-sm hover:bg-amber-600">Add inquiry</button>
       </div>
       {error ? <DecorationPageError message={error} onRetry={() => void loadMonth(true)} /> : null}
-      <DecorationCalendar month={month} bookings={bookings} selectedDate={overlay.date} onMonthChange={setMonth} onOpenDay={(date) => transition({ type: 'OPEN_DAY', date, origin: 'EVENTS' })} />
+      <DecorationCalendar month={month} bookings={bookings} hotDates={hotDates} selectedDate={overlay.date} onMonthChange={setMonth} onOpenDay={(date) => transition({ type: 'OPEN_DAY', date, origin: 'EVENTS' })} />
       {overlay.date ? (
         <DecorationDaySidebar
           date={overlay.date}
