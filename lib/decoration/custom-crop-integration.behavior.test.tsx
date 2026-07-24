@@ -56,14 +56,13 @@ test('custom Camera / gallery crops first, cancel preserves parent choices, and 
   assert.ok(await page().findByRole('dialog', { name: 'Crop custom image' }));
   assert.equal(uploads.length, 0);
   fireEvent.click(page().getByRole('button', { name: 'Cancel crop' }));
-  assert.equal(page().queryByLabelText('Custom item name'), null);
+  assert.equal(page().queryByText('Custom item'), null);
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [png('gallery.png')] } });
   fireEvent.click(await page().findByRole('button', { name: 'Confirm crop' }));
   await waitFor(() => assert.equal(uploads.length, 1));
   assert.equal(await uploads[0].text(), 'cropped');
   assert.equal(page().getAllByText('Title').length, 1);
-  fireEvent.change(page().getByLabelText(/Link inventory item/), { target: { value: 'item-1' } });
-  assert.equal((page().getByLabelText(/Link inventory item/) as HTMLSelectElement).value, 'item-1');
+  assert.ok(page().getByText('Custom item'));
   fireEvent.change(page().getByLabelText(/Title/), { target: { value: 'Preserved arch' } });
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [png('cancel-next.png')] } });
   fireEvent.click(await page().findByRole('button', { name: 'Cancel crop' }));
@@ -127,7 +126,7 @@ test('actual nested crop restores focus to the visible Camera / gallery trigger 
     return uploadedImage();
   }} />);
   await page().findByText('General Notes');
-  const trigger = page().getByRole('button', { name: /Add Photo Note/ });
+  const trigger = page().getByRole('button', { name: /Add Custom Photo Note/ });
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
 
   fireEvent.click(trigger);

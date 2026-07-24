@@ -69,7 +69,7 @@ export function DecorationInventoryImagePicker({
           </header>
           <main className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 md:grid-cols-3">
-              {images.map((image) => {
+              {images.map((image, index) => {
                 const selected = image.id === imageId;
                 const broken = brokenImageIds.has(image.id);
                 return (
@@ -78,7 +78,7 @@ export function DecorationInventoryImagePicker({
                     key={image.id}
                     aria-pressed={selected}
                     disabled={broken}
-                    aria-label={`${item.name} image${selected ? ', selected' : ''}`}
+                    aria-label={`${item.name} image ${index + 1}${selected ? ', selected' : ''}`}
                     onClick={() => {
                       onSelect(image);
                       onClose();
