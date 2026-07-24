@@ -8,8 +8,7 @@ export type DecorationDetailActionId =
   | 'choose-decoration'
   | 'edit-decoration'
   | 'view'
-  | 'download'
-  | 'share';
+  | 'download';
 
 export type DecorationDetailCapabilities = {
   canEdit: boolean;
@@ -18,7 +17,6 @@ export type DecorationDetailCapabilities = {
   canManageFollowups: boolean;
   canSelectDecoration: boolean;
   canPrint: boolean;
-  canShare: boolean;
 };
 
 export type DecorationDetailAction = {
@@ -73,7 +71,6 @@ export function getDecorationDetailActions(
       { id: 'view', label: 'View', tone: 'secondary' },
       { id: 'download', label: 'Download', tone: 'secondary' },
     );
-    if (capabilities.canShare) actions.push({ id: 'share', label: 'Share', tone: 'secondary' });
   }
   return actions;
 }
