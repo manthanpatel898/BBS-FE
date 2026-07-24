@@ -34,7 +34,7 @@
 - Produces frontend `buildDecorationFollowupSchedule(bookings, todayKey)` with no-follow-up inquiries assigned to `todayKey`.
 - Consumed by Tasks 7 and 8.
 
-- [ ] **Step 1: Write failing backend projection tests**
+- [x] **Step 1: Write failing backend projection tests**
 
 Add cases asserting:
 
@@ -60,7 +60,7 @@ assert.deepEqual(
 
 Also assert confirmed, cancelled, completed, closed, and past-event records are excluded, and a latest completed follow-up does not revive an older pending record.
 
-- [ ] **Step 2: Run backend test and verify RED**
+- [x] **Step 2: Run backend test and verify RED**
 
 Run:
 
@@ -71,7 +71,7 @@ node -r ts-node/register src/modules/decoration-bookings/decoration-dashboard-do
 
 Expected: failure because the three new count fields and finalized latest-follow-up behavior are absent.
 
-- [ ] **Step 3: Implement the backend projection**
+- [x] **Step 3: Implement the backend projection**
 
 Use one latest-follow-up selector and return:
 
@@ -90,7 +90,7 @@ return {
 
 The latest follow-up is selected before status evaluation; when it is `COMPLETED`, the booking produces no entry.
 
-- [ ] **Step 4: Write failing frontend scheduling tests**
+- [x] **Step 4: Write failing frontend scheduling tests**
 
 Add:
 
@@ -106,7 +106,7 @@ test('places a new future inquiry in today’s queue immediately', () => {
 
 Retain scheduled, overdue, taken-today, closed, and past exclusions.
 
-- [ ] **Step 5: Run frontend test and verify RED**
+- [x] **Step 5: Run frontend test and verify RED**
 
 Run:
 
@@ -117,7 +117,7 @@ npx tsx --test lib/decoration/followups.test.mjs
 
 Expected: new future inquiry receives its event date instead of `2026-07-24`.
 
-- [ ] **Step 6: Implement frontend effective action dates**
+- [x] **Step 6: Implement frontend effective action dates**
 
 Set the no-follow-up date through:
 
@@ -129,7 +129,7 @@ const dateKey = followup?.nextDate
 
 Keep eligibility restricted to future/today inquiries.
 
-- [ ] **Step 7: Verify and commit**
+- [x] **Step 7: Verify and commit**
 
 Run both focused tests, then:
 
@@ -157,7 +157,7 @@ git -C apps/BBS-FE commit -m "fix(decoration): show new inquiries in todays foll
 - Returns `{ booking: DecorationBookingView; reused: boolean }`.
 - Consumed by Task 3.
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Cover zero advance, positive advance, idempotent retry, duplicate race, invalid references, past date, and failed create leaving zero records. The core assertion is:
 
@@ -181,7 +181,7 @@ assert.equal(await bookingModel.countDocuments({ confirmedCreationRequestId: req
 
 For positive advance, assert one embedded payment, matching total, payment date/mode, and confirmation metadata.
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -192,7 +192,7 @@ node -r ts-node/register src/modules/decoration-bookings/decoration-create-confi
 
 Expected: compile failure because `createConfirmed` does not exist.
 
-- [ ] **Step 3: Add DTO and schema contract**
+- [x] **Step 3: Add DTO and schema contract**
 
 Add:
 
@@ -226,7 +226,7 @@ DecorationBookingSchema.index(
 );
 ```
 
-- [ ] **Step 4: Implement one-document confirmed creation**
+- [x] **Step 4: Implement one-document confirmed creation**
 
 Normalize dates and references through the same functions as inquiry creation. Build optional payment only when `advanceAmount > 0`, then insert one record with:
 
@@ -245,7 +245,7 @@ Normalize dates and references through the same functions as inquiry creation. B
 
 On an `E11000` request-ID race, re-read by company + request ID and return it with `reused: true`. Do not reuse a request ID across companies.
 
-- [ ] **Step 5: Add guarded controller endpoint**
+- [x] **Step 5: Add guarded controller endpoint**
 
 Add:
 
@@ -262,7 +262,7 @@ createConfirmed(
 
 The controller already inherits the decoration business guard; add a metadata test proving it remains `EVENT_DECORATION`.
 
-- [ ] **Step 6: Add and verify index migration**
+- [x] **Step 6: Add and verify index migration**
 
 The migration calls `syncIndexes()` for the decoration booking model and reports the named index. Add:
 
@@ -272,7 +272,7 @@ The migration calls `syncIndexes()` for the decoration booking model and reports
 
 Run the focused service test and `npm run build`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git -C apps/BBS-BE add package.json src/modules/decoration-bookings src/scripts/migrate-decoration-confirmed-creation-index.ts
@@ -294,7 +294,7 @@ git -C apps/BBS-BE commit -m "feat(decoration): create confirmed events atomical
 - `DecorationInquiryForm` adds `onConfirmed` behavior for create mode without changing edit mode.
 - Consumes Task 2 endpoint.
 
-- [ ] **Step 1: Write failing source and domain tests**
+- [x] **Step 1: Write failing source and domain tests**
 
 Assert create mode has amber Create Inquiry and green Confirm Booking, edit mode does not offer confirm, and pending payload is not sent until advance submit:
 
@@ -308,7 +308,7 @@ assert.doesNotMatch(source, /saveDecorationBooking[^]*status:\\s*'CONFIRMED'/);
 
 Add a workflow helper test proving cancel clears the pending confirm request without invoking the API and retry reuses its request ID.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -319,7 +319,7 @@ npx tsx --test lib/decoration/inquiry-form.test.mjs lib/decoration/create-confir
 
 Expected: missing confirmation workflow and green action.
 
-- [ ] **Step 3: Add API client**
+- [x] **Step 3: Add API client**
 
 Add:
 
@@ -336,7 +336,7 @@ export const createConfirmedDecorationBooking = (
 
 Normalize the returned booking through the existing booking-view mapper.
 
-- [ ] **Step 4: Implement form handoff**
+- [x] **Step 4: Implement form handoff**
 
 Refactor validation/configuration resolution into one async function. The Create Inquiry action saves immediately; Confirm Booking stores the resolved payload and opens an advance child modal. Use a synchronous busy guard and one UUID per popup opening.
 
@@ -353,7 +353,7 @@ The action layout is:
 
 The advance popup receives the unsaved payload and calls the new endpoint. Cancel returns to the still-populated form and performs no write.
 
-- [ ] **Step 5: Verify responsive behavior and commit**
+- [x] **Step 5: Verify responsive behavior and commit**
 
 Run focused tests plus `lib/decoration/mobile-responsive-audit.test.mjs`, then:
 
@@ -381,11 +381,11 @@ git -C apps/BBS-FE commit -m "feat(decoration): confirm events from inquiry form
 - Produces the same view shape used by banquet `HotDate`.
 - Consumed by Tasks 5 and 6.
 
-- [ ] **Step 1: Write failing module tests**
+- [x] **Step 1: Write failing module tests**
 
 Test valid CRUD, invalid real date such as `2026-02-30`, year mismatch, duplicate date, cross-company access, 5 MB file limit, maximum 2,000 data rows, duplicate rows, row-level errors, audit events, and `EVENT_DECORATION` guard metadata.
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 ```bash
 cd apps/BBS-BE
@@ -394,7 +394,7 @@ node -r ts-node/register src/modules/decoration-hot-dates/decoration-hot-dates.s
 
 Expected: module not found.
 
-- [ ] **Step 3: Implement schema and strict date helper**
+- [x] **Step 3: Implement schema and strict date helper**
 
 Use collection `decoration_hot_dates` and:
 
@@ -410,7 +410,7 @@ function assertRealDate(date: string, year: number) {
 
 Add unique `{ restaurantId, year, date }`.
 
-- [ ] **Step 4: Implement service, controller, auditing, and bounded import**
+- [x] **Step 4: Implement service, controller, auditing, and bounded import**
 
 Every read/write includes `restaurantId`. Bulk import rejects more than 2,000 data rows before writes and returns:
 
@@ -425,7 +425,7 @@ Every read/write includes `restaurantId`. Bulk import rejects more than 2,000 da
 
 Use `@BusinessTypes(BusinessType.EVENT_DECORATION)` and company-admin/employee read with company-admin mutation, matching current event user policy.
 
-- [ ] **Step 5: Register module and migration**
+- [x] **Step 5: Register module and migration**
 
 Import `DecorationHotDatesModule` in `AppModule`. Add:
 
@@ -433,7 +433,7 @@ Import `DecorationHotDatesModule` in `AppModule`. Add:
 "migrate:decoration-hot-dates": "ts-node src/scripts/migrate-decoration-hot-date-indexes.ts"
 ```
 
-- [ ] **Step 6: Verify existing banquet isolation**
+- [x] **Step 6: Verify existing banquet isolation**
 
 Run:
 
@@ -445,7 +445,7 @@ npm run build
 
 The new `hot-dates-business-guard.spec.ts` must prove `/hot-dates` remains `BANQUET` and the existing module still registers the `HotDate` model rather than `DecorationHotDate`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git -C apps/BBS-BE add package.json src/app.module.ts src/modules/decoration-hot-dates src/scripts/migrate-decoration-hot-date-indexes.ts
@@ -468,7 +468,7 @@ git -C apps/BBS-BE commit -m "feat(decoration): add event hot dates"
 - Event adapter points only to `/decoration/hot-dates`.
 - Existing banquet manager defaults retain `/hot-dates`.
 
-- [ ] **Step 1: Write failing adapter and route tests**
+- [x] **Step 1: Write failing adapter and route tests**
 
 Assert:
 
@@ -481,14 +481,14 @@ assert.match(managerSource, /api:\\s*HotDatesApi/);
 
 Also characterize the banquet settings page and assert its calls still target `/hot-dates`.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 cd apps/BBS-FE
 npx tsx --test lib/decoration/settings-view.test.mjs lib/decoration/hot-dates-settings.test.mjs
 ```
 
-- [ ] **Step 3: Extract explicit API adapter**
+- [x] **Step 3: Extract explicit API adapter**
 
 Define:
 
@@ -504,11 +504,11 @@ export type HotDatesApi = {
 
 `HotDatesManager` receives `api` and keeps its visual/interaction implementation business-neutral. The banquet settings supplies the existing adapter explicitly or through an unchanged default.
 
-- [ ] **Step 4: Add event tab and adapter**
+- [x] **Step 4: Add event tab and adapter**
 
 Extend `DecorationSettingsTab` with `hotDates`, add the tab label, and render `DecorationHotDatesSection`. Event API functions use only `/decoration/hot-dates`.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run both settings tests and the banquet settings tests, then:
 
@@ -530,7 +530,7 @@ git -C apps/BBS-FE commit -m "feat(decoration): configure event hot dates"
 - Consumes Task 4 event Hot Date API.
 - Produces year-keyed cache and `hotDatesByKey`.
 
-- [ ] **Step 1: Write failing calendar tests**
+- [x] **Step 1: Write failing calendar tests**
 
 Test red styling, accessible description, selected-date behavior, one request per successful year, retry after failed year, stale year rejection, and bookings remaining visible on Hot Date failure.
 
@@ -543,14 +543,14 @@ assert.deepEqual(
 );
 ```
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 cd apps/BBS-FE
 npx tsx --test lib/decoration/calendar.test.mjs lib/decoration/hot-date-calendar.test.mjs
 ```
 
-- [ ] **Step 3: Implement cache and stale-response protection**
+- [x] **Step 3: Implement cache and stale-response protection**
 
 Maintain:
 
@@ -561,11 +561,11 @@ const latestHotDateRequest = useRef(0);
 
 Only cache successful results; request identity prevents an older year response from changing visible state.
 
-- [ ] **Step 4: Add banquet-equivalent red cell treatment**
+- [x] **Step 4: Add banquet-equivalent red cell treatment**
 
 Pass Hot Date state into each calendar cell. Add a red border/background/text treatment and an accessible label containing date and description. Booking dots/counts remain present.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run focused tests and mobile responsive audit, then:
 
@@ -592,7 +592,7 @@ git -C apps/BBS-FE commit -m "feat(decoration): show hot dates in calendar"
 - Dashboard response adds `followupsPendingToday`, `followupsTakenToday`, `followupsDueTotalToday`.
 - Follow-up record rows include `followupState`.
 
-- [ ] **Step 1: Write failing backend parity tests**
+- [x] **Step 1: Write failing backend parity tests**
 
 Assert dashboard summary for one pending, one overdue, one taken, and one future scheduled record returns:
 
@@ -606,15 +606,15 @@ Assert dashboard summary for one pending, one overdue, one taken, and one future
 
 The follow-up drilldown total must be `3`, excluding scheduled-future records.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run the two dashboard backend specs. Expected: missing total fields and taken-today drilldown entry.
 
-- [ ] **Step 3: Implement server summary/list parity**
+- [x] **Step 3: Implement server summary/list parity**
 
 Use Task 1 projection for `/dashboard`. For `type=followups`, query only future/today inquiries, classify them through the same projection, filter required plus taken-today, stable-sort by priority/date/time/name/id, then paginate the classified result. Return each mapped booking with `followupState`.
 
-- [ ] **Step 4: Write failing frontend card tests**
+- [x] **Step 4: Write failing frontend card tests**
 
 Assert:
 
@@ -630,11 +630,11 @@ assert.deepEqual(card.value, { taken: 1, total: 3 });
 
 Test green `FOLLOW UP TAKEN` and amber pending/due/overdue record metadata.
 
-- [ ] **Step 5: Implement responsive card and record states**
+- [x] **Step 5: Implement responsive card and record states**
 
 Represent the follow-up value as structured data or a dedicated card variant; render `1/3 completed` without horizontal overflow. Clicking retains the query-string dashboard panel flow.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run focused backend/frontend tests, then commit separately:
 
@@ -659,7 +659,7 @@ git -C apps/BBS-FE commit -m "feat(decoration): show followup completion dashboa
 - Event Detail documents expose only `view` and `download`.
 - The query-string PDF viewer remains unchanged.
 
-- [ ] **Step 1: Update tests first**
+- [x] **Step 1: Update tests first**
 
 Change the confirmed-with-selection expectation to:
 
@@ -671,7 +671,7 @@ assert.deepEqual(ids(value), [
 
 Assert the modal source contains no `canSharePdf`, `createPdfShareController`, `sharePdf`, `ShareActionLabel`, or eager customer PDF call outside Download.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 cd apps/BBS-FE
@@ -680,11 +680,11 @@ npx tsx --test lib/decoration/event-detail-view.test.mjs lib/decoration/customer
 
 Expected: Share remains derived and preloaded.
 
-- [ ] **Step 3: Remove Share implementation**
+- [x] **Step 3: Remove Share implementation**
 
 Remove `canShare` capability, Share action derivation, share controller state/effect/label, and helper/tests. Keep Download lifecycle and View query navigation unchanged.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run all customer document/action tests, then:
 
@@ -702,7 +702,7 @@ git -C apps/BBS-FE commit -m "refactor(decoration): remove event detail sharing"
 **Interfaces:**
 - Validates every prior task and banquet isolation.
 
-- [ ] **Step 1: Run all backend specs**
+- [x] **Step 1: Run all backend specs**
 
 ```bash
 cd apps/BBS-BE
@@ -713,7 +713,7 @@ done
 
 Expected: every spec exits zero.
 
-- [ ] **Step 2: Run backend lint, build, and audit**
+- [x] **Step 2: Run backend lint, build, and audit**
 
 ```bash
 npm run lint
@@ -723,7 +723,7 @@ npm audit --audit-level=moderate
 
 Expected: zero lint errors, successful build, zero moderate-or-higher vulnerabilities.
 
-- [ ] **Step 3: Run all frontend tests**
+- [x] **Step 3: Run all frontend tests**
 
 ```bash
 cd apps/BBS-FE
@@ -737,7 +737,7 @@ npx tsx --test \
 
 Expected: zero failures.
 
-- [ ] **Step 4: Run frontend lint, static build, and audit**
+- [x] **Step 4: Run frontend lint, static build, and audit**
 
 ```bash
 npm run lint
@@ -748,7 +748,7 @@ git restore next-env.d.ts
 
 Expected: zero lint errors, all routes static, zero moderate-or-higher vulnerabilities.
 
-- [ ] **Step 5: Verify migration scripts against a development database**
+- [x] **Step 5: Verify migration scripts against a development database**
 
 ```bash
 cd apps/BBS-BE
@@ -765,7 +765,7 @@ db.decoration_hot_dates.getIndexes()
 
 Expected: company-scoped unique confirmed request-ID index and company/year/date unique Hot Date index.
 
-- [ ] **Step 6: Inspect final scope**
+- [x] **Step 6: Inspect final scope**
 
 ```bash
 git -C apps/BBS-BE diff --check
@@ -776,7 +776,7 @@ git -C apps/BBS-FE status --short
 
 Expected: no uncommitted files and no banquet production files changed except characterized shared Hot Date presentation dependencies.
 
-- [ ] **Step 7: Record final verification commits only if documentation changed**
+- [x] **Step 7: Record final verification commits only if documentation changed**
 
 ```bash
 git -C apps/BBS-BE add docs/superpowers/specs
