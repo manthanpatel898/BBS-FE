@@ -18,6 +18,33 @@ import { BulkUploadError, BulkUploadResult, HotDate } from '@/lib/auth/types';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+export interface HotDatesApi {
+  fetch: (token: string, year: number) => Promise<HotDate[]>;
+  create: (
+    token: string,
+    payload: { year: number; date: string; description: string },
+  ) => Promise<HotDate>;
+  update: (
+    token: string,
+    id: string,
+    payload: { date?: string; description?: string },
+  ) => Promise<HotDate>;
+  remove: (token: string, id: string) => Promise<null>;
+  bulkUpload: (
+    token: string,
+    year: number,
+    file: File,
+  ) => Promise<BulkUploadResult>;
+}
+
+const banquetHotDatesApi: HotDatesApi = {
+  fetch: fetchHotDates,
+  create: createHotDate,
+  update: updateHotDate,
+  remove: deleteHotDate,
+  bulkUpload: bulkUploadHotDates,
+};
+
 function buildYearOptions(around = 5) {
   const years: number[] = [];
   for (let y = CURRENT_YEAR - around; y <= CURRENT_YEAR + around; y++) {
@@ -130,7 +157,13 @@ const initialBulkState = (year: number): BulkState => ({
   errorMessage: '',
 });
 
-export function HotDatesManager() {
+export function HotDatesManager({
+  api = banquetHotDatesApi,
+  description = 'Manage high-demand dates for your venue.',
+}: {
+  api?: HotDatesApi;
+  description?: string;
+}) {
   const { accessToken } = useAuth();
   const { showToast } = useToast();
 
@@ -154,7 +187,7 @@ export function HotDatesManager() {
       if (!accessToken) return;
       setIsLoading(true);
       try {
-        const data = await fetchHotDates(accessToken, year);
+        const data = await api.fetch(accessToken, year);
         setHotDates(data);
       } catch (err) {
         showToast(err instanceof Error ? err.message : 'Failed to load hot dates.', 'error');
@@ -162,7 +195,7 @@ export function HotDatesManager() {
         setIsLoading(false);
       }
     },
-    [accessToken, showToast],
+    [accessToken, api, showToast],
   );
 
   useEffect(() => {
@@ -206,10 +239,10 @@ export function HotDatesManager() {
     try {
       setIsSubmitting(true);
       if (editingRecord) {
-        await updateHotDate(accessToken, editingRecord.id, { date, description });
+        await api.update(accessToken, editingRecord.id, { date, description });
         showToast('Hot date updated successfully.', 'success');
       } else {
-        await createHotDate(accessToken, { year: form.year, date, description });
+        await api.create(accessToken, { year: form.year, date, description });
         showToast('Hot date added successfully.', 'success');
       }
       closeForm();
@@ -225,7 +258,7 @@ export function HotDatesManager() {
     if (!accessToken || !deletingRecord) return;
     try {
       setIsDeleting(true);
-      await deleteHotDate(accessToken, deletingRecord.id);
+      await api.remove(accessToken, deletingRecord.id);
       showToast('Hot date deleted.', 'success');
       setDeletingRecord(null);
       await load(filterYear);
@@ -257,7 +290,7 @@ export function HotDatesManager() {
     setBulk((prev) => ({ ...prev, status: 'uploading', result: null, errorMessage: '' }));
 
     try {
-      const result = await bulkUploadHotDates(accessToken, bulk.year, bulk.file);
+      const result = await api.bulkUpload(accessToken, bulk.year, bulk.file);
       setBulk((prev) => ({ ...prev, status: 'done', result }));
       if (result.inserted > 0) {
         showToast(`${result.inserted} record(s) uploaded successfully.`, 'success');
@@ -296,7 +329,7 @@ export function HotDatesManager() {
             </p>
             <h2 className="mt-1 text-xl font-semibold text-slate-900">Hot Dates</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Manage high-demand dates for your venue.
+              {description}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
