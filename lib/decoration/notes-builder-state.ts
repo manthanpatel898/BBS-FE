@@ -3,6 +3,10 @@ import type {
   DecorationSelectionDraft,
   DecorationSnapshotLine,
 } from '@/lib/auth/types';
+import {
+  getInventoryCoverImage,
+  getInventoryDisabledReason,
+} from '@/lib/decoration/inventory-gallery';
 
 export type DecorationNoteBlock = {
   clientId: string;
@@ -87,6 +91,80 @@ export function addCustomNoteBlock(
         image: { ...image },
       },
     ],
+  };
+}
+
+type SelectableCatalogItem = Pick<
+  DecorationItem,
+  | 'id'
+  | 'categoryId'
+  | 'name'
+  | 'description'
+  | 'availableQuantity'
+  | 'isActive'
+  | 'images'
+>;
+
+export function selectCatalogNoteBlock(
+  state: DecorationNotesState,
+  item: SelectableCatalogItem,
+  clientId = crypto.randomUUID(),
+): {
+  state: DecorationNotesState;
+  selectedClientId: string;
+  added: boolean;
+} {
+  const existing = state.blocks.find((block) => block.itemId === item.id);
+  if (existing) {
+    return {
+      state,
+      selectedClientId: existing.clientId,
+      added: false,
+    };
+  }
+
+  const image = getInventoryCoverImage(item);
+  if (!item.isActive || !image || getInventoryDisabledReason(item)) {
+    return { state, selectedClientId: '', added: false };
+  }
+
+  const block: DecorationNoteBlock = {
+    clientId,
+    position: state.blocks.length,
+    kind: 'CATALOG',
+    itemId: item.id,
+    categoryId: item.categoryId,
+    imageId: image.id,
+    title: item.name,
+    quantity: 1,
+    description: item.description ?? '',
+    image: { key: image.key ?? '', url: image.url },
+  };
+
+  return {
+    state: { ...state, blocks: [...state.blocks, block] },
+    selectedClientId: clientId,
+    added: true,
+  };
+}
+
+export function selectCatalogNoteImage(
+  state: DecorationNotesState,
+  clientId: string,
+  image: DecorationItem['images'][number],
+): DecorationNotesState {
+  if (!image.id || !image.key?.trim() || !image.url.trim()) return state;
+  return {
+    ...state,
+    blocks: state.blocks.map((block) =>
+      block.clientId === clientId && block.kind === 'CATALOG'
+        ? {
+            ...block,
+            imageId: image.id,
+            image: { key: image.key ?? '', url: image.url },
+          }
+        : block,
+    ),
   };
 }
 
