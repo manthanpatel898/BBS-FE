@@ -2,6 +2,9 @@ export type DecorationDashboardSummary = {
   todayEvents: number;
   upcoming: number;
   followupsDue: number;
+  followupsPendingToday?: number;
+  followupsTakenToday?: number;
+  followupsDueTotalToday?: number;
   openInquiries?: number;
   selectionPending: number;
   byStatus: Record<string, number>;
@@ -18,6 +21,7 @@ export type DecorationDashboardCard = {
   description: string;
   recordType: import('@/lib/auth/types').DecorationDashboardRecordType;
   tone: 'amber' | 'blue' | 'emerald' | 'red' | 'slate' | 'violet';
+  progress?: { taken: number; total: number };
 };
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
@@ -44,6 +48,11 @@ export function buildDecorationMobileCalendarCard(
 export function buildDecorationDashboardCards(
   summary: DecorationDashboardSummary,
 ): DecorationDashboardCard[] {
+  const followupsTaken = summary.followupsTakenToday ?? 0;
+  const followupsPending =
+    summary.followupsPendingToday ?? summary.followupsDue ?? 0;
+  const followupsTotal =
+    summary.followupsDueTotalToday ?? followupsTaken + followupsPending;
   return [
     {
       id: 'today',
@@ -71,11 +80,12 @@ export function buildDecorationDashboardCards(
     },
     {
       id: 'followups',
-      label: 'Follow-ups due',
-      value: String(summary.followupsDue ?? 0),
-      description: 'Due and overdue customer actions',
+      label: "Today's follow-ups",
+      value: `${followupsTaken} / ${followupsTotal}`,
+      description: `${followupsTaken} completed today · ${followupsPending} remaining`,
       recordType: 'followups',
       tone: 'violet',
+      progress: { taken: followupsTaken, total: followupsTotal },
     },
     {
       id: 'received',

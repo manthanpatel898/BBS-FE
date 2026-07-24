@@ -4,6 +4,7 @@ import type {
   DecorationBooking,
   DecorationDashboardRecords,
   DecorationDashboardRecordType,
+  DecorationFollowupPriorityState,
 } from '@/lib/auth/types';
 import { DecorationStatusBadge } from '@/components/decoration/decoration-status-badge';
 import {
@@ -17,7 +18,7 @@ const meta: Record<DecorationDashboardRecordType, { title: string; empty: string
   today: { title: "Today's events", empty: 'No events are scheduled for today.' },
   upcoming: { title: 'Upcoming confirmed events', empty: 'No upcoming confirmed events.' },
   open_inquiries: { title: 'Open inquiries', empty: 'No open inquiries require attention.' },
-  followups: { title: 'Follow-ups due', empty: 'The follow-up queue is clear.' },
+  followups: { title: "Today's follow-up progress", empty: 'The follow-up queue is clear.' },
   advance_received: { title: 'Bookings with advance received', empty: 'No advance collections found.' },
   outstanding: { title: 'Outstanding collections', empty: 'No outstanding collections found.' },
   selection_pending: { title: 'Decoration selection pending', empty: 'No confirmed events are waiting for decoration selection.' },
@@ -32,6 +33,32 @@ function dayLabel(value: string) {
     weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
   });
 }
+
+const followupStateMeta: Record<
+  DecorationFollowupPriorityState,
+  { label: string; className: string }
+> = {
+  TAKEN_TODAY: {
+    label: 'FOLLOW UP TAKEN',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  },
+  OVERDUE: {
+    label: 'OVERDUE',
+    className: 'border-red-200 bg-red-50 text-red-800',
+  },
+  DUE_TODAY: {
+    label: 'DUE TODAY',
+    className: 'border-amber-200 bg-amber-50 text-amber-900',
+  },
+  PENDING: {
+    label: 'PENDING',
+    className: 'border-amber-200 bg-amber-50 text-amber-900',
+  },
+  SCHEDULED: {
+    label: 'SCHEDULED',
+    className: 'border-slate-200 bg-slate-50 text-slate-700',
+  },
+};
 
 export function DecorationDashboardRecordsPanel({
   type,
@@ -80,7 +107,10 @@ export function DecorationDashboardRecordsPanel({
             {group.items.map((booking) => <button key={booking.id} type="button" onClick={() => onOpenBooking(booking)} className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-400">
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0"><p className="break-words font-black text-slate-950">{booking.customer.name}</p><p className="mt-1 break-words text-sm text-slate-600">{booking.eventType.name} · {booking.venue.name}{booking.hall ? ` / ${booking.hall.name}` : ''}</p></div>
-                <div className="self-start"><DecorationStatusBadge status={booking.status} /></div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2 self-start">
+                  {type === 'followups' && booking.followupState ? <span className={`rounded-full border px-2.5 py-1 text-[11px] font-extrabold ${followupStateMeta[booking.followupState].className}`}>{followupStateMeta[booking.followupState].label}</span> : null}
+                  <DecorationStatusBadge status={booking.status} />
+                </div>
               </div>
               <p className="mt-3 text-sm font-semibold text-slate-600">{booking.startTime}–{booking.endTime} · {booking.timeSlot}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-xs">
