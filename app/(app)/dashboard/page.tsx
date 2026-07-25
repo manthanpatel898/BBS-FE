@@ -971,6 +971,14 @@ const dashboardRecordMeta: Record<DashboardRecordType, {
     cardClassName: 'border-slate-300 bg-slate-50',
     badgeClassName: 'border-slate-300 bg-slate-900 text-white',
   },
+  average_plate_price: {
+    label: 'Average Price Per Plate',
+    subtitle: 'Confirmed and completed bookings included in the average',
+    empty: 'No bookings with a valid per-plate price.',
+    statusLabel: 'PRICE SAMPLE',
+    cardClassName: 'border-emerald-300 bg-emerald-50/45',
+    badgeClassName: 'border-emerald-300 bg-emerald-50 text-emerald-700',
+  },
 };
 
 function getRecordDate(order: Order) {
@@ -1875,6 +1883,7 @@ function CompanyAdminDashboard({
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
           sub={`${averagePlatePrice?.bookingCount ?? 0} confirmed/completed bookings`}
+          onClick={() => onSelectRecordType('average_plate_price')}
         />
         <StatCard
           label="Avg Menu Selection"

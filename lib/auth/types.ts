@@ -919,7 +919,8 @@ export type DashboardRecordType =
   | 'confirmed'
   | 'followups'
   | 'cancelled'
-  | 'completed';
+  | 'completed'
+  | 'average_plate_price';
 
 export interface DashboardRecords {
   type: DashboardRecordType;
