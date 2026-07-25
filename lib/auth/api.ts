@@ -1463,6 +1463,37 @@ export async function fetchOrderStats(accessToken: string, year?: number) {
   return authorizedRequest<OrderStats>(`/orders/stats${query}`, accessToken);
 }
 
+export async function fetchDashboardInquiryActivity(
+  accessToken: string,
+  input: { year: number; month: number },
+) {
+  const query = new URLSearchParams({
+    year: String(input.year),
+    month: String(input.month),
+  });
+  return authorizedRequest<import('./types').InquiryActivity>(
+    `/orders/dashboard-inquiry-activity?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchDashboardAveragePlatePrice(accessToken: string) {
+  return authorizedRequest<import('./types').AveragePlatePrice>(
+    '/orders/dashboard-average-plate-price',
+    accessToken,
+  );
+}
+
+export async function fetchDashboardMonthlySales(
+  accessToken: string,
+  year: number,
+) {
+  return authorizedRequest<import('./types').MonthlySales>(
+    `/orders/dashboard-monthly-sales?year=${encodeURIComponent(year)}`,
+    accessToken,
+  );
+}
+
 export async function fetchOrderReports(accessToken: string, year?: number) {
   const query = year ? `?year=${year}` : '';
   return authorizedRequest<OrderReports>(`/orders/reports${query}`, accessToken);

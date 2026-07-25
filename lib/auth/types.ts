@@ -975,6 +975,33 @@ export interface OrderStats {
   dashboardRecords?: Record<DashboardRecordType, number>;
 }
 
+export interface InquiryActivity {
+  today: { created: number; confirmed: number };
+  yesterday: { created: number; confirmed: number };
+  selectedMonth: {
+    year: number;
+    month: number;
+    created: number;
+    confirmed: number;
+    conversionRate: number;
+  };
+}
+
+export interface AveragePlatePrice {
+  average: number;
+  bookingCount: number;
+}
+
+export interface MonthlySales {
+  year: number;
+  months: Array<{
+    month: number;
+    label: string;
+    bookings: number;
+    revenue: number;
+  }>;
+}
+
 export interface ReportMetric {
   label: string;
   bookings: number;

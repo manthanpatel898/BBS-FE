@@ -6,6 +6,9 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
 import {
   fetchCancelledAdvanceDashboard,
+  fetchDashboardAveragePlatePrice,
+  fetchDashboardInquiryActivity,
+  fetchDashboardMonthlySales,
   fetchDashboardRecords,
   fetchMyRestaurant,
   fetchOrderById,
@@ -15,12 +18,15 @@ import {
 } from '@/lib/auth/api';
 import {
   CancelledAdvanceDashboard,
+  AveragePlatePrice,
   DashboardRecords,
   DashboardRecordType,
   Order,
   RestaurantStats,
   OrderReports,
   OrderStats,
+  InquiryActivity,
+  MonthlySales,
   Restaurant,
 } from '@/lib/auth/types';
 import { getAdvancePaymentSplit } from '@/lib/advance-payment-split';
@@ -1567,6 +1573,11 @@ function CompanyAdminDashboard({
   reports,
   restaurant,
   cancelledAdvanceDashboard,
+  inquiryActivity,
+  averagePlatePrice,
+  monthlySales,
+  selectedActivityMonth,
+  onActivityMonthChange,
   loading,
   selectedYear,
   selectedRecordType,
@@ -1583,6 +1594,11 @@ function CompanyAdminDashboard({
   reports: OrderReports | null;
   restaurant: Restaurant | null;
   cancelledAdvanceDashboard: CancelledAdvanceDashboard | null;
+  inquiryActivity: InquiryActivity | null;
+  averagePlatePrice: AveragePlatePrice | null;
+  monthlySales: MonthlySales | null;
+  selectedActivityMonth: number;
+  onActivityMonthChange: (month: number) => void;
   loading: boolean;
   selectedYear: number;
   selectedRecordType: DashboardRecordType | null;
@@ -1761,6 +1777,75 @@ function CompanyAdminDashboard({
 
       <CancelledAdvanceDashboardSection data={cancelledAdvanceDashboard} />
 
+      {inquiryActivity ? (
+        <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Inquiry Activity</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Created and confirmed activity uses the actual action date.
+              </p>
+            </div>
+            <select
+              value={selectedActivityMonth}
+              onChange={(event) => onActivityMonthChange(Number(event.target.value))}
+              className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
+            >
+              {Array.from({ length: 12 }, (_, index) => index + 1)
+                .filter(
+                  (month) =>
+                    selectedYear < new Date().getFullYear() ||
+                    (selectedYear === new Date().getFullYear() &&
+                      month <= new Date().getMonth() + 1),
+                )
+                .map((month) => (
+                  <option key={month} value={month}>
+                    {new Intl.DateTimeFormat('en-IN', { month: 'long' }).format(
+                      new Date(2026, month - 1, 1),
+                    )}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {[
+              {
+                label: 'Created Today',
+                value: inquiryActivity.today.created,
+              },
+              {
+                label: 'Confirmed Today',
+                value: inquiryActivity.today.confirmed,
+              },
+              {
+                label: 'Created Yesterday',
+                value: inquiryActivity.yesterday.created,
+              },
+              {
+                label: 'Confirmed Yesterday',
+                value: inquiryActivity.yesterday.confirmed,
+              },
+              {
+                label: 'Created This Month',
+                value: inquiryActivity.selectedMonth.created,
+              },
+              {
+                label: 'Confirmed This Month',
+                value: inquiryActivity.selectedMonth.confirmed,
+              },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{item.label}</p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">{item.value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-sm font-semibold text-slate-700">
+            Monthly conversion: {inquiryActivity.selectedMonth.conversionRate.toFixed(1)}%
+          </p>
+        </section>
+      ) : null}
+
       <div className="grid gap-4 xl:grid-cols-12">
         <div className="grid gap-4 sm:grid-cols-2 xl:col-span-12">
           <StatCard
@@ -1783,6 +1868,14 @@ function CompanyAdminDashboard({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+        <StatCard
+          label="Average Price Per Plate"
+          value={formatCurrency(averagePlatePrice?.average ?? 0)}
+          icon={<CoinIcon />}
+          iconBg="bg-emerald-50"
+          iconColor="text-emerald-600"
+          sub={`${averagePlatePrice?.bookingCount ?? 0} confirmed/completed bookings`}
+        />
         <StatCard
           label="Avg Menu Selection"
           value={formatDuration(stats.avgMenuSelectionDurationSeconds)}
@@ -1862,12 +1955,27 @@ function CompanyAdminDashboard({
               current={reports.yearComparison.current}
               previous={reports.yearComparison.previous}
             />
-            <ComparisonChart
-              title="Month on Month"
-              subtitle="Current month compared with the previous month."
-              current={reports.monthComparison.current}
-              previous={reports.monthComparison.previous}
-            />
+            {monthlySales ? (
+              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <h3 className="text-lg font-semibold text-slate-900">Monthly Sales</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Revenue and confirmed event count for every month in {monthlySales.year}.
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {monthlySales.months.map((month) => (
+                    <div key={month.month} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-500">{month.label}</p>
+                      <p className="mt-1 truncate text-base font-bold text-slate-900">
+                        {formatCurrency(month.revenue)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {month.bookings} booking{month.bookings === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
 
           <BarChart
@@ -1979,12 +2087,18 @@ export default function DashboardPage() {
   const { accessToken, user } = useAuth();
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedActivityMonth, setSelectedActivityMonth] = useState(
+    new Date().getMonth() + 1,
+  );
   const [restaurantStats, setRestaurantStats] = useState<RestaurantStats | null>(null);
   const [orderStats, setOrderStats] = useState<OrderStats | null>(null);
   const [orderReports, setOrderReports] = useState<OrderReports | null>(null);
   const [myRestaurant, setMyRestaurant] = useState<Restaurant | null>(null);
   const [cancelledAdvanceDashboard, setCancelledAdvanceDashboard] =
     useState<CancelledAdvanceDashboard | null>(null);
+  const [inquiryActivity, setInquiryActivity] = useState<InquiryActivity | null>(null);
+  const [averagePlatePrice, setAveragePlatePrice] = useState<AveragePlatePrice | null>(null);
+  const [monthlySales, setMonthlySales] = useState<MonthlySales | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRecordType, setSelectedRecordType] = useState<DashboardRecordType | null>(null);
   const [dashboardRecordsPage, setDashboardRecordsPage] = useState(1);
@@ -2005,16 +2119,31 @@ export default function DashboardPage() {
           const stats = await fetchRestaurantStats(accessToken);
           setRestaurantStats(stats);
         } else if (user?.role === 'company_admin') {
-          const [stats, reports, restaurant, cancelledDashboard] = await Promise.all([
+          const now = new Date();
+          const activityYear = selectedYear === currentYear ? now.getFullYear() : selectedYear;
+          const activityMonth =
+            selectedYear === currentYear
+              ? Math.min(selectedActivityMonth, now.getMonth() + 1)
+              : selectedActivityMonth;
+          const [stats, reports, restaurant, cancelledDashboard, activity, averagePrice, sales] = await Promise.all([
             fetchOrderStats(accessToken, selectedYear),
             fetchOrderReports(accessToken, selectedYear).catch(() => null),
             fetchMyRestaurant(accessToken).catch(() => null),
             fetchCancelledAdvanceDashboard(accessToken, selectedYear).catch(() => null),
+            fetchDashboardInquiryActivity(accessToken, {
+              year: activityYear,
+              month: activityMonth,
+            }).catch(() => null),
+            fetchDashboardAveragePlatePrice(accessToken).catch(() => null),
+            fetchDashboardMonthlySales(accessToken, selectedYear).catch(() => null),
           ]);
           setOrderStats(stats);
           setOrderReports(reports);
           setMyRestaurant(restaurant);
           setCancelledAdvanceDashboard(cancelledDashboard);
+          setInquiryActivity(activity);
+          setAveragePlatePrice(averagePrice);
+          setMonthlySales(sales);
         } else if (user?.role === 'employee') {
           const restaurant = await fetchMyRestaurant(accessToken).catch(() => null);
           setMyRestaurant(restaurant);
@@ -2027,7 +2156,7 @@ export default function DashboardPage() {
     };
 
     load();
-  }, [accessToken, user?.role, selectedYear]);
+  }, [accessToken, user?.role, selectedYear, selectedActivityMonth, currentYear]);
 
   useEffect(() => {
     if (!accessToken || user?.role !== 'company_admin' || !selectedRecordType) {
@@ -2131,6 +2260,11 @@ export default function DashboardPage() {
           reports={orderReports}
           restaurant={myRestaurant}
           cancelledAdvanceDashboard={cancelledAdvanceDashboard}
+          inquiryActivity={inquiryActivity}
+          averagePlatePrice={averagePlatePrice}
+          monthlySales={monthlySales}
+          selectedActivityMonth={selectedActivityMonth}
+          onActivityMonthChange={setSelectedActivityMonth}
           loading={loading}
           selectedYear={selectedYear}
           selectedRecordType={selectedRecordType}
