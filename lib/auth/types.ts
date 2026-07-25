@@ -549,6 +549,8 @@ export interface OrderFollowUp {
   date: string;
   nextFollowUpDate: string | null;
   note: string;
+  reason?: import('@/lib/banquet/follow-up-reasons').FollowUpReason | null;
+  customReason?: string | null;
   createdAt: string;
 }
 

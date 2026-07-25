@@ -4,6 +4,12 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import {
+  FOLLOW_UP_REASON_OPTIONS,
+  FollowUpReason,
+  getFollowUpReasonLabel,
+  normalizeFollowUpReasonPayload,
+} from '@/lib/banquet/follow-up-reasons';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { BookingModeToggle } from '@/components/bookings/booking-mode-toggle';
@@ -146,6 +152,8 @@ type FollowUpPopupState = {
   date: string;
   nextFollowUpDate: string;
   closeInquiry: boolean;
+  reason: FollowUpReason | '';
+  customReason: string;
 };
 
 type SignaturePopupState = {
@@ -2160,6 +2168,10 @@ export default function BookingsPage() {
         date: followUpPopup.date || undefined,
         nextFollowUpDate: followUpPopup.nextFollowUpDate || undefined,
         closeInquiry: followUpPopup.closeInquiry,
+        ...normalizeFollowUpReasonPayload(
+          followUpPopup.reason,
+          followUpPopup.customReason,
+        ),
       });
       setFollowUpPopup(null);
       setToast({
@@ -5212,7 +5224,7 @@ function selectionStatus(order: Order) {
                   />
                 </Field>
               </div>
-              <Field label="Note">
+            <Field label="Note">
                 <textarea
                   value={followUpPopup.note}
                   onChange={(event) =>
@@ -5223,7 +5235,51 @@ function selectionStatus(order: Order) {
                   placeholder="Add follow up note"
                   className={`${inputCls} min-h-32 resize-none`}
                 />
+            </Field>
+            <Field label="Reason (optional)">
+              <select
+                value={followUpPopup.reason}
+                onChange={(event) =>
+                  setFollowUpPopup((current) =>
+                    current
+                      ? {
+                          ...current,
+                          reason: event.target.value as FollowUpReason | '',
+                          customReason:
+                            event.target.value === 'OTHER'
+                              ? current.customReason
+                              : '',
+                        }
+                      : current,
+                  )
+                }
+                className={inputCls}
+              >
+                <option value="">Select a reason</option>
+                {FOLLOW_UP_REASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {followUpPopup.reason === 'OTHER' ? (
+              <Field label="Other reason">
+                <input
+                  value={followUpPopup.customReason}
+                  maxLength={120}
+                  onChange={(event) =>
+                    setFollowUpPopup((current) =>
+                      current
+                        ? { ...current, customReason: event.target.value }
+                        : current,
+                    )
+                  }
+                  placeholder="Enter a short reason"
+                  className={inputCls}
+                />
               </Field>
+            ) : null}
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Set the next follow up date to keep today’s dashboard follow up list accurate.
               </div>
@@ -6607,6 +6663,8 @@ function selectionStatus(order: Order) {
                             date: toDateInputValue(new Date()),
                             nextFollowUpDate: '',
                             closeInquiry: false,
+                            reason: '',
+                            customReason: '',
                           })
                         }
                         className={ghostButtonCls}
@@ -6636,7 +6694,21 @@ function selectionStatus(order: Order) {
                                 <td className="px-3 py-3 text-slate-700">{followUp.followUpByName}</td>
                                 <td className="px-3 py-3 text-slate-700">{formatFollowUpDate(followUp.date)}</td>
                                 <td className="px-3 py-3 text-slate-700">{followUp.nextFollowUpDate ? formatFollowUpDate(followUp.nextFollowUpDate) : '-'}</td>
-                                <td className="px-3 py-3 text-slate-700">{followUp.note}</td>
+                                <td className="px-3 py-3 text-slate-700">
+                                  <p>{followUp.note}</p>
+                                  {getFollowUpReasonLabel(
+                                    followUp.reason,
+                                    followUp.customReason,
+                                  ) ? (
+                                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                                      Reason:{' '}
+                                      {getFollowUpReasonLabel(
+                                        followUp.reason,
+                                        followUp.customReason,
+                                      )}
+                                    </p>
+                                  ) : null}
+                                </td>
                               </tr>
                             ))}
                         </tbody>

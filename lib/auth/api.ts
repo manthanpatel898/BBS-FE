@@ -1369,7 +1369,14 @@ export async function downloadVoucherFile(accessToken: string, orderId: string) 
 export async function addOrderFollowUp(
   accessToken: string,
   orderId: string,
-  payload: { note: string; date?: string; nextFollowUpDate?: string; closeInquiry?: boolean },
+  payload: {
+    note: string;
+    date?: string;
+    nextFollowUpDate?: string;
+    closeInquiry?: boolean;
+    reason?: import('@/lib/banquet/follow-up-reasons').FollowUpReason;
+    customReason?: string;
+  },
 ) {
   return authorizedRequest<Order>(`/orders/${orderId}/follow-ups`, accessToken, {
     method: 'PATCH',

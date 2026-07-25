@@ -7,6 +7,12 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { addOrderFollowUp, fetchDashboardRecords, fetchOrderById } from '@/lib/auth/api';
 import { Order, OrderFollowUp, OrderStatus } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
+import {
+  FOLLOW_UP_REASON_OPTIONS,
+  FollowUpReason,
+  getFollowUpReasonLabel,
+  normalizeFollowUpReasonPayload,
+} from '@/lib/banquet/follow-up-reasons';
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -205,6 +211,8 @@ type FollowUpPopupState = {
   date: string;
   nextFollowUpDate: string;
   closeInquiry: boolean;
+  reason: FollowUpReason | '';
+  customReason: string;
 };
 
 export default function FollowupsPage() {
@@ -309,6 +317,10 @@ export default function FollowupsPage() {
         date: followUpPopup.date || undefined,
         nextFollowUpDate: followUpPopup.nextFollowUpDate || undefined,
         closeInquiry: followUpPopup.closeInquiry,
+        ...normalizeFollowUpReasonPayload(
+          followUpPopup.reason,
+          followUpPopup.customReason,
+        ),
       });
       setFollowUpPopup(null);
       setToast({
@@ -586,6 +598,8 @@ export default function FollowupsPage() {
                               date: toDateInputValue(new Date()),
                               nextFollowUpDate: '',
                               closeInquiry: false,
+                              reason: '',
+                              customReason: '',
                             })
                           }
                           className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -705,6 +719,8 @@ export default function FollowupsPage() {
                             date: toDateInputValue(new Date()),
                             nextFollowUpDate: '',
                             closeInquiry: false,
+                            reason: '',
+                            customReason: '',
                           })
                         }
                         className={ghostButtonCls}
@@ -741,7 +757,14 @@ export default function FollowupsPage() {
                               <td className="px-3 py-3 text-slate-700">{fu.followUpByName}</td>
                               <td className="px-3 py-3 text-slate-700">{formatFollowUpDate(fu.date)}</td>
                               <td className="px-3 py-3 text-slate-700">{fu.nextFollowUpDate ? formatFollowUpDate(fu.nextFollowUpDate) : '-'}</td>
-                              <td className="px-3 py-3 text-slate-700">{fu.note}</td>
+                              <td className="px-3 py-3 text-slate-700">
+                                <p>{fu.note}</p>
+                                {getFollowUpReasonLabel(fu.reason, fu.customReason) ? (
+                                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                                    Reason: {getFollowUpReasonLabel(fu.reason, fu.customReason)}
+                                  </p>
+                                ) : null}
+                              </td>
                             </tr>
                           ))}
                       </tbody>
@@ -811,6 +834,50 @@ export default function FollowupsPage() {
                 className={`${inputCls} min-h-32 resize-none`}
               />
             </Field>
+            <Field label="Reason (optional)">
+              <select
+                value={followUpPopup.reason}
+                onChange={(event) =>
+                  setFollowUpPopup((current) =>
+                    current
+                      ? {
+                          ...current,
+                          reason: event.target.value as FollowUpReason | '',
+                          customReason:
+                            event.target.value === 'OTHER'
+                              ? current.customReason
+                              : '',
+                        }
+                      : current,
+                  )
+                }
+                className={inputCls}
+              >
+                <option value="">Select a reason</option>
+                {FOLLOW_UP_REASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {followUpPopup.reason === 'OTHER' ? (
+              <Field label="Other reason">
+                <input
+                  value={followUpPopup.customReason}
+                  maxLength={120}
+                  onChange={(event) =>
+                    setFollowUpPopup((current) =>
+                      current
+                        ? { ...current, customReason: event.target.value }
+                        : current,
+                    )
+                  }
+                  placeholder="Enter a short reason"
+                  className={inputCls}
+                />
+              </Field>
+            ) : null}
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               Set the next follow up date to keep today’s dashboard follow up list accurate.
             </div>
