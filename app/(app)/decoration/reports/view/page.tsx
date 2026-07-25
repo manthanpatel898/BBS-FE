@@ -12,6 +12,7 @@ import {
   type DecorationReportFilters,
 } from "@/lib/auth/api";
 import { useAuth } from "@/components/auth/auth-provider";
+import { normalizeDecorationMoneyInput } from "@/components/decoration/decoration-money-input";
 import type {
   DecorationEventType,
   DecorationLimitedReport,
@@ -206,7 +207,10 @@ function DecorationReportView() {
     try {
       setSaving(true);
       setError("");
-      await updateDecorationWorksheetRow(accessToken, editing, edit);
+      await updateDecorationWorksheetRow(accessToken, editing, {
+        ...edit,
+        packageRate: Number(edit.packageRate),
+      });
       setEditing(null);
       setMessage("Inquiry updated successfully.");
       await load();
@@ -611,14 +615,15 @@ function DecorationReportView() {
                 >
                   {label}
                   <input
-                    type={type}
+                    type={type === "number" ? "text" : type}
+                    inputMode={type === "number" ? "decimal" : undefined}
                     value={String(edit[key] ?? "")}
                     onChange={(e) =>
                       setEdit((v) => ({
                         ...v,
                         [key]:
                           type === "number"
-                            ? Number(e.target.value)
+                            ? normalizeDecorationMoneyInput(e.target.value)
                             : e.target.value,
                         ...(key === "startDate"
                           ? { endDate: e.target.value }

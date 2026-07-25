@@ -16,7 +16,8 @@ export function CompanyProfileSection() {
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [contactNumbers, setContactNumbers] = useState('');
-  const [errors, setErrors] = useState<{ name?: string; contactNumbers?: string }>({});
+  const [address, setAddress] = useState('');
+  const [errors, setErrors] = useState<{ name?: string; contactNumbers?: string; address?: string }>({});
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,7 @@ export function CompanyProfileSection() {
     setLoading(true); setError('');
     try {
       const result = await fetchMyRestaurant(accessToken);
-      setCompany(result); setName(result.name); setLogoUrl(result.logoUrl ?? ''); setContactNumbers((result.contactNumbers ?? []).join('\n'));
+      setCompany(result); setName(result.name); setLogoUrl(result.logoUrl ?? ''); setContactNumbers((result.contactNumbers ?? []).join('\n')); setAddress(result.address ?? '');
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to load company profile'); }
     finally { setLoading(false); }
   }, [accessToken]);
@@ -37,12 +38,12 @@ export function CompanyProfileSection() {
 
   async function save() {
     if (!accessToken || !user || !canEdit) return;
-    const nextErrors = validateCompanyProfile({ name, contactNumbers });
+    const nextErrors = validateCompanyProfile({ name, contactNumbers, address });
     setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
     setSaving(true); setError(''); setMessage('');
     try {
-      const updated = await updateMyRestaurantBranding(accessToken, { name: name.trim(), logoUrl: logoUrl.trim() || null, contactNumbers: parseCompanyContactNumbers(contactNumbers) });
-      setCompany(updated); setName(updated.name); setLogoUrl(updated.logoUrl ?? ''); setContactNumbers(updated.contactNumbers.join('\n'));
+      const updated = await updateMyRestaurantBranding(accessToken, { name: name.trim(), logoUrl: logoUrl.trim() || null, contactNumbers: parseCompanyContactNumbers(contactNumbers), address: address.trim() || undefined });
+      setCompany(updated); setName(updated.name); setLogoUrl(updated.logoUrl ?? ''); setContactNumbers(updated.contactNumbers.join('\n')); setAddress(updated.address ?? '');
       setSession({ accessToken, user: { ...user, restaurantLogoUrl: updated.logoUrl ?? null } });
       setMessage('Company profile updated successfully.');
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to update company profile'); }
@@ -62,6 +63,7 @@ export function CompanyProfileSection() {
       <label className="space-y-2"><span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Company Name</span><input disabled={!canEdit} value={name} onChange={(event) => { setName(event.target.value); setErrors(current => ({ ...current, name: undefined })); }} className={inputClass}/>{errors.name ? <span className="block text-xs font-semibold text-red-600">{errors.name}</span> : null}</label>
       <div className="space-y-2"><span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Logo Image</span><div className="flex flex-wrap items-center gap-3">{canEdit ? <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 hover:border-amber-400 hover:text-amber-600 ${uploading ? 'pointer-events-none opacity-60' : ''}`}>{uploading ? 'Uploading…' : 'Choose image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading} onChange={async(event)=>{const file=event.target.files?.[0];event.target.value='';if(!file)return;if(file.size>5*1024*1024){setError('Image must be under 5 MB.');return}try{setUploading(true);setError('');setLogoUrl(await uploadLogo(accessToken!,file))}catch(requestError){setError(requestError instanceof Error?requestError.message:'Upload failed')}finally{setUploading(false)}}}/></label> : null}{canEdit && logoUrl ? <button type="button" onClick={()=>setLogoUrl('')} className="text-xs text-slate-500 hover:text-red-600">Remove</button> : null}</div><p className="text-xs text-slate-400">JPEG, PNG, WebP or GIF · max 5 MB</p></div>
       <label className="space-y-2 md:col-span-2"><span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Contact Numbers</span><textarea disabled={!canEdit} value={contactNumbers} onChange={(event)=>{setContactNumbers(event.target.value);setErrors(current=>({...current,contactNumbers:undefined}))}} className={`${inputClass} min-h-28 resize-none`} placeholder={'One number per line\n9876543210'}/>{errors.contactNumbers ? <span className="block text-xs font-semibold text-red-600">{errors.contactNumbers}</span> : null}</label>
+      <label className="space-y-2 md:col-span-2"><span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Company Address</span><textarea disabled={!canEdit} value={address} onChange={(event)=>{setAddress(event.target.value);setErrors(current=>({...current,address:undefined}))}} className={`${inputClass} min-h-24 resize-y`} maxLength={500} placeholder="Address shown in event proposals"/>{errors.address ? <span className="block text-xs font-semibold text-red-600">{errors.address}</span> : null}</label>
     </div>
     <div className="mt-5 flex flex-col gap-4 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3">{logoUrl ? <img src={logoUrl} alt={name || 'Company logo'} className="h-14 w-14 rounded-xl border border-slate-200 object-contain p-2"/> : <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-slate-400">Logo</div>}<div><p className="font-semibold text-slate-900">{name}</p><p className="mt-1 text-xs text-slate-500">{parseCompanyContactNumbers(contactNumbers).join(' • ') || 'No contact numbers'}</p></div></div>{canEdit ? <LoadingButton type="button" onClick={()=>void save()} isLoading={saving} className="rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-500">Save branding</LoadingButton> : <span className="text-xs font-semibold text-slate-500">Company admin can update this profile</span>}</div>
   </section>;

@@ -57,11 +57,13 @@ test('visible Print aborts pending readiness on unmount and never prints', async
 
 test('broken company logo is omitted before readiness settles after fallback paint', async () => {
   const documentValue = {
-    company: { name: 'Banquate', logoUrl: '/broken-logo.png', contactNumbers: [] },
+    company: { name: 'Banquate', logoUrl: '/broken-logo.png', contactNumbers: [], address: 'Ahmedabad' },
     booking: { id: 'b1', bookingNumber: 'B-1' },
     customer: { name: 'Customer', mobile: '1' },
     event: { eventType: 'Wedding', startDate: '2026-07-17', endDate: '2026-07-17', startTime: '10:00', endTime: '11:00', timeSlot: 'Morning', location: 'Hall', hall: '', address: '' },
     categories: [],
+    financials: { isPackagePriceFinalized: false, finalPackageAmount: null, totalAmountReceived: 0, pendingAmount: null },
+    payments: [],
   } as any;
   const view = render(<main><DecorationCustomerDocumentView document={documentValue} /></main>);
   const root = view.container.querySelector('main')!;

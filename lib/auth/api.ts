@@ -255,7 +255,9 @@ export async function updateRestaurant(
 
 export async function updateMyRestaurantBranding(
   accessToken: string,
-  payload: Pick<Restaurant, 'name' | 'logoUrl' | 'contactNumbers'>,
+  payload: Pick<Restaurant, 'name' | 'logoUrl' | 'contactNumbers'> & {
+    address?: string;
+  },
 ) {
   return authorizedRequest<Restaurant>('/restaurants/me/branding', accessToken, {
     method: 'PATCH',

@@ -16,6 +16,7 @@ import { DecorationImageCropModal } from './decoration-image-crop-modal';
 import { DecorationInventoryGalleryModal } from './decoration-inventory-gallery-modal';
 import { DecorationNoteBlockEditor } from './decoration-note-block-editor';
 import { DecorationGeneralNotes } from './decoration-general-notes';
+import { DecorationMoneyInput } from './decoration-money-input';
 import { useDecorationNotesAutosave } from './use-decoration-notes-autosave';
 import {
   deleteDecorationSelectionDraft,
@@ -533,14 +534,12 @@ export function DecorationSelectionModalContent({
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
               <label className="text-sm font-semibold text-slate-700">
                 Final Package Price
-                <input
-                  type="number"
-                  min="0"
+                <DecorationMoneyInput
                   value={state.finalPackagePrice}
-                  onChange={(event) =>
+                  onValueChange={(value) =>
                     change((current) => ({
                       ...current,
-                      finalPackagePrice: event.target.value,
+                      finalPackagePrice: value,
                     }))
                   }
                   className="light-form-field mt-1 min-h-11 w-full rounded-xl border bg-white px-3 text-slate-950"

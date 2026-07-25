@@ -18,6 +18,14 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
 }
 
+function formatMoney(value: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function ImageWithFallback({ item }: { item: DocumentItem }) {
   const [failed, setFailed] = useState(false);
   const source = failed ? null : item.image?.url.trim();
@@ -105,6 +113,7 @@ export function DecorationCustomerDocumentView({
                   {document.company.contactNumbers.map((contact) => contact.trim()).filter(Boolean).join(' · ')}
                 </p>
               ) : null}
+              {document.company.address ? <p className="mt-1 max-w-xl whitespace-pre-line break-words text-sm text-slate-600">{document.company.address}</p> : null}
             </div>
           </div>
           <div className="shrink-0 sm:text-right">
@@ -137,6 +146,25 @@ export function DecorationCustomerDocumentView({
           ]}
         />
       </div>
+
+      <section aria-labelledby="decoration-financial-summary-heading" className="mb-6 rounded-xl border border-slate-200 p-4 sm:p-5">
+        <h2 id="decoration-financial-summary-heading" className="text-sm font-bold uppercase tracking-wider text-slate-900">Payment Summary</h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Package</dt><dd className="mt-1 font-bold text-slate-900">{document.financials.isPackagePriceFinalized && document.financials.finalPackageAmount !== null ? formatMoney(document.financials.finalPackageAmount) : 'Not finalized'}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Advance Received</dt><dd className="mt-1 font-bold text-emerald-700">{formatMoney(document.financials.totalAmountReceived)}</dd></div>
+          <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending Amount</dt><dd className="mt-1 font-bold text-slate-900">{document.financials.pendingAmount !== null ? formatMoney(document.financials.pendingAmount) : 'Not available'}</dd></div>
+        </dl>
+      </section>
+
+      {document.payments.length ? <section aria-labelledby="decoration-payment-history-heading" className="mb-6 break-inside-avoid rounded-xl border border-slate-200 p-4 sm:p-5">
+        <h2 id="decoration-payment-history-heading" className="text-sm font-bold uppercase tracking-wider text-slate-900">Advance Payment History</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[32rem] text-left text-sm">
+            <thead><tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500"><th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Mode</th><th className="py-2 pr-3">Remark</th><th className="py-2 text-right">Amount</th></tr></thead>
+            <tbody>{document.payments.map((payment,index)=><tr key={`${payment.date}:${payment.amount}:${index}`} className="border-b border-slate-100 last:border-0"><td className="py-2 pr-3 text-slate-700">{formatDate(payment.date)}</td><td className="py-2 pr-3 font-semibold text-slate-900">{payment.mode || 'Not specified'}</td><td className="py-2 pr-3 text-slate-600">{payment.remark || '—'}</td><td className="py-2 text-right font-bold text-slate-900">{formatMoney(payment.amount)}</td></tr>)}</tbody>
+          </table>
+        </div>
+      </section> : null}
 
       <section aria-labelledby="decoration-selection-heading">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
