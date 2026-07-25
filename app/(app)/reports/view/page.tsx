@@ -37,6 +37,7 @@ import { createExcelBlobFromTable, escapeCsvValue } from '@/lib/excel';
 import { getForwardMonthQuickRange } from '@/lib/report-date-ranges';
 import {
   buildBookingExportTotalRow,
+  buildBookingReportFooterSections,
   flattenBookingReport,
   getBookingReportPrice,
   getPriceSourceLabel,
@@ -1506,13 +1507,6 @@ export default function ReportViewPage() {
           bookingColumns.map((column) => column.key),
           report.totals,
         );
-        const selectedFinancialKeys = new Set(
-          bookingColumns
-            .map((column) => column.key)
-            .filter((key) =>
-              ['grandTotal', 'advanceAmount', 'pendingAmount'].includes(key),
-            ),
-        );
         await downloadTable(
           bookingColumns.map((column) => column.label),
           [
@@ -1528,25 +1522,10 @@ export default function ReportViewPage() {
           {
             reportName: `Booking Report (${bookingFilters.status})`,
             dateRange: `${formatReportDateRange(bookingFilters.from, bookingFilters.to)} · Based on ${getBookingDateBasisLabel(bookingFilters.dateBasis)}`,
-            footerSections:
-              selectedFinancialKeys.size < 3
-                ? [
-                    {
-                      title: 'Report Totals',
-                      rows: [
-                        { label: 'Grand Total', value: report.totals.grandTotal },
-                        {
-                          label: 'Advance Amount',
-                          value: report.totals.advanceAmount,
-                        },
-                        {
-                          label: 'Pending Amount',
-                          value: report.totals.pendingAmount,
-                        },
-                      ],
-                    },
-                  ]
-                : undefined,
+            footerSections: buildBookingReportFooterSections(
+              bookingColumns.map((column) => column.key),
+              report.totals,
+            ),
           },
         );
         return;

@@ -60,3 +60,26 @@ export function buildBookingExportTotalRow(
     return index === 0 ? 'TOTAL' : null;
   });
 }
+
+export function buildBookingReportFooterSections(
+  columnKeys: string[],
+  totals: BookingReportTotals,
+) {
+  const selectedFinancialKeys = new Set(
+    columnKeys.filter((key) =>
+      ['grandTotal', 'advanceAmount', 'pendingAmount'].includes(key),
+    ),
+  );
+  if (selectedFinancialKeys.size === 3) return undefined;
+
+  return [
+    {
+      title: 'Report Totals',
+      rows: [
+        { label: 'Grand Total', value: totals.grandTotal },
+        { label: 'Advance Amount', value: totals.advanceAmount },
+        { label: 'Pending Amount', value: totals.pendingAmount },
+      ],
+    },
+  ];
+}

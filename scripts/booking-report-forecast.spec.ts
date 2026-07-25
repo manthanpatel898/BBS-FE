@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import {
   buildBookingExportTotalRow,
+  buildBookingReportFooterSections,
   flattenBookingReport,
   getBookingReportPrice,
   getPriceSourceLabel,
@@ -49,6 +50,39 @@ assert.deepEqual(
     response.totals,
   ),
   ['TOTAL', 52000, 62000, 10000],
+);
+
+assert.equal(
+  buildBookingExportTotalRow(
+    ['grandTotal', 'advanceAmount', 'pendingAmount'],
+    response.totals,
+  ).every((value) => typeof value === 'number'),
+  true,
+);
+
+assert.equal(
+  buildBookingReportFooterSections(
+    ['customerName', 'grandTotal', 'advanceAmount', 'pendingAmount'],
+    response.totals,
+  ),
+  undefined,
+);
+
+assert.deepEqual(
+  buildBookingReportFooterSections(
+    ['customerName', 'grandTotal'],
+    response.totals,
+  ),
+  [
+    {
+      title: 'Report Totals',
+      rows: [
+        { label: 'Grand Total', value: 62000 },
+        { label: 'Advance Amount', value: 10000 },
+        { label: 'Pending Amount', value: 52000 },
+      ],
+    },
+  ],
 );
 
 assert.deepEqual(
