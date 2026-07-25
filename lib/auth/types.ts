@@ -635,6 +635,8 @@ export interface Order {
   hallDetails: string | null;
   referenceBy: string | null;
   additionalInformation: string | null;
+  decorationRequired?: boolean;
+  decorationPartnerNote?: string | null;
   cancelReason: string | null;
   cancelDate?: string | null;
   voucher: OrderVoucher | null;
@@ -657,6 +659,76 @@ export interface Order {
   activeSignature: OrderSignature | null;
   bookingTakenBy: string;
   bookingTakenBySignature: UserSignature | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerInquiryPolicy {
+  version: string;
+  title: string;
+  summary: string;
+  dataFields: readonly string[];
+  accepted: boolean;
+  acknowledgedVersions: Array<{ version: string; acceptedAt: string; acceptedByUserId: string }>;
+}
+
+export interface PartnerInquiryConfig {
+  enabled: boolean;
+  partnerRestaurantIds: string[];
+  currentPolicyVersion: string;
+  currentPolicyAccepted: boolean;
+  policyAcknowledgements: Array<{ version: string; acceptedAt: string; acceptedByUserId: string }>;
+}
+
+export interface PartnerCompany {
+  id: string;
+  name: string;
+  address: string;
+  contactPersonName: string;
+  contactNumber: string;
+  logoUrl: string | null;
+}
+
+export type PartnerInquiryStatus =
+  | 'PENDING'
+  | 'ACCEPTING'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'WITHDRAWN'
+  | 'EXPIRED';
+
+export interface PartnerInquiry {
+  id: string;
+  sourceCompany: { id: string; name: string };
+  sourceBookingId: string;
+  sourceBookingNumber: string;
+  targetRestaurantId: string;
+  payload: {
+    customerName: string;
+    mobile: string;
+    eventType: string;
+    eventDate: string;
+    startTime: string;
+    endTime: string;
+    timeSlot: 'MORNING' | 'AFTERNOON' | 'EVENING';
+    venueName: string;
+    hallName: string | null;
+    address: string | null;
+    sharedNote: string | null;
+  };
+  sourceRevision: number;
+  sourceUpdatedAt: string | null;
+  status: PartnerInquiryStatus;
+  unread: boolean;
+  hasSourceUpdates: boolean;
+  sourceChanges: Array<Record<string, unknown>>;
+  acceptedBookingId: string | null;
+  acceptedAt: string | null;
+  declineReason: string | null;
+  declinedAt: string | null;
+  withdrawalReason: string | null;
+  withdrawnAt: string | null;
+  policyVersion: string | null;
   createdAt: string;
   updatedAt: string;
 }

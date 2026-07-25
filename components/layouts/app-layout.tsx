@@ -6,7 +6,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useAuth } from '@/components/auth/auth-provider';
 import { TcModal } from '@/components/auth/tc-modal';
 import { CommonModal } from '@/components/ui/common-modal';
-import { fetchActiveTerms, fetchMyRestaurant, fetchProfile } from '@/lib/auth/api';
+import { fetchActiveTerms, fetchIncomingPartnerInquiryCount, fetchMyRestaurant, fetchProfile } from '@/lib/auth/api';
 import { ActiveTermsAndConditions, AuthUser, Restaurant } from '@/lib/auth/types';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { EVENT_DECORATION_MODULE_ENABLED } from '@/lib/auth/business-routes';
@@ -16,6 +16,7 @@ type NavLinkItem = {
   href: string;
   label: string;
   icon: React.ReactNode;
+  badge?: number;
 };
 
 type NavGroupItem = {
@@ -213,6 +214,7 @@ function buildNavItems(
   canAccessCancelledBookings?: boolean,
   canAccessVoucherFlow?: boolean,
   canAccessOdc?: boolean,
+  incomingInquiryCount = 0,
 ): NavItem[] {
   const role = user?.role ?? '';
   if (role === 'super_admin') {
@@ -263,6 +265,9 @@ function buildNavItems(
         : []),
       ...(canViewEvents
         ? [{ type: 'link' as const, href: '/decoration/events', label: 'Events', icon: <IconCalendar /> }]
+        : []),
+      ...(canViewEvents
+        ? [{ type: 'link' as const, href: '/decoration/incoming-inquiries', label: 'Incoming Inquiries', icon: <IconBell />, badge: incomingInquiryCount }]
         : []),
       ...(canViewFollowups
         ? [{ type: 'link' as const, href: '/decoration/followups', label: 'Followups', icon: <IconBell /> }]
@@ -385,6 +390,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [profileTerms, setProfileTerms] = useState<ActiveTermsAndConditions | null>(null);
   const [profileTermsModalOpen, setProfileTermsModalOpen] = useState(false);
   const [sidebarRestaurant, setSidebarRestaurant] = useState<Restaurant | null>(null);
+  const [incomingInquiryCount, setIncomingInquiryCount] = useState(0);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const profileRef = useRef<HTMLDivElement>(null);
@@ -398,9 +404,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const isAdminUser = user?.role === 'super_admin' || user?.role === 'company_admin';
 
   const navItems = useMemo(
-    () => buildNavItems(user, canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc),
-    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, user],
+    () => buildNavItems(user, canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc, incomingInquiryCount),
+    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, incomingInquiryCount, user],
   );
+
+  useEffect(() => {
+    if (!accessToken || user?.businessType !== 'EVENT_DECORATION') {
+      setIncomingInquiryCount(0);
+      return;
+    }
+    let active = true;
+    const load = () => {
+      void fetchIncomingPartnerInquiryCount(accessToken)
+        .then((result) => active && setIncomingInquiryCount(result.pending))
+        .catch(() => active && setIncomingInquiryCount(0));
+    };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    window.addEventListener('partner-inquiries-changed', load);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('partner-inquiries-changed', load);
+    };
+  }, [accessToken, pathname, user?.businessType]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -542,7 +569,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <span className={active ? 'text-amber-600' : 'text-slate-500'}>
             {item.icon}
           </span>
-          {isMobile || !desktopSidebarCollapsed ? item.label : null}
+          {isMobile || !desktopSidebarCollapsed ? <span className="min-w-0 flex-1">{item.label}</span> : null}
+          {item.badge ? <span className="ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold text-white">{item.badge > 99 ? '99+' : item.badge}</span> : null}
         </Link>
       );
     }
@@ -670,6 +698,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           ) : null}
 
           {!pageHeader ? <div className="flex-1" /> : null}
+
+          {user?.businessType === 'EVENT_DECORATION' ? (
+            <Link
+              href="/decoration/incoming-inquiries"
+              aria-label={`${incomingInquiryCount} pending incoming decoration inquiries`}
+              className="relative mr-2 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-amber-300 hover:text-amber-600"
+            >
+              <IconBell />
+              {incomingInquiryCount ? (
+                <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-5 text-white">
+                  {incomingInquiryCount > 99 ? '99+' : incomingInquiryCount}
+                </span>
+              ) : null}
+            </Link>
+          ) : null}
 
           <div ref={profileRef} className="relative">
             <button
