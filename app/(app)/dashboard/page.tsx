@@ -30,6 +30,8 @@ import {
   Restaurant,
 } from '@/lib/auth/types';
 import { getAdvancePaymentSplit } from '@/lib/advance-payment-split';
+import { InquiryActivityJourney } from '@/components/dashboard/inquiry-activity-journey';
+import { MonthlySalesBoard } from '@/components/dashboard/monthly-sales-board';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
 
@@ -1586,6 +1588,7 @@ function CompanyAdminDashboard({
   monthlySales,
   selectedActivityMonth,
   onActivityMonthChange,
+  onMonthlySalesOpen,
   loading,
   selectedYear,
   selectedRecordType,
@@ -1607,6 +1610,7 @@ function CompanyAdminDashboard({
   monthlySales: MonthlySales | null;
   selectedActivityMonth: number;
   onActivityMonthChange: (month: number) => void;
+  onMonthlySalesOpen: (month: number) => void;
   loading: boolean;
   selectedYear: number;
   selectedRecordType: DashboardRecordType | null;
@@ -1786,72 +1790,12 @@ function CompanyAdminDashboard({
       <CancelledAdvanceDashboardSection data={cancelledAdvanceDashboard} />
 
       {inquiryActivity ? (
-        <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Inquiry Activity</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Created and confirmed activity uses the actual action date.
-              </p>
-            </div>
-            <select
-              value={selectedActivityMonth}
-              onChange={(event) => onActivityMonthChange(Number(event.target.value))}
-              className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800"
-            >
-              {Array.from({ length: 12 }, (_, index) => index + 1)
-                .filter(
-                  (month) =>
-                    selectedYear < new Date().getFullYear() ||
-                    (selectedYear === new Date().getFullYear() &&
-                      month <= new Date().getMonth() + 1),
-                )
-                .map((month) => (
-                  <option key={month} value={month}>
-                    {new Intl.DateTimeFormat('en-IN', { month: 'long' }).format(
-                      new Date(2026, month - 1, 1),
-                    )}
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {[
-              {
-                label: 'Created Today',
-                value: inquiryActivity.today.created,
-              },
-              {
-                label: 'Confirmed Today',
-                value: inquiryActivity.today.confirmed,
-              },
-              {
-                label: 'Created Yesterday',
-                value: inquiryActivity.yesterday.created,
-              },
-              {
-                label: 'Confirmed Yesterday',
-                value: inquiryActivity.yesterday.confirmed,
-              },
-              {
-                label: 'Created This Month',
-                value: inquiryActivity.selectedMonth.created,
-              },
-              {
-                label: 'Confirmed This Month',
-                value: inquiryActivity.selectedMonth.confirmed,
-              },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{item.label}</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{item.value}</p>
-              </div>
-            ))}
-          </div>
-          <p className="mt-4 text-sm font-semibold text-slate-700">
-            Monthly conversion: {inquiryActivity.selectedMonth.conversionRate.toFixed(1)}%
-          </p>
-        </section>
+        <InquiryActivityJourney
+          activity={inquiryActivity}
+          selectedYear={selectedYear}
+          selectedMonth={selectedActivityMonth}
+          onMonthChange={onActivityMonthChange}
+        />
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-12">
@@ -1965,25 +1909,12 @@ function CompanyAdminDashboard({
               previous={reports.yearComparison.previous}
             />
             {monthlySales ? (
-              <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                <h3 className="text-lg font-semibold text-slate-900">Monthly Sales</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Revenue and confirmed event count for every month in {monthlySales.year}.
-                </p>
-                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {monthlySales.months.map((month) => (
-                    <div key={month.month} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs font-bold uppercase text-slate-500">{month.label}</p>
-                      <p className="mt-1 truncate text-base font-bold text-slate-900">
-                        {formatCurrency(month.revenue)}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {month.bookings} booking{month.bookings === 1 ? '' : 's'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <MonthlySalesBoard
+                data={monthlySales}
+                currentYear={new Date().getFullYear()}
+                currentMonth={new Date().getMonth() + 1}
+                onMonthOpen={onMonthlySalesOpen}
+              />
             ) : null}
           </div>
 
@@ -2246,6 +2177,16 @@ export default function DashboardPage() {
     setDetailOrderLoading(false);
   };
 
+  const openMonthlySales = (month: number) => {
+    const from = `${selectedYear}-${String(month).padStart(2, '0')}-01`;
+    const to = new Date(Date.UTC(selectedYear, month, 0))
+      .toISOString()
+      .slice(0, 10);
+    window.location.assign(
+      `/reports/view?report=booking&status=CONFIRMED&dateBasis=eventDate&from=${from}&to=${to}`,
+    );
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
@@ -2274,6 +2215,7 @@ export default function DashboardPage() {
           monthlySales={monthlySales}
           selectedActivityMonth={selectedActivityMonth}
           onActivityMonthChange={setSelectedActivityMonth}
+          onMonthlySalesOpen={openMonthlySales}
           loading={loading}
           selectedYear={selectedYear}
           selectedRecordType={selectedRecordType}

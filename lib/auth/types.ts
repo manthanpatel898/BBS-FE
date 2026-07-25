@@ -993,14 +993,22 @@ export interface AveragePlatePrice {
   bookingCount: number;
 }
 
+export interface MonthlySalesMonth {
+  month: number;
+  label: string;
+  bookings: number;
+  actualRevenue: number;
+  estimatedRevenue: number;
+  effectiveRevenue: number;
+  estimatedBookings: number;
+  revenue: number;
+}
+
 export interface MonthlySales {
   year: number;
-  months: Array<{
-    month: number;
-    label: string;
-    bookings: number;
-    revenue: number;
-  }>;
+  averagePlatePrice: number;
+  totals: Omit<MonthlySalesMonth, 'month' | 'label'>;
+  months: MonthlySalesMonth[];
 }
 
 export interface ReportMetric {
