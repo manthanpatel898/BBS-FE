@@ -7,6 +7,7 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { useAuth } from '@/components/auth/auth-provider';
 import {
   fetchAdvancePaymentsReport,
+  fetchBookingReport,
   fetchEventPlannerReport,
   fetchHallOccupancyReport,
   fetchItemSalesReport,
@@ -30,9 +31,17 @@ import {
   SettingOption,
   TreasuryReport,
   UpcomingEventReportRow,
+  BookingReportTotals,
 } from '@/lib/auth/types';
 import { createExcelBlobFromTable, escapeCsvValue } from '@/lib/excel';
 import { getForwardMonthQuickRange } from '@/lib/report-date-ranges';
+import {
+  buildBookingExportTotalRow,
+  flattenBookingReport,
+  getBookingReportPrice,
+  getPriceSourceLabel,
+  type BookingReportOrder,
+} from '@/lib/reports/booking-report';
 
 type DownloadFormat = 'csv' | 'xlsx';
 type ReportType =
@@ -60,6 +69,7 @@ type BookingFieldKey =
   | 'defaultPackagePrice'
   | 'customPackagePrice'
   | 'finalPackagePrice'
+  | 'priceSource'
   | 'guests'
   | 'grandTotal'
   | 'advanceAmount'
@@ -169,6 +179,7 @@ const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
   { key: 'defaultPackagePrice', label: 'Default Package Price' },
   { key: 'customPackagePrice', label: 'Custom Package Price' },
   { key: 'finalPackagePrice', label: 'Final Package Price' },
+  { key: 'priceSource', label: 'Price Source' },
   { key: 'guests', label: 'Guests' },
   { key: 'grandTotal', label: 'Grand Total' },
   { key: 'advanceAmount', label: 'Advance Amount' },
@@ -504,7 +515,11 @@ function saveFieldSelection(storageKey: string, fields: string[]) {
   window.localStorage.setItem(storageKey, JSON.stringify(fields));
 }
 
-function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | CancelledFieldKey) {
+function isForecastOrder(order: Order | BookingReportOrder): order is BookingReportOrder {
+  return 'reportForecast' in order;
+}
+
+function getBookingFieldValue(order: Order | BookingReportOrder, fieldKey: BookingFieldKey | CancelledFieldKey) {
   const defaultPackagePrice = getDefaultPackagePrice(order);
   const customPackagePrice = getCustomPackagePrice(order);
   const finalPackagePrice = getFinalPackagePrice(order);
@@ -537,7 +552,13 @@ function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | Cancelle
     case 'customPackagePrice':
       return customPackagePrice !== null ? formatCurrency(customPackagePrice) : '-';
     case 'finalPackagePrice':
-      return finalPackagePrice > 0 ? formatCurrency(finalPackagePrice) : '-';
+      return finalPackagePrice > 0
+        ? `${isForecastOrder(order) && order.reportForecast.isEstimated ? 'Estimated · ' : ''}${formatCurrency(finalPackagePrice)}`
+        : '-';
+    case 'priceSource':
+      return isForecastOrder(order)
+        ? getPriceSourceLabel(order.reportForecast.priceSource)
+        : '-';
     case 'guests':
       return order.pax ? String(order.pax) : '-';
     case 'grandTotal':
@@ -555,24 +576,31 @@ function getBookingFieldValue(order: Order, fieldKey: BookingFieldKey | Cancelle
   }
 }
 
-function getDefaultPackagePrice(order: Order) {
+function getDefaultPackagePrice(order: Order | BookingReportOrder) {
+  if (isForecastOrder(order) && order.reportForecast.isEstimated) {
+    return getBookingReportPrice(order);
+  }
   return order.categorySnapshot?.pricePerPlate ?? 0;
 }
 
-function getCustomPackagePrice(order: Order) {
+function getCustomPackagePrice(order: Order | BookingReportOrder) {
   return order.customPricePerPlate ?? order.inquiryCustomPrice ?? null;
 }
 
-function getFinalPackagePrice(order: Order) {
+function getFinalPackagePrice(order: Order | BookingReportOrder) {
+  if (isForecastOrder(order) && order.reportForecast.isEstimated) {
+    return getBookingReportPrice(order);
+  }
   const customPackagePrice = getCustomPackagePrice(order);
   return customPackagePrice ?? order.pricePerPlate ?? getDefaultPackagePrice(order);
 }
 
-function getReportBaseTotal(order: Order) {
+function getReportBaseTotal(order: Order | BookingReportOrder) {
   return order.pax && order.pax > 0 ? order.pax * getFinalPackagePrice(order) : 0;
 }
 
-function getReportGrandTotal(order: Order) {
+function getReportGrandTotal(order: Order | BookingReportOrder) {
+  if (isForecastOrder(order)) return order.effectiveGrandTotal;
   if (order.grandTotal > 0) return order.grandTotal;
   return Math.max(
     getReportBaseTotal(order) + order.extrasTotal - order.discountAmount,
@@ -580,7 +608,8 @@ function getReportGrandTotal(order: Order) {
   );
 }
 
-function getReportPendingAmount(order: Order) {
+function getReportPendingAmount(order: Order | BookingReportOrder) {
+  if (isForecastOrder(order)) return order.effectivePendingAmount;
   return Math.max(getReportGrandTotal(order) - order.advanceAmount, 0);
 }
 
@@ -588,30 +617,34 @@ function getCancelledPendingAmount(order: Order) {
   return order.redeemableBalance;
 }
 
-function getBookingExportValue(order: Order, fieldKey: BookingFieldKey | CancelledFieldKey) {
+function getBookingExportValue(order: Order | BookingReportOrder, fieldKey: BookingFieldKey | CancelledFieldKey) {
   switch (fieldKey) {
     case 'packageCategory':
       return order.categorySnapshot
         ? `${order.categorySnapshot.name} (${formatExportAmount(getFinalPackagePrice(order))})`
         : '-';
     case 'defaultPackagePrice':
-      return getDefaultPackagePrice(order) > 0 ? formatExportAmount(getDefaultPackagePrice(order)) : '';
+      return getDefaultPackagePrice(order) > 0 ? getDefaultPackagePrice(order) : '';
     case 'customPackagePrice':
       return getCustomPackagePrice(order) !== null ? formatExportAmount(getCustomPackagePrice(order) ?? 0) : '';
     case 'finalPackagePrice':
-      return getFinalPackagePrice(order) > 0 ? formatExportAmount(getFinalPackagePrice(order)) : '';
+      return getFinalPackagePrice(order) > 0 ? getFinalPackagePrice(order) : '';
+    case 'priceSource':
+      return isForecastOrder(order)
+        ? getPriceSourceLabel(order.reportForecast.priceSource)
+        : '';
     case 'grandTotal':
-      return formatExportAmount(getReportGrandTotal(order));
+      return getReportGrandTotal(order);
     case 'advanceAmount':
-      return formatExportAmount(order.advanceAmount);
+      return order.advanceAmount;
     case 'pendingAmount':
-      return formatExportAmount(getReportPendingAmount(order));
+      return getReportPendingAmount(order);
     default:
       return getBookingFieldValue(order, fieldKey);
   }
 }
 
-function getBookingColumns(selectedFields: BookingFieldKey[]): ColumnDef<Order>[] {
+function getBookingColumns(selectedFields: BookingFieldKey[]): ColumnDef<BookingReportOrder>[] {
   return selectedFields.map((fieldKey) => ({
     key: fieldKey,
     label: BOOKING_FIELDS.find((field) => field.key === fieldKey)?.label ?? fieldKey,
@@ -627,6 +660,34 @@ function getBookingColumns(selectedFields: BookingFieldKey[]): ColumnDef<Order>[
             ? (order) => getReportPendingAmount(order)
             : undefined,
   }));
+}
+
+function BookingReportTotalsSummary({
+  totals,
+}: {
+  totals: BookingReportTotals;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {[
+        ['Grand Total', totals.grandTotal],
+        ['Advance Amount', totals.advanceAmount],
+        ['Pending Amount', totals.pendingAmount],
+      ].map(([label, value]) => (
+        <div
+          key={label}
+          className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4"
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+            Total {label}
+          </p>
+          <p className="mt-3 text-2xl font-bold text-slate-950">
+            {formatCurrency(Number(value))}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function getCancelledColumns(selectedFields: CancelledFieldKey[]): ColumnDef<Order>[] {
@@ -1164,7 +1225,12 @@ export default function ReportViewPage() {
   const [cancelledSelectedFields, setCancelledSelectedFields] = useState<CancelledFieldKey[]>(() =>
     loadFieldSelection(CANCELLED_FIELDS_STORAGE_KEY, CANCELLED_FIELDS),
   );
-  const [bookingRows, setBookingRows] = useState<Order[]>([]);
+  const [bookingRows, setBookingRows] = useState<BookingReportOrder[]>([]);
+  const [bookingTotals, setBookingTotals] = useState<BookingReportTotals>({
+    grandTotal: 0,
+    advanceAmount: 0,
+    pendingAmount: 0,
+  });
   const [advanceRows, setAdvanceRows] = useState<AdvancePaymentReportRow[]>([]);
   const [cancelledRows, setCancelledRows] = useState<Order[]>([]);
   const [itemSalesRows, setItemSalesRows] = useState<ItemSalesReportRow[]>([]);
@@ -1215,6 +1281,29 @@ export default function ReportViewPage() {
       ? reportParam
       : 'booking';
   const activeCard = REPORT_CARDS.find((card) => card.type === activeReport) ?? REPORT_CARDS[0];
+
+  useEffect(() => {
+    if ((searchParams.get('type') ?? searchParams.get('report')) !== 'booking') {
+      return;
+    }
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const status = searchParams.get('status');
+    const dateBasis = searchParams.get('dateBasis');
+    setBookingFilters((current) => ({
+      from: from ?? current.from,
+      to: to ?? current.to,
+      status:
+        status === 'CONFIRMED' || status === 'INQUIRY' || status === 'CANCELLED'
+          ? status
+          : current.status,
+      dateBasis: BOOKING_DATE_BASIS_OPTIONS.some(
+        (option) => option.value === dateBasis,
+      )
+        ? (dateBasis as BookingFilters['dateBasis'])
+        : current.dateBasis,
+    }));
+  }, [searchParams]);
 
   useEffect(() => {
     if (!accessToken || user?.role !== 'company_admin') return;
@@ -1295,8 +1384,13 @@ export default function ReportViewPage() {
         if (bookingSelectedFields.length === 0) {
           throw new Error('Select at least one booking report field.');
         }
-        const orders = await loadAllOrders(bookingFilters);
-        setBookingRows(orders);
+        if (!accessToken) throw new Error('Missing session token.');
+        validateDateRange(bookingFilters.from, bookingFilters.to);
+        const response = flattenBookingReport(
+          await fetchBookingReport(accessToken, bookingFilters),
+        );
+        setBookingRows(response.rows);
+        setBookingTotals(response.totals);
         return;
       }
 
@@ -1397,16 +1491,62 @@ export default function ReportViewPage() {
         if (bookingSelectedFields.length === 0) {
           throw new Error('Select at least one booking report field.');
         }
-        const rows = bookingRows.length > 0 ? bookingRows : await loadAllOrders(bookingFilters);
+        if (!accessToken) throw new Error('Missing session token.');
+        validateDateRange(bookingFilters.from, bookingFilters.to);
+        const report =
+          bookingRows.length > 0
+            ? { rows: bookingRows, totals: bookingTotals }
+            : flattenBookingReport(
+                await fetchBookingReport(accessToken, bookingFilters),
+              );
+        const rows = report.rows;
         setBookingRows(rows);
+        setBookingTotals(report.totals);
+        const totalRow = buildBookingExportTotalRow(
+          bookingColumns.map((column) => column.key),
+          report.totals,
+        );
+        const selectedFinancialKeys = new Set(
+          bookingColumns
+            .map((column) => column.key)
+            .filter((key) =>
+              ['grandTotal', 'advanceAmount', 'pendingAmount'].includes(key),
+            ),
+        );
         await downloadTable(
           bookingColumns.map((column) => column.label),
-          rows.map((row) => bookingColumns.map((column) => (column.exportValue ? column.exportValue(row) : column.render(row)))),
+          [
+            ...rows.map((row) =>
+              bookingColumns.map((column) =>
+                column.exportValue ? column.exportValue(row) : String(column.render(row)),
+              ),
+            ),
+            totalRow,
+          ],
           `booking-report-${bookingFilters.status.toLowerCase()}-${bookingFilters.from}-to-${bookingFilters.to}`,
           downloadFormat,
           {
             reportName: `Booking Report (${bookingFilters.status})`,
             dateRange: `${formatReportDateRange(bookingFilters.from, bookingFilters.to)} · Based on ${getBookingDateBasisLabel(bookingFilters.dateBasis)}`,
+            footerSections:
+              selectedFinancialKeys.size < 3
+                ? [
+                    {
+                      title: 'Report Totals',
+                      rows: [
+                        { label: 'Grand Total', value: report.totals.grandTotal },
+                        {
+                          label: 'Advance Amount',
+                          value: report.totals.advanceAmount,
+                        },
+                        {
+                          label: 'Pending Amount',
+                          value: report.totals.pendingAmount,
+                        },
+                      ],
+                    },
+                  ]
+                : undefined,
           },
         );
         return;
@@ -2640,12 +2780,12 @@ export default function ReportViewPage() {
 
       {activeReport === 'booking' ? (
         <div className="space-y-4">
-          <SummaryTotals rows={bookingRows} columns={bookingColumns} />
           <DataTable
             rows={bookingRows}
             columns={bookingColumns}
             emptyMessage="Generate the booking report to preview results here."
           />
+          <BookingReportTotalsSummary totals={bookingTotals} />
         </div>
       ) : null}
 

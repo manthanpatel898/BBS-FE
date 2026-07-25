@@ -2183,7 +2183,7 @@ export default function DashboardPage() {
       .toISOString()
       .slice(0, 10);
     window.location.assign(
-      `/reports/view?report=booking&status=CONFIRMED&dateBasis=eventDate&from=${from}&to=${to}`,
+      `/reports/view?type=booking&status=CONFIRMED&dateBasis=eventDate&from=${from}&to=${to}`,
     );
   };
 

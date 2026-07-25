@@ -1006,6 +1006,29 @@ export async function fetchOrders(
   return authorizedRequest<PaginatedOrders>(`/orders?${query.toString()}`, accessToken);
 }
 
+export async function fetchBookingReport(
+  accessToken: string,
+  params: {
+    from: string;
+    to: string;
+    status: string;
+    dateBasis: string;
+    search?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    from: params.from,
+    to: params.to,
+    status: params.status,
+    dateBasis: params.dateBasis,
+  });
+  if (params.search?.trim()) query.set('search', params.search.trim());
+  return authorizedRequest<import('./types').BookingReportResponse>(
+    `/orders/booking-report?${query.toString()}`,
+    accessToken,
+  );
+}
+
 export async function fetchCalendarOrders(
   accessToken: string,
   params: { from: string; to: string },

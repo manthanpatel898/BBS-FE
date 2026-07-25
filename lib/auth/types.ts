@@ -663,6 +663,34 @@ export interface Order {
   updatedAt: string;
 }
 
+export type PriceSource =
+  | 'CUSTOM'
+  | 'PACKAGE'
+  | 'STORED'
+  | 'ESTIMATED_AVERAGE'
+  | 'UNAVAILABLE';
+
+export interface BookingReportRow {
+  order: Order;
+  priceSource: PriceSource;
+  isEstimated: boolean;
+  effectivePlatePrice: number;
+  effectiveGrandTotal: number;
+  effectivePendingAmount: number;
+}
+
+export interface BookingReportTotals {
+  grandTotal: number;
+  advanceAmount: number;
+  pendingAmount: number;
+}
+
+export interface BookingReportResponse {
+  rows: BookingReportRow[];
+  averagePlatePrice: number;
+  totals: BookingReportTotals;
+}
+
 export type SignatureLocationPermissionStatus = 'GRANTED' | 'DENIED' | 'UNAVAILABLE';
 
 export interface OrderSignature {
