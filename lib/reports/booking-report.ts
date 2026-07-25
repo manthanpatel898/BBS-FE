@@ -46,6 +46,10 @@ export function getPriceSourceLabel(source: PriceSource) {
   return labels[source];
 }
 
+export function labelEstimatedValue(isEstimated: boolean, value: string) {
+  return isEstimated ? `Estimated · ${value}` : value;
+}
+
 export function buildBookingExportTotalRow(
   columnKeys: string[],
   totals: BookingReportTotals,

@@ -41,6 +41,7 @@ import {
   flattenBookingReport,
   getBookingReportPrice,
   getPriceSourceLabel,
+  labelEstimatedValue,
   type BookingReportOrder,
 } from '@/lib/reports/booking-report';
 
@@ -549,12 +550,20 @@ function getBookingFieldValue(order: Order | BookingReportOrder, fieldKey: Booki
         ? `${order.categorySnapshot.name} (${formatCurrency(finalPackagePrice)})`
         : '-';
     case 'defaultPackagePrice':
-      return defaultPackagePrice > 0 ? formatCurrency(defaultPackagePrice) : '-';
+      return defaultPackagePrice > 0
+        ? labelEstimatedValue(
+            isForecastOrder(order) && order.reportForecast.isEstimated,
+            formatCurrency(defaultPackagePrice),
+          )
+        : '-';
     case 'customPackagePrice':
       return customPackagePrice !== null ? formatCurrency(customPackagePrice) : '-';
     case 'finalPackagePrice':
       return finalPackagePrice > 0
-        ? `${isForecastOrder(order) && order.reportForecast.isEstimated ? 'Estimated · ' : ''}${formatCurrency(finalPackagePrice)}`
+        ? labelEstimatedValue(
+            isForecastOrder(order) && order.reportForecast.isEstimated,
+            formatCurrency(finalPackagePrice),
+          )
         : '-';
     case 'priceSource':
       return isForecastOrder(order)
@@ -563,11 +572,17 @@ function getBookingFieldValue(order: Order | BookingReportOrder, fieldKey: Booki
     case 'guests':
       return order.pax ? String(order.pax) : '-';
     case 'grandTotal':
-      return formatCurrency(getReportGrandTotal(order));
+      return labelEstimatedValue(
+        isForecastOrder(order) && order.reportForecast.isEstimated,
+        formatCurrency(getReportGrandTotal(order)),
+      );
     case 'advanceAmount':
       return formatCurrency(order.advanceAmount);
     case 'pendingAmount':
-      return formatCurrency(getReportPendingAmount(order));
+      return labelEstimatedValue(
+        isForecastOrder(order) && order.reportForecast.isEstimated,
+        formatCurrency(getReportPendingAmount(order)),
+      );
     case 'bookedBy':
       return order.bookingTakenBy || '-';
     case 'reason':
