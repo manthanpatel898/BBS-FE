@@ -27,11 +27,11 @@
 - Consumes: existing `onMove(direction: -1 | 1)` and `onRemove()` callbacks
 - Produces: icon-only buttons named `Move decoration note up`, `Move decoration note down`, and `Remove decoration note`
 
-- [ ] **Step 1: Write the failing source-view test**
+- [x] **Step 1: Write the failing source-view test**
 
 Require the editor source to contain all three accessible names, matching titles, inline SVG markup, and no visible legacy action text nodes.
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -41,11 +41,11 @@ node --test lib/decoration/notes-builder-view.test.mjs
 
 Expected: failure because the icon-only accessible controls are not implemented.
 
-- [ ] **Step 3: Implement the three icon buttons**
+- [x] **Step 3: Implement the three icon buttons**
 
 Add small local SVG icon components for up, down, and trash. Render them inside 44 × 44 pixel buttons with `aria-label`, `title`, existing disabled conditions, and unchanged callbacks.
 
-- [ ] **Step 4: Run focused and regression verification**
+- [x] **Step 4: Run focused and regression verification**
 
 Run:
 
@@ -59,7 +59,7 @@ npm run build
 
 Expected: all tests, type checking, lint, and the static build pass; lint may retain only previously documented unrelated warnings.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components/decoration/decoration-note-block-editor.tsx lib/decoration/notes-builder-view.test.mjs docs/superpowers/specs/2026-07-25-decoration-note-action-icons-design.md docs/superpowers/plans/2026-07-25-decoration-note-action-icons-plan.md

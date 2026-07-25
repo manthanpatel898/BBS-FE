@@ -6,6 +6,44 @@ import type { DecorationNoteBlock } from '@/lib/decoration/notes-builder-state';
 
 const field = 'light-form-field min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-950 placeholder:text-slate-400';
 
+function ChevronIcon({ direction }: { direction: 'up' | 'down' }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-5 w-5"
+    >
+      <path
+        d={direction === 'up' ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-5 w-5"
+    >
+      <path
+        d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function DecorationNoteBlockEditor({
   block,
   index,
@@ -132,27 +170,33 @@ export function DecorationNoteBlockEditor({
             <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
               <button
                 type="button"
+                aria-label="Move decoration note up"
+                title="Move decoration note up"
                 disabled={disabled || index === 0}
                 onClick={() => onMove(-1)}
-                className="rounded-lg border px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Move up
+                <ChevronIcon direction="up" />
               </button>
               <button
                 type="button"
+                aria-label="Move decoration note down"
+                title="Move decoration note down"
                 disabled={disabled || index === count - 1}
                 onClick={() => onMove(1)}
-                className="rounded-lg border px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Move down
+                <ChevronIcon direction="down" />
               </button>
               <button
                 type="button"
+                aria-label="Remove decoration note"
+                title="Remove decoration note"
                 disabled={disabled}
                 onClick={onRemove}
-                className="ml-auto rounded-lg px-3 py-2 text-xs font-bold text-red-600"
+                className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Remove
+                <TrashIcon />
               </button>
             </div>
           </div>
