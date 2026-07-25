@@ -10,6 +10,7 @@ import {
   getFollowUpReasonLabel,
   normalizeFollowUpReasonPayload,
 } from '@/lib/banquet/follow-up-reasons';
+import { getCalendarDayState } from '@/lib/banquet/calendar-day-state';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { BookingModeToggle } from '@/components/bookings/booking-mode-toggle';
@@ -3513,10 +3514,16 @@ function selectionStatus(order: Order) {
                       const dayKey = formatDateKey(day);
                       const dayOrders = ordersByDate.get(dayKey) ?? [];
                       const statusCounts = getMonthTileStatusCounts(dayOrders);
-                      const isSelectedDay = selectedCalendarDay === dayKey;
-                      const isToday = dayKey === formatDateKey(new Date());
-                      const isHighlightedDay = isSelectedDay || (!selectedCalendarDay && isToday);
-                      const isHotDate = hotDateKeys.has(dayKey);
+                      const {
+                        isSelected: isSelectedDay,
+                        isToday,
+                        isHotDate,
+                      } = getCalendarDayState({
+                        dayKey,
+                        todayKey: formatDateKey(new Date()),
+                        selectedDayKey: selectedCalendarDay,
+                        hotDateKeys,
+                      });
                       const statusRows = [
                         { key: 'booked', count: statusCounts.booked, markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
                         { key: 'inquiry', count: statusCounts.inquiry, markerClassName: 'bg-amber-300', textClassName: 'text-slate-800' },
@@ -3538,11 +3545,15 @@ function selectionStatus(order: Order) {
                           }}
                           className={`relative min-h-[112px] overflow-hidden rounded-[26px] border text-left transition sm:min-h-[132px] ${
                             isHotDate
-                              ? isHighlightedDay
+                              ? isToday
                                 ? 'border-red-300 bg-white ring-2 ring-red-200'
+                                : isSelectedDay
+                                  ? 'border-red-200 bg-white ring-2 ring-slate-200'
                                 : 'border-red-200 bg-white'
-                              : isHighlightedDay
+                              : isToday
                                 ? 'border-amber-300 bg-white ring-2 ring-amber-100'
+                                : isSelectedDay
+                                  ? 'border-slate-300 bg-white ring-2 ring-slate-200'
                                 : isToday
                                   ? 'border-slate-200 bg-white'
                                   : 'border-slate-200 bg-white'
@@ -3552,12 +3563,14 @@ function selectionStatus(order: Order) {
                             className={`absolute inset-x-0 top-0 flex min-h-[42px] items-center justify-center rounded-t-[25px] border-b px-2 py-2 sm:min-h-[48px] ${
                               isHotDate
                                 ? 'border-b-red-200 bg-red-50'
-                                : isHighlightedDay
+                                : isToday
                                   ? 'border-b-amber-200 bg-amber-50'
+                                  : isSelectedDay
+                                    ? 'border-b-slate-300 bg-slate-100'
                                   : 'border-b-slate-200 bg-slate-50'
                             }`}
                           >
-                            <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isHighlightedDay ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
+                            <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isToday ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
                           </div>
                           <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-4 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
                             {compactStatusRows.map((statusRow, index) => (
