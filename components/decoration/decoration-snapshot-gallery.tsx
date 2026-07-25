@@ -12,14 +12,14 @@ function ImageFallback({ line, large = false }: { line: DecorationSnapshotLine; 
   return <img src={source} alt={line.itemName} className={`${size} object-cover`} loading="lazy" onError={() => setFailed(true)} />;
 }
 
-export function DecorationSnapshotGallery({ lines, printable = false, internal = false }: { lines: DecorationSnapshotLine[]; printable?: boolean; internal?: boolean }) {
+export function DecorationSnapshotGallery({ lines, printable = false, internal = false, detail = false }: { lines: DecorationSnapshotLine[]; printable?: boolean; internal?: boolean; detail?: boolean }) {
   const [selected, setSelected] = useState<DecorationSnapshotLine | null>(null);
   const groups = orderedSnapshotGroups(lines);
   if (!lines.length) return <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500">Decoration has not been selected for this event.</div>;
   return <div className="space-y-7 text-slate-900">
     {groups.map(({ key, category, items }) => <section key={key} className="decoration-print-group break-inside-avoid">
       <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-lg font-bold text-slate-900">{category}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{items.length} {items.length === 1 ? 'item' : 'items'}</span></div>
-      <div className={`grid gap-4 ${printable ? 'grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
+      <div className={`grid gap-3 sm:gap-4 ${printable ? 'grid-cols-2' : detail ? 'grid-cols-1 sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3'}`}>
         {items.map((line, index) => <article key={snapshotItemKey(line, index)} className="decoration-print-item overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <button type="button" className="block w-full overflow-hidden text-left print:pointer-events-none" onClick={() => !printable && setSelected(line)} aria-label={`View ${line.itemName} image`} disabled={printable}><ImageFallback line={line} /></button>
           <div className="space-y-2 p-4"><div className="flex items-start justify-between gap-2"><h4 className="font-bold text-slate-900">{line.itemName}</h4>{line.isCustom && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Custom</span>}</div><p className="text-sm font-semibold text-slate-600">Quantity: {line.quantity}</p>{line.description ? <p className="whitespace-pre-wrap text-sm leading-6 text-slate-600">{line.description}</p> : <p className="text-sm italic text-slate-400">No description</p>}{internal && line.logisticsMode && <div className="border-t pt-2 text-xs text-slate-500"><p>Logistics: {line.logisticsMode.replaceAll('_', ' ')}</p>{line.rangeStart && line.rangeEnd && <p className="mt-1">Reserved: {new Date(line.rangeStart).toLocaleString('en-IN')} – {new Date(line.rangeEnd).toLocaleString('en-IN')}</p>}</div>}</div>

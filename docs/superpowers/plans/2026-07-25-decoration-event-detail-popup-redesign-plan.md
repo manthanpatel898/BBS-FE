@@ -29,11 +29,11 @@
 - Consumes: source files `decoration-event-detail-modal.tsx` and `decoration-snapshot-gallery.tsx`
 - Produces: regression requirements for header/body/footer separation, selected-decoration priority, two-column gallery layout, compact spacing, and equal action grids
 
-- [ ] **Step 1: Write the failing layout test**
+- [x] **Step 1: Write the failing layout test**
 
 Assert that the Event Detail source contains `Selected Decoration`, a dedicated header before the scroll body, Event & Venue before Selected Decoration before Advance Payments, a two-thirds/one-third desktop grid, compact card padding, and aligned responsive action grids. Assert the snapshot gallery supports a `detail` presentation and does not use `xl:grid-cols-3` in that presentation.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run:
 
@@ -43,7 +43,7 @@ node --test lib/decoration/event-detail-layout.test.mjs lib/decoration/customer-
 
 Expected: the new layout test fails because the approved structure is not implemented.
 
-- [ ] **Step 3: Commit the failing regression test with the implementation task**
+- [x] **Step 3: Commit the failing regression test with the implementation task**
 
 Do not commit while RED. Continue directly to Task 2 so the feature commit remains green.
 
@@ -59,23 +59,23 @@ Do not commit while RED. Continue directly to Task 2 so the feature commit remai
 - Consumes: `DecorationBooking`, `DecorationSnapshotLine[]`, existing `DecorationAdvanceLedger`, `DecorationStatusBadge`, and action callbacks
 - Produces: `DecorationSnapshotGallery({ lines, printable?, internal?, detail? })` where `detail` enables the approved one/two-column popup layout
 
-- [ ] **Step 1: Build the fixed compact header**
+- [x] **Step 1: Build the fixed compact header**
 
 Move booking number, customer name, event type, status, and close control into a header outside the scrolling body. Preserve dialog semantics, long-text wrapping, status rendering, and the 44-pixel close target.
 
-- [ ] **Step 2: Reorder and compact the detail content**
+- [x] **Step 2: Reorder and compact the detail content**
 
 Render Event & Venue, Selected Decoration, Advance Payments, and General Notes in the main column. Render Customer, Payment Summary, Follow-ups, and Notes in the supporting column. Use a desktop `lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]` layout and a single column below `lg`.
 
-- [ ] **Step 3: Add the payment summary**
+- [x] **Step 3: Add the payment summary**
 
 Use `packageRate`, `totalCollected`, and `outstandingAmount` directly from the loaded booking. Format values consistently with the existing advance ledger and do not calculate replacement financial values.
 
-- [ ] **Step 4: Add the detail gallery presentation**
+- [x] **Step 4: Add the detail gallery presentation**
 
 Add the optional `detail` prop. For detail mode, render `grid-cols-1 sm:grid-cols-2` only, retain 4:3 images, fallbacks, category groups, item count, descriptions, custom badges, and image preview behavior.
 
-- [ ] **Step 5: Run focused tests and verify GREEN**
+- [x] **Step 5: Run focused tests and verify GREEN**
 
 Run:
 
@@ -97,11 +97,11 @@ Expected: all focused tests pass.
 - Consumes: unchanged result of `getDecorationDetailActions`
 - Produces: equal-width mobile, tablet, and desktop action grids with unchanged callbacks and loading state
 
-- [ ] **Step 1: Add failing action-grid assertions**
+- [x] **Step 1: Add failing action-grid assertions**
 
 Require a two-column mobile expanded grid, two columns at `sm`, three at the intermediate breakpoint, four at `lg`, full-width mobile toggle, safe-area padding, and no horizontal overflow utilities.
 
-- [ ] **Step 2: Run the layout test and verify RED**
+- [x] **Step 2: Run the layout test and verify RED**
 
 Run:
 
@@ -111,11 +111,11 @@ node --test lib/decoration/event-detail-layout.test.mjs
 
 Expected: failure until the exact responsive grid is present.
 
-- [ ] **Step 3: Implement aligned action grids**
+- [x] **Step 3: Implement aligned action grids**
 
 Keep the existing button generator and action order. Apply consistent width and minimum height to every action, preserve the mobile expand/collapse interaction, and keep document errors immediately above the buttons.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
 Run:
 
@@ -136,7 +136,7 @@ Expected: all focused tests pass.
 - Consumes: completed production implementation
 - Produces: verified static frontend with a completed checklist
 
-- [ ] **Step 1: Run the complete decoration regression suite**
+- [x] **Step 1: Run the complete decoration regression suite**
 
 ```bash
 node --import tsx --test --test-reporter=dot lib/decoration/*.test.mjs lib/decoration/inventory-gallery-integration.behavior.test.tsx
@@ -144,7 +144,7 @@ node --import tsx --test --test-reporter=dot lib/decoration/*.test.mjs lib/decor
 
 Expected: exit code `0`.
 
-- [ ] **Step 2: Run type checking, lint, and audit**
+- [x] **Step 2: Run type checking, lint, and audit**
 
 ```bash
 npx tsc --noEmit
@@ -154,7 +154,12 @@ npm audit --audit-level=moderate
 
 Expected: type checking and audit pass; lint has zero errors and may retain only the existing unrelated ODC reports warning.
 
-- [ ] **Step 3: Run the static production build**
+Verification note: on 25 July 2026, `npm audit` reported a newly published
+transitive `brace-expansion` advisory. npm offers only a forced breaking ESLint
+upgrade for the full dependency chain, so dependency remediation is intentionally
+kept outside this popup-only change.
+
+- [x] **Step 3: Run the static production build**
 
 ```bash
 npm run build
@@ -162,7 +167,7 @@ npm run build
 
 Expected: all routes are generated as static content.
 
-- [ ] **Step 4: Complete checklist and commit**
+- [x] **Step 4: Complete checklist and commit**
 
 ```bash
 git add components/decoration/decoration-event-detail-modal.tsx components/decoration/decoration-snapshot-gallery.tsx lib/decoration/event-detail-layout.test.mjs lib/decoration/customer-document-actions.test.mjs docs/superpowers/plans/2026-07-25-decoration-event-detail-popup-redesign-plan.md
