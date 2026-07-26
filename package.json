@@ -6,7 +6,8 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "audit:ci": "node scripts/audit-policy.mjs"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
