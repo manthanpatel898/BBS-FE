@@ -8,7 +8,8 @@ export type DecorationDetailActionId =
   | 'choose-decoration'
   | 'edit-decoration'
   | 'view'
-  | 'download';
+  | 'download'
+  | 'delete';
 
 export type DecorationDetailCapabilities = {
   canEdit: boolean;
@@ -17,12 +18,13 @@ export type DecorationDetailCapabilities = {
   canManageFollowups: boolean;
   canSelectDecoration: boolean;
   canPrint: boolean;
+  canDelete: boolean;
 };
 
 export type DecorationDetailAction = {
   id: DecorationDetailActionId;
   label: string;
-  tone: 'secondary' | 'primary' | 'success';
+  tone: 'secondary' | 'primary' | 'success' | 'danger';
 };
 
 type DetailBooking = Pick<
@@ -71,6 +73,9 @@ export function getDecorationDetailActions(
       { id: 'view', label: 'View', tone: 'secondary' },
       { id: 'download', label: 'Download', tone: 'secondary' },
     );
+  }
+  if (capabilities.canDelete) {
+    actions.push({ id: 'delete', label: 'Delete', tone: 'danger' });
   }
   return actions;
 }

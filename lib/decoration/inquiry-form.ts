@@ -3,7 +3,7 @@ import { canCreateDecorationInquiry, decorationBusinessDate } from './booking-da
 export const OTHER_DECORATION_OPTION = '__OTHER__';
 
 export type DecorationInquiryValues = {
-  customerName:string; mobile:string;
+  customerName:string; mobile:string; alternativeMobile:string;
   eventTypeId:string; customEventTypeName:string;
   venueId:string; customVenueName:string; customVenueType:'HOTEL'|'VENUE'; customVenueAddress:string;
   hallId:string; customHallName:string; address:string;
@@ -11,7 +11,7 @@ export type DecorationInquiryValues = {
 };
 
 export function createDecorationInquiryValues(date = ''): DecorationInquiryValues {
-  return { customerName:'',mobile:'',eventTypeId:'',customEventTypeName:'',venueId:'',customVenueName:'',customVenueType:'VENUE',customVenueAddress:'',hallId:'',customHallName:'',address:'',timeSlot:'MORNING',startTime:'',endTime:'',startDate:date,packageRate:'',notes:'' };
+  return { customerName:'',mobile:'',alternativeMobile:'',eventTypeId:'',customEventTypeName:'',venueId:'',customVenueName:'',customVenueType:'VENUE',customVenueAddress:'',hallId:'',customHallName:'',address:'',timeSlot:'MORNING',startTime:'',endTime:'',startDate:date,packageRate:'',notes:'' };
 }
 
 export function changeInquiryLocation(values:DecorationInquiryValues,venueId:string):DecorationInquiryValues {
@@ -22,6 +22,7 @@ export function validateDecorationInquiry(values: DecorationInquiryValues, optio
   const errors: Partial<Record<keyof DecorationInquiryValues,string>> = {};
   if (!values.customerName.trim()) errors.customerName='Customer name is required';
   if (!/^\d{10}$/.test(values.mobile)) errors.mobile='Enter a valid 10-digit mobile number';
+  if (values.alternativeMobile && !/^\d{10}$/.test(values.alternativeMobile)) errors.alternativeMobile='Enter a valid 10-digit alternative mobile number';
   if (!values.eventTypeId) errors.eventTypeId='Select an event type';
   if (values.eventTypeId===OTHER_DECORATION_OPTION&&!values.customEventTypeName.trim()) errors.customEventTypeName='Enter an event type';
   if (!values.venueId) errors.venueId='Select a hotel or venue';
@@ -36,6 +37,6 @@ export function validateDecorationInquiry(values: DecorationInquiryValues, optio
   return errors;
 }
 
-function normalize(values:DecorationInquiryValues){return {customerName:values.customerName.trim(),mobile:values.mobile,eventTypeId:values.eventTypeId,venueId:values.venueId,hallId:values.hallId||null,address:values.address.trim()||null,timeSlot:values.timeSlot,startTime:values.startTime,endTime:values.endTime,startDate:values.startDate,...(values.packageRate!==''?{packageRate:Number(values.packageRate)}:{}),notes:values.notes.trim()||null}}
+function normalize(values:DecorationInquiryValues){return {customerName:values.customerName.trim(),mobile:values.mobile,alternativeMobile:values.alternativeMobile||null,eventTypeId:values.eventTypeId,venueId:values.venueId,hallId:values.hallId||null,address:values.address.trim()||null,timeSlot:values.timeSlot,startTime:values.startTime,endTime:values.endTime,startDate:values.startDate,...(values.packageRate!==''?{packageRate:Number(values.packageRate)}:{}),notes:values.notes.trim()||null}}
 
 export function buildDecorationBookingPatch(original:DecorationInquiryValues|null,current:DecorationInquiryValues){const next=normalize(current);if(!original)return next;const before=normalize(original);return Object.fromEntries(Object.entries(next).filter(([key,value])=>before[key as keyof typeof before]!==value))}

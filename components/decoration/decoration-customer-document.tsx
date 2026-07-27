@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { DecorationCustomerDocument } from '@/lib/auth/types';
 import { printableImageAttributes } from '@/lib/decoration/customer-document-image';
+import { formatDecorationTimeRange } from '@/lib/decoration/time-format';
 
 type DocumentItem = DecorationCustomerDocument['categories'][number]['items'][number];
 
@@ -130,6 +131,7 @@ export function DecorationCustomerDocumentView({
           rows={[
             ['Name', document.customer.name],
             ['Mobile', document.customer.mobile],
+            ...(document.customer.alternativeMobile ? [['Alternative mobile', document.customer.alternativeMobile] as [string,string]] : []),
           ]}
         />
         <DetailSection
@@ -138,7 +140,7 @@ export function DecorationCustomerDocumentView({
           rows={[
             ['Event Type', document.event.eventType],
             ['Event Date', formatDate(document.event.startDate)],
-            ['Time', `${document.event.startTime} – ${document.event.endTime}`],
+            ['Time', formatDecorationTimeRange(document.event.startTime, document.event.endTime)],
             ['Time Slot', document.event.timeSlot],
             ['Venue', document.event.location],
             ['Hall', document.event.hall || 'Not applicable'],

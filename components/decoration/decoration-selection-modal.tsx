@@ -16,7 +16,6 @@ import { DecorationImageCropModal } from './decoration-image-crop-modal';
 import { DecorationInventoryGalleryModal } from './decoration-inventory-gallery-modal';
 import { DecorationNoteBlockEditor } from './decoration-note-block-editor';
 import { DecorationGeneralNotes } from './decoration-general-notes';
-import { DecorationMoneyInput } from './decoration-money-input';
 import { useDecorationNotesAutosave } from './use-decoration-notes-autosave';
 import {
   deleteDecorationSelectionDraft,
@@ -52,7 +51,6 @@ import {
 } from '@/lib/decoration/catalog-images';
 import { applyDecorationAvailability } from '@/lib/decoration/availability';
 import { decorationReservationErrorMessage } from '@/lib/decoration/reservation-error';
-import { validateDecorationSelectionPrice } from '@/lib/decoration/selection-price';
 
 export type CustomCropModalProps = {
   file: File;
@@ -326,17 +324,12 @@ export function DecorationSelectionModalContent({
         ];
       }
     }
-    const priceError = validateDecorationSelectionPrice(
-      state.finalPackagePrice,
-      booking.totalCollected,
-    );
     setValidation(errors);
     if (
       Object.keys(errors.blocks).length ||
-      errors.generalNotes ||
-      priceError
+      errors.generalNotes
     ) {
-      setError(priceError ?? 'Correct the highlighted note details.');
+      setError('Correct the highlighted note details.');
       return;
     }
     if (!state.blocks.length) {
@@ -351,7 +344,6 @@ export function DecorationSelectionModalContent({
         accessToken,
         booking.id,
         payload.items,
-        payload.finalPackagePrice,
         payload.customItems,
         payload.generalNotes,
       );
@@ -531,20 +523,7 @@ export function DecorationSelectionModalContent({
           </main>
 
           <footer className="safe-pad-bottom shrink-0 border-t bg-white/95 p-3 sm:p-4">
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-              <label className="text-sm font-semibold text-slate-700">
-                Final Package Price
-                <DecorationMoneyInput
-                  value={state.finalPackagePrice}
-                  onValueChange={(value) =>
-                    change((current) => ({
-                      ...current,
-                      finalPackagePrice: value,
-                    }))
-                  }
-                  className="light-form-field mt-1 min-h-11 w-full rounded-xl border bg-white px-3 text-slate-950"
-                />
-              </label>
+            <div className="grid gap-3 sm:grid-cols-[auto_auto] sm:items-end sm:justify-end">
               <button
                 type="button"
                 disabled={!(hasDraft || changed) || saving}

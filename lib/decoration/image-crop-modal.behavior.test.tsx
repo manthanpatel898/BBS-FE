@@ -66,8 +66,9 @@ test('traps focus, supports keyboard controls, cancels safely and restores viewp
   assert.match(page().getByTestId('decoration-crop-viewport').getAttribute('class') ?? '', /min-h-\[15rem\]/);
   fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
   const cancel = page().getByRole('button', { name: 'Cancel' });
-  assert.equal(document.activeElement === cancel, true);
-  fireEvent.keyDown(cancel, { key: 'Tab' });
+  const fullImage = page().getByRole('button', { name: 'Use Full Image' });
+  assert.equal(document.activeElement === fullImage, true);
+  fireEvent.keyDown(fullImage, { key: 'Tab' });
   assert.equal(document.activeElement === close, true);
 
   const zoom = page().getByRole('slider', { name: 'Image zoom' });
@@ -107,6 +108,23 @@ test('blocks close and duplicate confirmation while exporting, then confirms onc
   assert.equal(exports, 1);
   resolveExport(new File(['crop'], 'crop.jpg'));
   await waitFor(() => assert.equal(confirms, 1));
+});
+
+test('uses the original image without running the crop exporter', async () => {
+  setupUrls();
+  const original = new File(['full'], 'full.jpg', { type: 'image/jpeg' });
+  let confirmed: File | null = null;
+  let exports = 0;
+  render(<DecorationImageCropModal
+    file={original}
+    onCancel={() => assert.fail('must not cancel')}
+    onConfirm={(file) => { confirmed = file; }}
+    CropperComponent={FakeCropper}
+    exportCrop={async () => { exports += 1; return original; }}
+  />);
+  fireEvent.click(page().getByRole('button', { name: 'Use Full Image' }));
+  await waitFor(() => assert.equal(confirmed, original));
+  assert.equal(exports, 0);
 });
 
 test('retains the file after export error, retries, and resets synchronously for a new file', async () => {

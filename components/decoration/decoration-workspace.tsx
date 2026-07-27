@@ -151,7 +151,7 @@ export function DecorationWorkspace() {
           onOpenBooking={(id) => transition({ type: 'OPEN_DETAIL', bookingId: id })}
         />
       ) : null}
-      {overlay.bookingId ? <DecorationEventDetailModal key={overlay.bookingId} bookingId={overlay.bookingId} initialBooking={bookings.find((booking) => booking.id === overlay.bookingId)} onClose={() => transition({ type: 'CLOSE_TOP' })} onUpdated={(updated) => setBookings((current) => replaceDecorationBooking(current, updated))} /> : null}
+      {overlay.bookingId ? <DecorationEventDetailModal key={overlay.bookingId} bookingId={overlay.bookingId} initialBooking={bookings.find((booking) => booking.id === overlay.bookingId)} onClose={() => transition({ type: 'CLOSE_TOP' })} onUpdated={(updated) => setBookings((current) => replaceDecorationBooking(current, updated))} onDeleted={(deletedId)=>setBookings(current=>current.filter(item=>item.id!==deletedId))} /> : null}
       {isInquiryOpen ? <DecorationInquiryForm date={overlay.date ?? undefined} onClose={() => setIsInquiryOpen(false)} onSaved={(booking) => { setBookings(current => replaceDecorationBooking(current, booking)); setIsInquiryOpen(false); void loadMonth(true); }} /> : null}
     </div>
   );

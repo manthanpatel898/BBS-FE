@@ -48,7 +48,7 @@ export function hydrateDecorationNotes(
           })),
       ),
       generalNotes: draft.generalNotes ?? '',
-      finalPackagePrice: draft.finalPackagePrice,
+      finalPackagePrice: '',
     };
   }
   return {
@@ -295,6 +295,5 @@ export function buildDecorationFinalPayload(state: DecorationNotesState) {
         imageUrl: block.image.url,
       })),
     generalNotes: state.generalNotes.trim() || undefined,
-    finalPackagePrice: Number(state.finalPackagePrice || 0),
   };
 }

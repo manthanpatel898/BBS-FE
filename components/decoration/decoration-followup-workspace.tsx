@@ -77,7 +77,7 @@ export function DecorationFollowupWorkspace() {
       {loading ? <PageLoader message="Loading follow-ups…" /> : null}
       {!loading && !error && queue.length === 0 ? <EmptyState /> : null}
       {!loading && queue.length ? <DecorationRequiredFollowupList entries={queue} onDetail={setDetailId} onFollowup={setFollowupBooking} /> : null}
-      {detailId ? <DecorationEventDetailModal bookingId={detailId} initialBooking={bookings.find((booking) => booking.id === detailId)} onClose={() => setDetailId(null)} onUpdated={updated} /> : null}
+      {detailId ? <DecorationEventDetailModal bookingId={detailId} initialBooking={bookings.find((booking) => booking.id === detailId)} onClose={() => setDetailId(null)} onUpdated={updated} onDeleted={(deletedId)=>setBookings(current=>current.filter(item=>item.id!==deletedId))} /> : null}
       {followupBooking ? <DecorationFollowupModal booking={followupBooking} onClose={() => setFollowupBooking(null)} onSaved={updated} /> : null}
     </div>
   );

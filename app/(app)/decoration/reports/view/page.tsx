@@ -20,6 +20,7 @@ import type {
   DecorationLimitedReportRow,
   DecorationVenue,
 } from "@/lib/auth/types";
+import { formatDecorationTimeRange } from "@/lib/decoration/time-format";
 
 const TITLES: Record<DecorationLimitedReportKind, string> = {
   worksheet: "Event Worksheet",
@@ -513,7 +514,7 @@ function DecorationReportView() {
                           row.paymentMode
                         ) : (
                           <>
-                            {row.startTime} – {row.endTime}
+                            {formatDecorationTimeRange(row.startTime ?? "", row.endTime ?? "")}
                             <p className="text-xs text-slate-700">
                               {row.timeSlot}
                             </p>

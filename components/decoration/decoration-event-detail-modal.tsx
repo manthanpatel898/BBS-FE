@@ -11,22 +11,24 @@ import { DecorationPaymentModal } from '@/components/decoration/decoration-payme
 import { DecorationSelectionModal } from '@/components/decoration/decoration-selection-modal';
 import { DecorationSnapshotGallery } from '@/components/decoration/decoration-snapshot-gallery';
 import { DecorationStatusBadge } from '@/components/decoration/decoration-status-badge';
-import { downloadDecorationCustomerPdf, fetchDecorationBooking } from '@/lib/auth/api';
+import { deleteDecorationBooking, downloadDecorationCustomerPdf, fetchDecorationBooking } from '@/lib/auth/api';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import type { DecorationBooking } from '@/lib/auth/types';
 import { getDecorationDetailActions, type DecorationDetailActionId } from '@/lib/decoration/event-detail-view';
+import { formatDecorationTimeRange } from '@/lib/decoration/time-format';
 import { createPdfDownloadController, saveDownloadedPdf } from '@/lib/decoration/customer-document-download';
 import { BookingDownloadLifecycle } from '@/lib/decoration/booking-download-lifecycle';
 
 const displayDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 const money = (value: number) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
-export function DecorationEventDetailModal({ bookingId, initialBooking, onClose, onUpdated }: { bookingId: string; initialBooking?: DecorationBooking | null; onClose?: () => void; onUpdated?: (booking: DecorationBooking) => void }) {
+export function DecorationEventDetailModal({ bookingId, initialBooking, onClose, onUpdated, onDeleted }: { bookingId: string; initialBooking?: DecorationBooking | null; onClose?: () => void; onUpdated?: (booking: DecorationBooking) => void; onDeleted?: (bookingId: string) => void }) {
   const { accessToken } = useAuth();
   const [booking, setBooking] = useState<DecorationBooking | null>(initialBooking?.id === bookingId ? initialBooking : null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(!booking);
   const [child, setChild] = useState<'edit' | 'confirm' | 'advance' | 'followup' | 'selection' | null>(null);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     if (!accessToken || !bookingId) { setLoading(false); return; }
     let active = true; setError(''); setLoading((current) => current || !booking);
@@ -36,14 +38,21 @@ export function DecorationEventDetailModal({ bookingId, initialBooking, onClose,
   function updated(value: DecorationBooking) { setBooking(value); onUpdated?.(value); setChild(null); }
   return <div className={onClose ? 'fixed inset-0 z-50 overflow-hidden bg-slate-900/45 p-0 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-5' : ''} role={onClose ? 'dialog' : undefined} aria-modal={onClose ? true : undefined} aria-label={onClose ? 'Decoration event details' : undefined} onMouseDown={(event) => { if (onClose && event.target === event.currentTarget && !child) onClose(); }}>
     <div className={onClose ? 'relative mx-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden bg-slate-50 shadow-2xl sm:h-[calc(100dvh-2.5rem)] sm:rounded-3xl' : ''}>
-      {loading && !booking ? <State title="Loading event" message="Fetching the latest event details…" /> : !booking ? <State title="Unable to open event" message={error || 'Decoration event was not found.'} /> : <Detail booking={booking} warning={error} onClose={onClose} onAction={(action) => { if (action === 'edit' || action === 'confirm' || action === 'advance' || action === 'followup') setChild(action); else if (action === 'choose-decoration' || action === 'edit-decoration') setChild('selection'); }} />}
+      {loading && !booking ? <State title="Loading event" message="Fetching the latest event details…" /> : !booking ? <State title="Unable to open event" message={error || 'Decoration event was not found.'} /> : <Detail booking={booking} warning={error} onClose={onClose} onAction={(action) => { if (action === 'delete') setDeleting(true); else if (action === 'edit' || action === 'confirm' || action === 'advance' || action === 'followup') setChild(action); else if (action === 'choose-decoration' || action === 'edit-decoration') setChild('selection'); }} />}
     </div>
     {child === 'edit' && booking ? <DecorationInquiryForm booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
     {child === 'confirm' && booking ? <DecorationConfirmationModal booking={booking} onClose={() => setChild(null)} onConfirmed={updated} /> : null}
     {child === 'advance' && booking ? <DecorationPaymentModal booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
     {child === 'followup' && booking ? <DecorationFollowupModal booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
     {child === 'selection' && booking ? <DecorationSelectionModal booking={booking} onClose={() => setChild(null)} onSaved={updated} /> : null}
+    {deleting && booking ? <DeleteBookingConfirmation booking={booking} onCancel={()=>setDeleting(false)} onDeleted={()=>{setDeleting(false);onDeleted?.(booking.id);onClose?.();}} /> : null}
   </div>;
+}
+
+function DeleteBookingConfirmation({booking,onCancel,onDeleted}:{booking:DecorationBooking;onCancel:()=>void;onDeleted:()=>void}) {
+  const {accessToken}=useAuth(); const[busy,setBusy]=useState(false); const[error,setError]=useState('');
+  async function remove(){if(!accessToken||busy)return;setBusy(true);setError('');try{await deleteDecorationBooking(accessToken,booking.id);onDeleted();}catch(reason){setError(reason instanceof Error?reason.message:'Unable to delete this booking.');setBusy(false)}}
+  return <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:items-center" role="alertdialog" aria-modal="true" aria-labelledby="delete-decoration-booking-title"><div className="safe-pad-bottom w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6"><h2 id="delete-decoration-booking-title" className="text-xl font-bold text-slate-950">Permanently delete booking?</h2><p className="mt-3 text-sm leading-6 text-slate-600">This will permanently remove <strong>{booking.bookingNumber}</strong>, its advances, follow-ups, decoration selection, reservations, draft, and uploaded event photos. This cannot be undone.</p>{error?<p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>:null}<div className="mt-5 grid grid-cols-2 gap-3"><button type="button" disabled={busy} onClick={onCancel} className="min-h-11 rounded-xl border border-slate-200 font-semibold text-slate-700 disabled:opacity-50">Keep booking</button><button type="button" disabled={busy} onClick={()=>void remove()} className="min-h-11 rounded-xl bg-red-600 font-semibold text-white hover:bg-red-700 disabled:opacity-50">{busy?'Deleting…':'Delete permanently'}</button></div></div></div>
 }
 
 function Detail({ booking, warning, onClose, onAction }: { booking: DecorationBooking; warning: string; onClose?: () => void; onAction: (action: DecorationDetailActionId) => void }) {
@@ -69,7 +78,7 @@ function Detail({ booking, warning, onClose, onAction }: { booking: DecorationBo
       {warning ? <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Latest refresh failed. Showing the already loaded booking. {warning}</p> : null}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)] lg:gap-4">
         <div className="min-w-0 space-y-3 lg:space-y-4">
-          <Card title="Event & Venue" compact><Grid rows={[["Event type", booking.eventType.name], ["Event Date", displayDate(booking.startDate)], ["Time", `${booking.startTime} – ${booking.endTime}`], ["Slot", booking.timeSlot], ["Location", booking.venue.name], ["Hall", booking.hall?.name || 'Not applicable'], ["Address", booking.address || 'Not provided'], ["Created by", booking.createdBySnapshot?.name || 'Not available']]} /></Card>
+          <Card title="Event & Venue" compact><Grid rows={[["Event type", booking.eventType.name], ["Event Date", displayDate(booking.startDate)], ["Time", formatDecorationTimeRange(booking.startTime, booking.endTime)], ["Slot", booking.timeSlot], ["Location", booking.venue.name], ["Hall", booking.hall?.name || 'Not applicable'], ["Address", booking.address || 'Not provided'], ["Created by", booking.createdBySnapshot?.name || 'Not available']]} /></Card>
           <Card
             title={`Selected Decoration (${booking.decorationSnapshot?.length ?? 0})`}
             compact
@@ -79,7 +88,7 @@ function Detail({ booking, warning, onClose, onAction }: { booking: DecorationBo
           {booking.decorationGeneralNotes?.trim() ? <Card title="General Notes" compact><p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{booking.decorationGeneralNotes.trim()}</p></Card> : null}
         </div>
         <aside className="min-w-0 space-y-3 lg:space-y-4">
-          <Card title="Customer" compact><Grid variant="customer" rows={[["Name", booking.customer.name], ["Mobile", booking.customer.mobile]]} /></Card>
+          <Card title="Customer" compact><Grid variant="customer" rows={[["Name", booking.customer.name], ["Mobile", booking.customer.mobile], ...(booking.customer.alternativeMobile ? [["Alternative mobile", booking.customer.alternativeMobile] as [string,string]] : [])]} /></Card>
           <Card title="Payment Summary" compact>
             <dl className="grid grid-cols-3 gap-2 text-center lg:grid-cols-1 lg:text-left">
               {[["Package", money(booking.packageRate)], ["Received", money(booking.totalCollected)], ["Pending", money(booking.outstandingAmount)]].map(([label, value]) => <div key={label} className="min-w-0 rounded-xl bg-slate-50 px-2 py-2.5 lg:flex lg:items-center lg:justify-between lg:gap-3"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className={`mt-1 truncate text-sm font-bold lg:mt-0 ${label === 'Received' ? 'text-emerald-700' : label === 'Pending' ? 'text-red-700' : 'text-slate-900'}`}>{value}</dd></div>)}
@@ -103,6 +112,7 @@ function BottomActions({ booking, onAction }: { booking: DecorationBooking; onAc
     canManageFollowups: admin || hasPermission(user, PERMISSIONS.DECORATION_FOLLOWUPS_MANAGE),
     canSelectDecoration: admin || hasPermission(user, PERMISSIONS.DECORATION_SELECTION_MANAGE),
     canPrint: admin || hasPermission(user, PERMISSIONS.DECORATION_PRINT),
+    canDelete: admin,
   });
   return <BookingDownloadActions key={`${booking.id}:${accessToken ?? ''}`} booking={booking} accessToken={accessToken ?? ''} actions={actions} onAction={onAction} />;
 }
@@ -118,7 +128,7 @@ function BookingDownloadActions({ booking, accessToken, actions, onAction }: { b
     onError,
   })} onBusyChange={(busy) => { if (!busy) setActiveDocumentAction((current) => current === 'download' ? null : current); }}>{({ error: downloadError, start }) => {
     const renderActions = () => actions.map((action) => {
-      const className = `inline-flex min-h-11 min-w-0 items-center justify-center rounded-xl px-3 py-2.5 text-sm font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`;
+      const className = `inline-flex min-h-11 min-w-0 items-center justify-center rounded-xl px-3 py-2.5 text-sm font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-amber-300 ${action.tone === 'primary' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : action.tone === 'success' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : action.tone === 'danger' ? 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`;
       const disabled = activeDocumentAction !== null;
       if (action.id === 'view') return <button key={action.id} type="button" disabled={disabled} onClick={() => {
         if (activeDocumentAction) return;

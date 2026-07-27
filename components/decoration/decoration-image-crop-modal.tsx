@@ -50,6 +50,7 @@ export function DecorationImageCropModal({
   const [rotation, setRotation] = useState(0);
   const [cropPixels, setCropPixels] = useState<Area | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [processingMode, setProcessingMode] = useState<'FULL' | 'CROP' | null>(null);
   const [error, setError] = useState('');
   const [currentFile, setCurrentFile] = useState(file);
   const [dialogElement, setDialogElement] = useState<HTMLDivElement | null>(null);
@@ -63,6 +64,7 @@ export function DecorationImageCropModal({
     setRotation(0);
     setCropPixels(null);
     setProcessing(false);
+    setProcessingMode(null);
     setError('');
   }
 
@@ -134,6 +136,7 @@ export function DecorationImageCropModal({
     if (closeBlocked || !cropPixels) return;
     const confirmingFile = file;
     setProcessing(true);
+    setProcessingMode('CROP');
     setError('');
     try {
       const croppedFile = await exportCrop(file, cropPixels, rotation);
@@ -143,7 +146,29 @@ export function DecorationImageCropModal({
       if (activeFileRef.current !== confirmingFile) return;
       setError(reason instanceof Error ? reason.message : 'Unable to crop this image. Please try again.');
     } finally {
-      if (activeFileRef.current === confirmingFile) setProcessing(false);
+      if (activeFileRef.current === confirmingFile) {
+        setProcessing(false);
+        setProcessingMode(null);
+      }
+    }
+  };
+
+  const confirmFullImage = async () => {
+    if (closeBlocked) return;
+    const confirmingFile = file;
+    setProcessing(true);
+    setProcessingMode('FULL');
+    setError('');
+    try {
+      await onConfirm(file);
+    } catch (reason) {
+      if (activeFileRef.current !== confirmingFile) return;
+      setError(reason instanceof Error ? reason.message : 'Unable to use this image. Please try again.');
+    } finally {
+      if (activeFileRef.current === confirmingFile) {
+        setProcessing(false);
+        setProcessingMode(null);
+      }
     }
   };
 
@@ -197,7 +222,8 @@ export function DecorationImageCropModal({
             <button type="button" disabled={closeBlocked} onClick={() => setRotation(current => (current + 90) % 360)} aria-label="Rotate image 90 degrees" className="min-h-11 rounded-xl border border-white/20 px-4 py-2 font-semibold text-white focus-visible:outline-2 focus-visible:outline-amber-400 disabled:opacity-50">Rotate 90°</button>
             <button type="button" disabled={closeBlocked} onClick={reset} className="min-h-11 rounded-xl border border-white/20 px-4 py-2 font-semibold text-white focus-visible:outline-2 focus-visible:outline-amber-400 disabled:opacity-50">Reset</button>
             <button type="button" disabled={closeBlocked} onClick={requestClose} className="min-h-11 rounded-xl border border-white/20 px-4 py-2 font-semibold text-white focus-visible:outline-2 focus-visible:outline-amber-400 disabled:opacity-50 sm:ml-auto">Cancel</button>
-            <button type="button" disabled={closeBlocked || !cropPixels} onClick={() => void confirm()} className="min-h-11 rounded-xl bg-amber-400 px-5 py-2 font-bold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50">{processing ? 'Cropping…' : busy ? 'Please wait…' : 'Crop image'}</button>
+            <button type="button" disabled={closeBlocked} onClick={() => void confirmFullImage()} className="min-h-11 rounded-xl border border-amber-300 bg-amber-50 px-5 py-2 font-bold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50">{processingMode === 'FULL' ? 'Using image…' : 'Use Full Image'}</button>
+            <button type="button" aria-label="Crop image" disabled={closeBlocked || !cropPixels} onClick={() => void confirm()} className="min-h-11 rounded-xl bg-amber-400 px-5 py-2 font-bold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50">{processingMode === 'CROP' ? 'Cropping…' : busy ? 'Please wait…' : 'Crop & Use'}</button>
           </div>
         </div>
       </div>

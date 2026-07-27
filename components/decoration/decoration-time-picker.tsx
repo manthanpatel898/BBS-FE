@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 
 const hours = Array.from({ length: 12 }, (_, index) => String(index + 1));
-const minutes = Array.from({ length: 60 }, (_, index) =>
-  String(index).padStart(2, '0'),
-);
+const minutes = ['00', '15', '30', '45'];
 
 function parseTime(value: string) {
   if (!value) return { hour: '', minute: '00', period: '' };

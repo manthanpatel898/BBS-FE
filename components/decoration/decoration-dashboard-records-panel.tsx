@@ -13,6 +13,7 @@ import {
   DecorationPageLoading,
 } from '@/components/decoration/decoration-page-state';
 import { formatIndianCurrency } from '@/lib/decoration/dashboard-view';
+import { formatDecorationTimeRange } from '@/lib/decoration/time-format';
 
 const meta: Record<DecorationDashboardRecordType, { title: string; empty: string }> = {
   today: { title: "Today's events", empty: 'No events are scheduled for today.' },
@@ -112,7 +113,7 @@ export function DecorationDashboardRecordsPanel({
                   <DecorationStatusBadge status={booking.status} />
                 </div>
               </div>
-              <p className="mt-3 text-sm font-semibold text-slate-600">{booking.startTime}–{booking.endTime} · {booking.timeSlot}</p>
+              <p className="mt-3 text-sm font-semibold text-slate-600">{formatDecorationTimeRange(booking.startTime,booking.endTime)} · {booking.timeSlot}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-xs">
                 <div className="min-w-0"><p className="text-slate-500">Package</p><p className="break-words font-bold text-slate-900">{booking.isPackagePriceFinalized?formatIndianCurrency(booking.packageRate):'Not finalized'}</p></div>
                 <div className="min-w-0"><p className="text-slate-500">Received</p><p className="break-words font-bold text-emerald-700">{formatIndianCurrency(booking.totalCollected)}</p></div>
