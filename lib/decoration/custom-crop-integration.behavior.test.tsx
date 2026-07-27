@@ -126,6 +126,7 @@ test('actual nested crop restores focus to the visible Camera / gallery trigger 
     return uploadedImage();
   }} />);
   await page().findByText('General Notes');
+  fireEvent.click(page().getByRole('tab', { name: 'Custom Photo' }));
   const trigger = page().getByRole('button', { name: /Add Custom Photo Note/ });
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
 
@@ -149,6 +150,11 @@ test('actual nested crop restores focus to the visible Camera / gallery trigger 
   fireEvent.click(setCrop);
   fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
   await waitFor(() => assert.equal(uploads.length, 1));
-  await waitFor(() => assert.equal(document.activeElement, trigger));
+  await waitFor(() =>
+    assert.equal(
+      document.activeElement,
+      page().getByRole('tab', { name: /Selected.*1/ }),
+    ),
+  );
   assert.equal(await uploads[0].text(), 'actual-crop');
 });

@@ -3,6 +3,7 @@ import { DecorationQuantityInput } from './decoration-quantity-input';
 import { DecorationInventoryImagePicker } from './decoration-inventory-image-picker';
 import type { DecorationItem } from '@/lib/auth/types';
 import type { DecorationNoteBlock } from '@/lib/decoration/notes-builder-state';
+import { inventoryShortage } from '@/lib/decoration/inventory-shortage';
 
 const field = 'light-form-field min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-950 placeholder:text-slate-400';
 
@@ -71,9 +72,9 @@ export function DecorationNoteBlockEditor({
 }) {
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const changeImageRef = useRef<HTMLButtonElement>(null);
-  const quantityExceeded =
-    Boolean(catalogItem) &&
-    block.quantity > (catalogItem?.availableQuantity ?? 0);
+  const shortage = catalogItem
+    ? inventoryShortage(block.quantity, catalogItem.availableQuantity)
+    : null;
 
   return (
     <>
@@ -139,15 +140,17 @@ export function DecorationNoteBlockEditor({
               <DecorationQuantityInput
                 ariaLabel={`Quantity for image ${index + 1}`}
                 value={block.quantity}
-                max={catalogItem?.availableQuantity}
                 disabled={disabled}
                 onCommit={(quantity) => onChange({ quantity })}
                 className={`${field} mt-1`}
               />
             </label>
-            {quantityExceeded && catalogItem ? (
-              <p className="text-xs font-semibold text-red-600">
-                Only {catalogItem.availableQuantity} available for this event.
+            {shortage ? (
+              <p
+                role="status"
+                className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900"
+              >
+                {shortage.message}
               </p>
             ) : null}
             <label className="block text-sm font-semibold text-slate-700">

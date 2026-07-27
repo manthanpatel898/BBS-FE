@@ -70,11 +70,14 @@ type Props = {
   loadAvailability?: typeof fetchDecorationAvailability;
   loadDraft?: typeof fetchDecorationSelectionDraft;
   saveDraftRequest?: typeof saveDecorationSelectionDraft;
+  saveSelectionRequest?: typeof saveDecorationSelection;
   deleteDraftRequest?: typeof deleteDecorationSelectionDraft;
   uploadCustomImage?: typeof uploadCustomDecorationImage;
   materializeImage?: typeof materializeDecorationImageFile;
   CropModal?: ComponentType<CustomCropModalProps>;
 };
+
+type WorkspaceTab = 'inventory' | 'custom' | 'selected';
 
 export function DecorationSelectionModal(props: Props) {
   const auth = useAuth();
@@ -101,6 +104,7 @@ export function DecorationSelectionModalContent({
   loadAvailability,
   loadDraft = fetchDecorationSelectionDraft,
   saveDraftRequest = saveDecorationSelectionDraft,
+  saveSelectionRequest = saveDecorationSelection,
   deleteDraftRequest = deleteDecorationSelectionDraft,
   uploadCustomImage = uploadCustomDecorationImage,
   materializeImage = materializeDecorationImageFile,
@@ -114,7 +118,8 @@ export function DecorationSelectionModalContent({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [workspaceTab, setWorkspaceTab] =
+    useState<WorkspaceTab>('inventory');
   const [error, setError] = useState('');
   const [validation, setValidation] = useState({
     blocks: {} as Record<string, string[]>,
@@ -123,8 +128,8 @@ export function DecorationSelectionModalContent({
   const [changed, setChanged] = useState(0);
   const [hasDraft, setHasDraft] = useState(false);
   const [pending, setPending] = useState<File | null>(null);
-  const browseInventoryRef = useRef<HTMLButtonElement>(null);
   const customPhotoRef = useRef<HTMLButtonElement>(null);
+  const selectedTabRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectionRequest = useRef(0);
   const uploadRequest = useRef(0);
@@ -233,22 +238,12 @@ export function DecorationSelectionModalContent({
     [categories],
   );
 
-  function focusNote(clientId: string) {
-    window.setTimeout(() => {
-      document
-        .querySelector<HTMLElement>(`[data-note-id="${clientId}"]`)
-        ?.focus();
-    }, 0);
-  }
-
   function selectInventory(item: DecorationItem) {
     const result = selectCatalogNoteBlock(state, item);
     if (result.added) {
       setState(result.state);
       setChanged((value) => value + 1);
     }
-    setGalleryOpen(false);
-    if (result.selectedClientId) focusNote(result.selectedClientId);
   }
 
   async function source(file: File) {
@@ -286,6 +281,8 @@ export function DecorationSelectionModalContent({
       if (alive.current && request === uploadRequest.current) {
         change((current) => addCustomNoteBlock(current, image));
         setPending(null);
+        setWorkspaceTab('selected');
+        window.setTimeout(() => selectedTabRef.current?.focus(), 0);
       }
     } catch (reason) {
       if (alive.current && request === uploadRequest.current) {
@@ -315,15 +312,6 @@ export function DecorationSelectionModalContent({
   async function finalSave() {
     if (!accessToken) return;
     const errors = validateDecorationNotesForFinalSave(state);
-    for (const block of state.blocks) {
-      const item = items.find((entry) => entry.id === block.itemId);
-      if (item && block.quantity > item.availableQuantity) {
-        errors.blocks[block.clientId] = [
-          ...(errors.blocks[block.clientId] ?? []),
-          `Only ${item.availableQuantity} available for this event.`,
-        ];
-      }
-    }
     setValidation(errors);
     if (
       Object.keys(errors.blocks).length ||
@@ -340,7 +328,7 @@ export function DecorationSelectionModalContent({
     try {
       await autosave.flush();
       const payload = buildDecorationFinalPayload(state);
-      const result = await saveDecorationSelection(
+      const result = await saveSelectionRequest(
         accessToken,
         booking.id,
         payload.items,
@@ -418,27 +406,81 @@ export function DecorationSelectionModalContent({
               </p>
             ) : (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div
+                  role="tablist"
+                  aria-label="Decoration selection workspace"
+                  className="grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-2"
+                >
                   <button
-                    ref={browseInventoryRef}
                     type="button"
-                    disabled={saving}
-                    onClick={() => setGalleryOpen(true)}
-                    className="min-h-14 rounded-2xl bg-amber-500 px-5 text-left font-bold text-slate-950 shadow-sm"
+                    role="tab"
+                    aria-selected={workspaceTab === 'inventory'}
+                    onClick={() => setWorkspaceTab('inventory')}
+                    className={`min-h-10 rounded-xl px-2 text-sm font-bold ${
+                      workspaceTab === 'inventory'
+                        ? 'bg-slate-950 text-white'
+                        : 'text-slate-700'
+                    }`}
                   >
-                    Browse Existing Inventory
+                    Inventory · {selectedItemIds.size}
                   </button>
                   <button
-                    ref={customPhotoRef}
                     type="button"
-                    disabled={saving || uploading}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="min-h-14 rounded-2xl border-2 border-slate-300 bg-white px-5 text-left font-bold text-slate-800"
+                    role="tab"
+                    aria-selected={workspaceTab === 'custom'}
+                    onClick={() => setWorkspaceTab('custom')}
+                    className={`min-h-10 rounded-xl px-2 text-sm font-bold ${
+                      workspaceTab === 'custom'
+                        ? 'bg-slate-950 text-white'
+                        : 'text-slate-700'
+                    }`}
                   >
-                    {uploading
-                      ? 'Uploading custom photo…'
-                      : 'Add Custom Photo Note'}
+                    Custom Photo
                   </button>
+                  <button
+                    ref={selectedTabRef}
+                    type="button"
+                    role="tab"
+                    aria-selected={workspaceTab === 'selected'}
+                    onClick={() => setWorkspaceTab('selected')}
+                    className={`min-h-10 rounded-xl px-2 text-sm font-bold ${
+                      workspaceTab === 'selected'
+                        ? 'bg-slate-950 text-white'
+                        : 'text-slate-700'
+                    }`}
+                  >
+                    Selected · {state.blocks.length}
+                  </button>
+                </div>
+                {workspaceTab === 'inventory' ? (
+                  <DecorationInventoryGalleryModal
+                    categories={categories}
+                    items={items}
+                    selectedItemIds={selectedItemIds}
+                    onSelect={selectInventory}
+                  />
+                ) : null}
+                {workspaceTab === 'custom' ? (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h3 className="font-bold text-slate-950">
+                      Add a custom photo note
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Use your camera or gallery for a decoration not listed in inventory.
+                    </p>
+                    <button
+                      ref={customPhotoRef}
+                      type="button"
+                      disabled={saving || uploading}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-4 min-h-12 w-full rounded-xl bg-amber-500 px-4 font-bold text-slate-950"
+                    >
+                      {uploading
+                        ? 'Uploading custom photo…'
+                        : 'Add Custom Photo Note'}
+                    </button>
+                  </section>
+                ) : null}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -450,8 +492,12 @@ export function DecorationSelectionModalContent({
                       if (file) void source(file);
                     }}
                   />
-                </div>
-                {state.blocks.map((block, index) => {
+                {workspaceTab === 'selected' && !state.blocks.length ? (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">
+                    Select inventory or add a custom photo note.
+                  </div>
+                ) : null}
+                {workspaceTab === 'selected' ? state.blocks.map((block, index) => {
                   const catalogItem = items.find(
                     (item) => item.id === block.itemId,
                   );
@@ -506,7 +552,7 @@ export function DecorationSelectionModalContent({
                       }
                     />
                   );
-                })}
+                }) : null}
                 <DecorationGeneralNotes
                   value={state.generalNotes}
                   disabled={saving}
@@ -552,16 +598,6 @@ export function DecorationSelectionModalContent({
           </footer>
         </div>
       </div>
-      {galleryOpen ? (
-        <DecorationInventoryGalleryModal
-          categories={categories}
-          items={items}
-          selectedItemIds={selectedItemIds}
-          returnFocusRef={browseInventoryRef}
-          onSelect={selectInventory}
-          onClose={() => setGalleryOpen(false)}
-        />
-      ) : null}
       {pending ? (
         <CropModal
           file={pending}

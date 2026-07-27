@@ -2,6 +2,6 @@ import type { DecorationAvailabilityResult, DecorationItem } from '@/lib/auth/ty
 
 export function applyDecorationAvailability(items: DecorationItem[], availability?: DecorationAvailabilityResult): DecorationItem[] {
   if (!availability) return items;
-  const quantities = new Map(availability.items.map((entry) => [entry.itemId, entry.availableQuantity]));
-  return items.map((item) => quantities.has(item.id) ? { ...item, availableQuantity: quantities.get(item.id)! } : item);
+  const live = new Map(availability.items.map((entry) => [entry.itemId, entry]));
+  return items.map((item) => live.has(item.id) ? { ...item, ...live.get(item.id)! } : item);
 }

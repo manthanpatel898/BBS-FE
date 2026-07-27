@@ -114,7 +114,7 @@ export type DecorationLocationType = 'HOTEL' | 'VENUE';
 export interface DecorationCategory { id: string; name: string; description: string | null; displayOrder: number; isActive: boolean; }
 export type DecorationTrackingMode = 'BULK' | 'TAGGED';
 export type DecorationLogisticsMode = 'SLOT_ONLY' | 'SETUP_REMOVAL' | 'MOBILE_TURNAROUND';
-export interface DecorationItem { id: string; categoryId: string; name: string; description: string | null; trackingMode: DecorationTrackingMode; totalQuantity: number; maintenanceQuantity: number; availableQuantity: number; units: Array<{ id: string; code: string; status: 'AVAILABLE' | 'MAINTENANCE' | 'RETIRED'; note: string | null }>; images: Array<{ id: string; key?: string; url: string; mimeType?: string; sizeBytes?: number; isCover: boolean }>; logisticsMode: DecorationLogisticsMode; setupBufferMinutes: number; removalBufferMinutes: number; turnaroundBufferMinutes: number; storageNote: string | null; isActive: boolean; }
+export interface DecorationItem { id: string; categoryId: string; name: string; description: string | null; trackingMode: DecorationTrackingMode; totalQuantity: number; serviceableQuantity?: number; maintenanceQuantity: number; reservedQuantity?: number; availableQuantity: number; units: Array<{ id: string; code: string; status: 'AVAILABLE' | 'MAINTENANCE' | 'RETIRED'; note: string | null }>; images: Array<{ id: string; key?: string; url: string; mimeType?: string; sizeBytes?: number; isCover: boolean }>; logisticsMode: DecorationLogisticsMode; setupBufferMinutes: number; removalBufferMinutes: number; turnaroundBufferMinutes: number; storageNote: string | null; isActive: boolean; }
 export type DecorationBookingStatus='INQUIRY'|'CONFIRMED'|'DECORATION_SELECTION_PENDING'|'DECORATION_SELECTED'|'IN_PROGRESS'|'COMPLETED'|'CANCELLED'|'CLOSED_INQUIRY';
 export interface DecorationSnapshotLine { itemId:string|null; itemName:string; categoryId?:string|null; categoryName?:string|null; quantity:number; position?:number; description:string|null; image:{key:string;url:string}|null; logisticsMode?:DecorationLogisticsMode; rangeStart?:string; rangeEnd?:string; reservedUnitIds?:string[]; isCustom:boolean; }
 export interface DecorationDraftBlock { clientId:string; position:number; kind:'CATALOG'|'CUSTOM'; itemId?:string; categoryId?:string; title:string; quantity:number; description:string|null; image:{key:string;url:string}; }
@@ -128,7 +128,8 @@ export interface DecorationCustomerDocument { company:{name:string;logoUrl:strin
 export interface DecorationConfirmationPayload { requestId:string; advanceAmount:number; paymentDate?:string; paymentMode?:string; remark?:string; }
 export interface DecorationConfirmationResult { booking:DecorationBooking; reused:boolean; }
 export interface DecorationReservationResult { id:string; itemId:string; quantity:number; unitIds:string[]; rangeStart:string; rangeEnd:string; }
-export interface DecorationSelectionResult { booking:DecorationBooking; reservations:DecorationReservationResult[]; }
+export interface DecorationInventoryWarning { itemId:string; itemName:string; requestedQuantity:number; availableQuantity:number; shortageQuantity:number; }
+export interface DecorationSelectionResult { booking:DecorationBooking; reservations:DecorationReservationResult[]; warnings:DecorationInventoryWarning[]; }
 export interface DecorationAvailabilityItem { itemId:string; totalQuantity:number; serviceableQuantity:number; maintenanceQuantity:number; reservedQuantity:number; availableQuantity:number; }
 export interface DecorationAvailabilityResult { calculatedAt:string; items:DecorationAvailabilityItem[]; }
 export type DecorationFollowupPriorityState='OVERDUE'|'DUE_TODAY'|'PENDING'|'SCHEDULED'|'TAKEN_TODAY';

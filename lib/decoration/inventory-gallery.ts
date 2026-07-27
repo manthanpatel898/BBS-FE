@@ -13,10 +13,9 @@ export function getInventoryCoverImage(
 }
 
 export function getInventoryDisabledReason(
-  item: Pick<DecorationItem, 'availableQuantity' | 'images'>,
-): 'Not available' | 'Image required' | null {
+  item: Pick<DecorationItem, 'images'>,
+): 'Image required' | null {
   if (!getInventoryCoverImage(item)) return 'Image required';
-  if (item.availableQuantity < 1) return 'Not available';
   return null;
 }
 

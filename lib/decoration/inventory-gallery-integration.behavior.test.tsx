@@ -85,36 +85,36 @@ const common = {
 
 test.afterEach(() => cleanup());
 
-test('browses visual inventory, filters, blocks unavailable items, and selects the cover image', async () => {
+test('selects multiple inventory items without opening a nested dialog', async () => {
   render(<DecorationSelectionModalContent {...common} />);
-  fireEvent.click(
-    await page().findByRole('button', { name: 'Browse Existing Inventory' }),
-  );
-  assert.ok(
-    await page().findByRole('dialog', { name: 'Browse Existing Inventory' }),
+  assert.ok(await page().findByRole('tab', { name: /Inventory/ }));
+  assert.equal(
+    page().queryByRole('dialog', { name: 'Browse Existing Inventory' }),
+    null,
   );
 
   const unavailable = page().getByRole('button', {
-    name: /Silver Sofa, Sofa, Not available/,
+    name: /Silver Sofa, Sofa, 0 available/,
   });
   const imageMissing = page().getByRole('button', {
     name: /Plain Entry, Couple Entry, Image required/,
   });
-  assert.equal(unavailable.hasAttribute('disabled'), true);
+  assert.equal(unavailable.hasAttribute('disabled'), false);
   assert.equal(imageMissing.hasAttribute('disabled'), true);
 
-  fireEvent.change(page().getByRole('searchbox', { name: 'Search inventory' }), {
-    target: { value: 'royal' },
-  });
-  assert.equal(page().queryByText('Silver Sofa'), null);
-  fireEvent.click(page().getByRole('button', { name: 'Sofa' }));
   fireEvent.click(
     page().getByRole('button', {
       name: /Royal Gold Sofa, Sofa, 3 available/,
     }),
   );
-
-  assert.ok(await page().findByText('Catalog item'));
+  fireEvent.click(
+    page().getByRole('button', {
+      name: /Silver Sofa, Sofa, 0 available/,
+    }),
+  );
+  assert.ok(page().getByRole('tab', { name: /Inventory.*2/ }));
+  fireEvent.click(page().getByRole('tab', { name: /Selected.*2/ }));
+  assert.equal(document.querySelectorAll('[data-note-id]').length, 2);
   assert.equal(
     (page().getByAltText('Royal Gold Sofa') as HTMLImageElement).src,
     'https://cdn.example/cover.webp',
@@ -125,34 +125,23 @@ test('browses visual inventory, filters, blocks unavailable items, and selects t
   );
 });
 
-test('already-selected inventory focuses one note and alternate image selection preserves it', async () => {
+test('already-selected inventory remains selected and alternate image selection preserves it', async () => {
   render(<DecorationSelectionModalContent {...common} />);
-  const browse = await page().findByRole('button', {
-    name: 'Browse Existing Inventory',
-  });
-  fireEvent.click(browse);
   fireEvent.click(
     await page().findByRole('button', {
       name: /Royal Gold Sofa, Sofa, 3 available/,
     }),
   );
-  fireEvent.click(browse);
-  fireEvent.click(
+  assert.ok(
     await page().findByRole('button', {
       name: /Royal Gold Sofa, Sofa, Already selected/,
     }),
   );
+  fireEvent.click(page().getByRole('tab', { name: /Selected.*1/ }));
 
   await waitFor(() =>
     assert.equal(document.querySelectorAll('[data-note-id]').length, 1),
   );
-  await waitFor(() =>
-    assert.equal(
-      Boolean(document.activeElement?.getAttribute('data-note-id')),
-      true,
-    ),
-  );
-
   fireEvent.click(page().getByRole('button', { name: 'Change image' }));
   fireEvent.click(
     await page().findByRole('button', {
@@ -163,4 +152,44 @@ test('already-selected inventory focuses one note and alternate image selection 
     (page().getByAltText('Royal Gold Sofa') as HTMLImageElement).src,
     'https://cdn.example/alternate.webp',
   );
+});
+
+test('shows an advisory shortage and saves without inventory confirmation', async () => {
+  let saves = 0;
+  render(
+    <DecorationSelectionModalContent
+      {...common}
+      saveSelectionRequest={async () => {
+        saves += 1;
+        return {
+          booking,
+          reservations: [],
+          warnings: [
+            {
+              itemId: 'silver-sofa',
+              itemName: 'Silver Sofa',
+              requestedQuantity: 2,
+              availableQuantity: 0,
+              shortageQuantity: 2,
+            },
+          ],
+        };
+      }}
+    />,
+  );
+  fireEvent.click(
+    await page().findByRole('button', {
+      name: /Silver Sofa, Sofa, 0 available/,
+    }),
+  );
+  fireEvent.click(page().getByRole('tab', { name: /Selected.*1/ }));
+  const quantity = page().getByLabelText('Quantity for image 1');
+  fireEvent.change(quantity, { target: { value: '2' } });
+  assert.ok(
+    page().getByText(
+      'Only 0 of 2 units are available for this event time. Arrange or rent 2 additional units.',
+    ),
+  );
+  fireEvent.click(page().getByRole('button', { name: 'Save 1 notes' }));
+  await waitFor(() => assert.equal(saves, 1));
 });
