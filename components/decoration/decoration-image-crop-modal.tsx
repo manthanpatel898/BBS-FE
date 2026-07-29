@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState, type ComponentType, type RefO
 import Cropper, { type Area, type Point } from 'react-easy-crop';
 import { BodyPortal } from '@/components/ui/body-portal';
 import { useModalViewport } from '@/components/ui/use-modal-viewport';
-import { exportDecorationCrop } from '@/lib/decoration/image-crop';
+import {
+  exportDecorationCrop,
+  exportDecorationFullImage,
+} from '@/lib/decoration/image-crop';
 
 export type DecorationCropperAdapterProps = {
   image: string;
@@ -30,6 +33,8 @@ type DecorationImageCropModalProps = {
   CropperComponent?: ComponentType<DecorationCropperAdapterProps>;
   /** Test seam for exercising asynchronous export behavior. */
   exportCrop?: typeof exportDecorationCrop;
+  /** Test seam for exercising full-frame optimization behavior. */
+  exportFullImage?: typeof exportDecorationFullImage;
 };
 
 const initialCrop: Point = { x: 0, y: 0 };
@@ -43,6 +48,7 @@ export function DecorationImageCropModal({
   returnFocusRef,
   CropperComponent = DefaultCropper,
   exportCrop = exportDecorationCrop,
+  exportFullImage = exportDecorationFullImage,
 }: DecorationImageCropModalProps) {
   const [sourceUrl, setSourceUrl] = useState('');
   const [crop, setCrop] = useState<Point>(initialCrop);
@@ -160,7 +166,9 @@ export function DecorationImageCropModal({
     setProcessingMode('FULL');
     setError('');
     try {
-      await onConfirm(file);
+      const optimizedFile = await exportFullImage(file);
+      if (activeFileRef.current !== confirmingFile) return;
+      await onConfirm(optimizedFile);
     } catch (reason) {
       if (activeFileRef.current !== confirmingFile) return;
       setError(reason instanceof Error ? reason.message : 'Unable to use this image. Please try again.');

@@ -28,21 +28,21 @@
 - Produces: `exportDecorationFullImage(file, adapters?): Promise<File>`
 - Preserves: existing `exportDecorationCrop`
 
-- [ ] **Step 1: Write failing unit tests**
+- [x] **Step 1: Write failing unit tests**
 
 Add tests proving the full exporter preserves aspect ratio, limits the longest edge to 2400, does not upscale smaller images, uses JPEG for opaque pixels, retains PNG for transparency, and releases bitmap/canvas resources.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `node --import tsx --test lib/decoration/image-crop.test.mjs`
 
 Expected: FAIL because `exportDecorationFullImage` is not exported.
 
-- [ ] **Step 3: Implement minimal optimizer**
+- [x] **Step 3: Implement minimal optimizer**
 
 Decode with the existing orientation-aware adapter, calculate bounded contain dimensions, draw the complete bitmap once, detect transparency, encode using existing canvas behavior, and return a `File` with a `-full` filename.
 
-- [ ] **Step 4: Run tests and verify GREEN**
+- [x] **Step 4: Run tests and verify GREEN**
 
 Run: `node --import tsx --test lib/decoration/image-crop.test.mjs`
 
@@ -60,21 +60,21 @@ Expected: all image crop/full-image tests pass.
 - Consumes: `exportDecorationFullImage`
 - Produces: optimized file through the existing `onConfirm(file)` callback
 
-- [ ] **Step 1: Write failing interaction tests**
+- [x] **Step 1: Write failing interaction tests**
 
 Assert that “Use Full Image” invokes the injected full-image exporter and forwards its returned file, while crop mode still invokes only the crop exporter.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run: `node --import tsx --test lib/decoration/image-crop-modal.behavior.test.tsx`
 
 Expected: FAIL because the modal currently forwards original bytes.
 
-- [ ] **Step 3: Implement modal integration**
+- [x] **Step 3: Implement modal integration**
 
 Add an injectable `exportFullImage` seam defaulting to the shared optimizer and await it before `onConfirm`.
 
-- [ ] **Step 4: Run focused integration tests**
+- [x] **Step 4: Run focused integration tests**
 
 Run: `node --import tsx --test lib/decoration/image-crop-modal.behavior.test.tsx lib/decoration/custom-crop-integration.behavior.test.tsx lib/decoration/catalog-crop-integration.behavior.test.tsx`
 
@@ -84,30 +84,30 @@ Expected: all pass.
 
 **Files:**
 - Modify: `src/modules/decoration-selection/decoration-custom-upload.controller.ts`
-- Create: `src/modules/decoration-selection/decoration-upload-limits.ts`
-- Create: `src/modules/decoration-selection/decoration-upload-limits.spec.ts`
+- Create: `src/modules/decoration-selection/decoration-image-upload.filter.ts`
+- Create: `src/modules/decoration-selection/decoration-image-upload.filter.spec.ts`
 
 **Interfaces:**
 - Produces: `DECORATION_IMAGE_MAX_BYTES = 8 * 1024 * 1024`
-- Produces: Multer interceptor translating `LIMIT_FILE_SIZE` to HTTP 413 and “Image must be 8 MB or smaller.”
+- Produces: route-scoped Multer exception filter translating `LIMIT_FILE_SIZE` to HTTP 413 and “Image must be 8 MB or smaller.”
 
-- [ ] **Step 1: Write failing backend tests**
+- [x] **Step 1: Write failing backend tests**
 
-Test the shared maximum and the conversion of Multer’s `LIMIT_FILE_SIZE` error into a `PayloadTooLargeException`.
+Test the shared maximum and the conversion of Multer’s `LIMIT_FILE_SIZE` error into the standard HTTP 413 response envelope.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
-Run: `npx ts-node src/modules/decoration-selection/decoration-upload-limits.spec.ts`
+Run: `npx ts-node src/modules/decoration-selection/decoration-image-upload.filter.spec.ts`
 
 Expected: FAIL because the helper does not exist.
 
-- [ ] **Step 3: Implement and connect the limit**
+- [x] **Step 3: Implement and connect the limit**
 
 Use the shared constant in `FileInterceptor` and apply an exception filter/interceptor limited to this upload endpoint so unrelated errors are unchanged.
 
-- [ ] **Step 4: Run test and backend checks**
+- [x] **Step 4: Run test and backend checks**
 
-Run: `npx ts-node src/modules/decoration-selection/decoration-upload-limits.spec.ts && npm run lint && npm run build`
+Run: `npx ts-node src/modules/decoration-selection/decoration-image-upload.filter.spec.ts && npm run lint && npm run build`
 
 Expected: test passes, lint has zero errors, build succeeds.
 
@@ -116,22 +116,22 @@ Expected: test passes, lint has zero errors, build succeeds.
 **Files:**
 - Modify: this checklist as tasks complete
 
-- [ ] **Step 1: Run frontend decoration regression**
+- [x] **Step 1: Run frontend decoration regression**
 
 Run: `node --import tsx --test lib/decoration/*.test.mjs lib/decoration/*.behavior.test.tsx`
 
 Expected: all pass.
 
-- [ ] **Step 2: Run frontend lint and static build**
+- [x] **Step 2: Run frontend lint and static build**
 
 Run: `npm run lint && npm run build`
 
 Expected: both succeed.
 
-- [ ] **Step 3: Verify diffs and commit each repository**
+- [x] **Step 3: Verify diffs and commit each repository**
 
 Commit frontend image optimization separately from backend upload error handling.
 
-- [ ] **Step 4: Provide production Nginx commands**
+- [x] **Step 4: Provide production Nginx commands**
 
 Document how to locate the `api.zenbooking.in` server block, back up configuration, add `client_max_body_size 10M;`, validate with `nginx -t`, reload without restart, and verify a diagnostic upload.

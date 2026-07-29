@@ -110,21 +110,29 @@ test('blocks close and duplicate confirmation while exporting, then confirms onc
   await waitFor(() => assert.equal(confirms, 1));
 });
 
-test('uses the original image without running the crop exporter', async () => {
+test('optimizes the complete image without running the crop exporter', async () => {
   setupUrls();
   const original = new File(['full'], 'full.jpg', { type: 'image/jpeg' });
+  const optimized = new File(['optimized'], 'full-full.jpg', { type: 'image/jpeg' });
   let confirmed: File | null = null;
-  let exports = 0;
+  let cropExports = 0;
+  let fullExports = 0;
   render(<DecorationImageCropModal
     file={original}
     onCancel={() => assert.fail('must not cancel')}
     onConfirm={(file) => { confirmed = file; }}
     CropperComponent={FakeCropper}
-    exportCrop={async () => { exports += 1; return original; }}
+    exportCrop={async () => { cropExports += 1; return original; }}
+    exportFullImage={async (file) => {
+      fullExports += 1;
+      assert.equal(file, original);
+      return optimized;
+    }}
   />);
   fireEvent.click(page().getByRole('button', { name: 'Use Full Image' }));
-  await waitFor(() => assert.equal(confirmed, original));
-  assert.equal(exports, 0);
+  await waitFor(() => assert.equal(confirmed, optimized));
+  assert.equal(cropExports, 0);
+  assert.equal(fullExports, 1);
 });
 
 test('retains the file after export error, retries, and resets synchronously for a new file', async () => {

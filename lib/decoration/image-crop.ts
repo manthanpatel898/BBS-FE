@@ -52,6 +52,7 @@ export interface DecorationBitmapEnvironment {
 
 const CROP_ASPECT = 4 / 3;
 const DEFAULT_MAX = { width: 1600, height: 1200 };
+const FULL_IMAGE_MAX_EDGE = 2400;
 
 const positiveFinite = (value: number, label: string) => {
   if (!Number.isFinite(value) || value <= 0) throw new Error(`Invalid image ${label}.`);
@@ -111,11 +112,19 @@ export function calculateCropOutput(
 }
 
 export function createDecorationCropFilename(originalName: string, mimeType: 'image/png' | 'image/jpeg') {
+  return createDecorationImageFilename(originalName, mimeType, 'cropped');
+}
+
+function createDecorationImageFilename(
+  originalName: string,
+  mimeType: 'image/png' | 'image/jpeg',
+  suffix: 'cropped' | 'full',
+) {
   const extension = mimeType === 'image/png' ? 'png' : 'jpg';
   const lastSegment = originalName.split(/[/\\]/).pop() ?? '';
   const stem = lastSegment.replace(/\.[^.]+$/, '').trim();
   const safeStem = stem && !stem.startsWith('.') ? stem : 'decoration';
-  return `${safeStem}-cropped.${extension}`;
+  return `${safeStem}-${suffix}.${extension}`;
 }
 
 const loadBrowserImage = (file: File) => new Promise<CropBitmap>((resolve, reject) => {
@@ -218,6 +227,60 @@ export async function exportDecorationCrop(
       outputCanvas.width = 0;
       outputCanvas.height = 0;
       try { outputCanvas.release?.(); } catch { /* Continue cleanup independently. */ }
+    }
+  }
+}
+
+export async function exportDecorationFullImage(
+  file: File,
+  adapters: DecorationCropAdapters = browserAdapters,
+): Promise<File> {
+  let bitmap: CropBitmap | undefined;
+  let outputCanvas: CropCanvas | undefined;
+  try {
+    bitmap = await adapters.decodeBitmap(file, {
+      imageOrientation: 'from-image',
+    });
+    const sourceWidth = positiveFinite(bitmap.width, 'dimensions');
+    const sourceHeight = positiveFinite(bitmap.height, 'dimensions');
+    const scale = Math.min(1, FULL_IMAGE_MAX_EDGE / Math.max(sourceWidth, sourceHeight));
+    const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+    outputCanvas = adapters.createCanvas(outputWidth, outputHeight);
+    const outputContext = requireContext(outputCanvas);
+    const drawable =
+      'image' in bitmap
+        ? (bitmap as CropBitmap & { image: HTMLImageElement }).image
+        : bitmap;
+    outputContext.drawImage(drawable, 0, 0, outputWidth, outputHeight);
+    const mimeType = containsTransparency(
+      outputContext,
+      outputWidth,
+      outputHeight,
+    )
+      ? 'image/png'
+      : 'image/jpeg';
+    const blob = await canvasToBlob(outputCanvas, mimeType);
+    return new File(
+      [blob],
+      createDecorationImageFilename(file.name, mimeType, 'full'),
+      { type: mimeType },
+    );
+  } finally {
+    try {
+      bitmap?.close?.();
+    } catch {
+      /* Cleanup must not replace the export result or error. */
+    }
+    if (outputCanvas) {
+      outputCanvas.width = 0;
+      outputCanvas.height = 0;
+      try {
+        outputCanvas.release?.();
+      } catch {
+        /* Continue cleanup independently. */
+      }
     }
   }
 }
