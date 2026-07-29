@@ -944,6 +944,8 @@ export interface PaginatedOrders {
 }
 
 export type DashboardRecordType =
+  | 'recent_inquiries'
+  | 'recent_confirmed'
   | 'inquiries'
   | 'confirmed'
   | 'followups'
@@ -1002,7 +1004,7 @@ export interface OrderStats {
   avgInquiryToConfirmationDays: number;
   inquiryToConfirmationSampleCount: number;
   confirmationConversionRate: number;
-  dashboardRecords?: Record<DashboardRecordType, number>;
+  dashboardRecords?: Partial<Record<DashboardRecordType, number>>;
 }
 
 export interface InquiryActivity {

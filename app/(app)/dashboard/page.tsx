@@ -6,7 +6,6 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
 import {
   fetchCancelledAdvanceDashboard,
-  fetchDashboardAveragePlatePrice,
   fetchDashboardInquiryActivity,
   fetchDashboardMonthlySales,
   fetchDashboardRecords,
@@ -18,7 +17,6 @@ import {
 } from '@/lib/auth/api';
 import {
   CancelledAdvanceDashboard,
-  AveragePlatePrice,
   DashboardRecords,
   DashboardRecordType,
   Order,
@@ -32,6 +30,7 @@ import {
 import { getAdvancePaymentSplit } from '@/lib/advance-payment-split';
 import { InquiryActivityJourney } from '@/components/dashboard/inquiry-activity-journey';
 import { MonthlySalesBoard } from '@/components/dashboard/monthly-sales-board';
+import { banquetBusinessDate } from '@/lib/banquet/booking-edit-window';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
 
@@ -933,6 +932,22 @@ const dashboardRecordMeta: Record<DashboardRecordType, {
   cardClassName: string;
   badgeClassName: string;
 }> = {
+  recent_inquiries: {
+    label: 'Inquiries · Last 7 Days',
+    subtitle: 'Active inquiries created during the last seven India calendar days',
+    empty: 'No active inquiries were created during the last seven days.',
+    statusLabel: 'INQUIRY',
+    cardClassName: 'border-purple-200 bg-purple-50/35',
+    badgeClassName: 'border-amber-300 bg-amber-50 text-amber-700',
+  },
+  recent_confirmed: {
+    label: 'Confirmed · Last 7 Days',
+    subtitle: 'Bookings confirmed during the last seven India calendar days',
+    empty: 'No bookings were confirmed during the last seven days.',
+    statusLabel: 'CONFIRMED',
+    cardClassName: 'border-emerald-300 bg-emerald-50/45',
+    badgeClassName: 'border-emerald-300 bg-emerald-50 text-emerald-700',
+  },
   inquiries: {
     label: 'Total Inquiries',
     subtitle: 'Active inquiries from today onward',
@@ -992,6 +1007,28 @@ function getDateKey(value: string | null) {
   return value.slice(0, 10);
 }
 
+function getIndiaActivityDateKey(value: string | null) {
+  if (!value) return 'unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((entry) => entry.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function addCalendarDays(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days))
+    .toISOString()
+    .slice(0, 10);
+}
+
 function hasFollowUpTakenToday(order: Order) {
   const todayKey = new Date().toISOString().slice(0, 10);
   return order.followUps.some((followUp) => followUp.date.slice(0, 10) === todayKey);
@@ -1008,18 +1045,16 @@ function getFollowUpDueDate(order: Order) {
 function formatRecordDate(dateKey: string) {
   if (dateKey === 'unknown') return 'Date not set';
 
-  const date = new Date(`${dateKey}T00:00:00`);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  const todayKey = banquetBusinessDate();
+  const tomorrowKey = addCalendarDays(todayKey, 1);
 
-  if (date.getTime() === today.getTime()) {
-    return `Today, ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  if (dateKey === todayKey) {
+    return `Today, ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
   }
 
-  if (date.getTime() === tomorrow.getTime()) {
-    return `Tomorrow, ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  if (dateKey === tomorrowKey) {
+    return `Tomorrow, ${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
   }
 
   return date.toLocaleDateString('en-IN', {
@@ -1027,6 +1062,7 @@ function formatRecordDate(dateKey: string) {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: 'UTC',
   });
 }
 
@@ -1110,7 +1146,18 @@ function DetailField({ label, value }: { label: string; value: string | number |
 
 function groupOrdersByDate(orders: Order[], type: DashboardRecordType) {
   return orders.reduce<Array<{ dateKey: string; orders: Order[] }>>((groups, order) => {
-    const dateKey = getDateKey(type === 'followups' ? getFollowUpDueDate(order) : getRecordDate(order));
+    const dateValue =
+      type === 'recent_inquiries'
+        ? order.createdAt
+        : type === 'recent_confirmed'
+          ? order.confirmedAt
+          : type === 'followups'
+            ? getFollowUpDueDate(order)
+            : getRecordDate(order);
+    const dateKey =
+      type === 'recent_inquiries' || type === 'recent_confirmed'
+        ? getIndiaActivityDateKey(dateValue)
+        : getDateKey(dateValue);
     const existing = groups.find((group) => group.dateKey === dateKey);
 
     if (existing) {
@@ -1130,7 +1177,7 @@ function DashboardRecordCard({
 }: {
   order: Order;
   type: DashboardRecordType;
-  onOpen: (orderId: string) => void;
+  onOpen?: (orderId: string) => void;
 }) {
   const meta = dashboardRecordMeta[type];
   const statusLabel =
@@ -1149,8 +1196,9 @@ function DashboardRecordCard({
   return (
     <button
       type="button"
-      onClick={() => onOpen(order.id)}
-      className={`block w-full rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-300 sm:p-4 ${meta.cardClassName}`}
+      onClick={onOpen ? () => onOpen(order.id) : undefined}
+      disabled={!onOpen}
+      className={`block w-full rounded-xl border p-3 text-left shadow-sm sm:p-4 ${onOpen ? 'transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-300' : 'cursor-default'} ${meta.cardClassName}`}
     >
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -1498,7 +1546,7 @@ function DashboardRecordsPanel({
   page: number;
   onBack: () => void;
   onPageChange: (page: number) => void;
-  onOpenOrder: (orderId: string) => void;
+  onOpenOrder?: (orderId: string) => void;
 }) {
   const meta = dashboardRecordMeta[selectedType];
   const groups = useMemo(
@@ -1584,7 +1632,6 @@ function CompanyAdminDashboard({
   restaurant,
   cancelledAdvanceDashboard,
   inquiryActivity,
-  averagePlatePrice,
   monthlySales,
   selectedActivityMonth,
   onActivityMonthChange,
@@ -1606,7 +1653,6 @@ function CompanyAdminDashboard({
   restaurant: Restaurant | null;
   cancelledAdvanceDashboard: CancelledAdvanceDashboard | null;
   inquiryActivity: InquiryActivity | null;
-  averagePlatePrice: AveragePlatePrice | null;
   monthlySales: MonthlySales | null;
   selectedActivityMonth: number;
   onActivityMonthChange: (month: number) => void;
@@ -1653,6 +1699,9 @@ function CompanyAdminDashboard({
   const dashboardCounts = stats.dashboardRecords;
   const followUpsTakenToday = stats.followUpsTakenToday ?? 0;
   const followUpsDueTotalToday = stats.followUpsDueTotalToday ?? stats.followUps;
+  const isRecentActivityPopup =
+    selectedRecordType === 'recent_inquiries' ||
+    selectedRecordType === 'recent_confirmed';
 
   return (
     <div className="space-y-6">
@@ -1708,7 +1757,7 @@ function CompanyAdminDashboard({
         </div>
       ) : null}
 
-      {selectedRecordType ? (
+      {selectedRecordType && !isRecentActivityPopup ? (
         <DashboardRecordsPanel
           selectedType={selectedRecordType}
           records={dashboardRecords}
@@ -1721,24 +1770,46 @@ function CompanyAdminDashboard({
         />
       ) : (
         <>
+      {isRecentActivityPopup && selectedRecordType ? (
+        <CommonModal
+          title={dashboardRecordMeta[selectedRecordType].label}
+          onClose={onBackToDashboard}
+          widthClassName="max-w-6xl"
+          contentClassName="max-h-[78vh] overflow-y-auto pr-1"
+        >
+          <p className="mb-5 text-sm font-medium text-slate-600">
+            {dashboardRecordMeta[selectedRecordType].subtitle}. This list is for information only.
+          </p>
+          <DashboardRecordsPanel
+            selectedType={selectedRecordType}
+            records={dashboardRecords}
+            loading={dashboardRecordsLoading}
+            error={dashboardRecordsError}
+            page={dashboardRecordsPage}
+            onBack={onBackToDashboard}
+            onPageChange={onDashboardRecordsPageChange}
+            onOpenOrder={undefined}
+          />
+        </CommonModal>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Total Inquiries"
-          value={dashboardCounts?.inquiries ?? stats.inquiries}
+          label="Inquiries · Last 7 Days"
+          value={dashboardCounts?.recent_inquiries ?? 0}
           icon={<InboxIcon />}
           iconBg="bg-purple-50"
           iconColor="text-purple-600"
           delay="zb-fade-up-1"
-          onClick={() => onSelectRecordType('inquiries')}
+          onClick={() => onSelectRecordType('recent_inquiries')}
         />
         <StatCard
-          label="Confirm Bookings"
-          value={dashboardCounts?.confirmed ?? stats.confirmed}
+          label="Confirmed · Last 7 Days"
+          value={dashboardCounts?.recent_confirmed ?? 0}
           icon={<CheckCircleIcon />}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
           delay="zb-fade-up-2"
-          onClick={() => onSelectRecordType('confirmed')}
+          onClick={() => onSelectRecordType('recent_confirmed')}
         />
         <StatCard
           label="Follow Ups"
@@ -1798,16 +1869,27 @@ function CompanyAdminDashboard({
         />
       ) : null}
 
+      <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 p-6 text-white shadow-xl sm:p-8">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-emerald-200">
+              {selectedYear} Revenue
+            </p>
+            <p className="mt-3 break-words text-[clamp(2.1rem,8vw,4.75rem)] font-black leading-none tracking-tight text-white">
+              {formatCurrency(stats.monthRevenue)}
+            </p>
+            <p className="mt-3 text-sm font-semibold text-emerald-100">
+              Confirmed booking value
+            </p>
+          </div>
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-emerald-200 ring-1 ring-white/15 sm:h-20 sm:w-20">
+            <CoinIcon />
+          </div>
+        </div>
+      </section>
+
       <div className="grid gap-4 xl:grid-cols-12">
-        <div className="grid gap-4 sm:grid-cols-2 xl:col-span-12">
-          <StatCard
-            label={`${selectedYear} Revenue`}
-            value={formatCurrency(stats.monthRevenue)}
-            icon={<CoinIcon />}
-            iconBg="bg-emerald-50"
-            iconColor="text-emerald-600"
-            sub="Confirmed booking value"
-          />
+        <div className="xl:col-span-12">
           <StatCard
             label="Total Order Records"
             value={stats.total}
@@ -1820,15 +1902,6 @@ function CompanyAdminDashboard({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-        <StatCard
-          label="Average Price Per Plate"
-          value={formatCurrency(averagePlatePrice?.average ?? 0)}
-          icon={<CoinIcon />}
-          iconBg="bg-emerald-50"
-          iconColor="text-emerald-600"
-          sub={`${averagePlatePrice?.bookingCount ?? 0} confirmed/completed bookings`}
-          onClick={() => onSelectRecordType('average_plate_price')}
-        />
         <StatCard
           label="Avg Menu Selection"
           value={formatDuration(stats.avgMenuSelectionDurationSeconds)}
@@ -2037,7 +2110,6 @@ export default function DashboardPage() {
   const [cancelledAdvanceDashboard, setCancelledAdvanceDashboard] =
     useState<CancelledAdvanceDashboard | null>(null);
   const [inquiryActivity, setInquiryActivity] = useState<InquiryActivity | null>(null);
-  const [averagePlatePrice, setAveragePlatePrice] = useState<AveragePlatePrice | null>(null);
   const [monthlySales, setMonthlySales] = useState<MonthlySales | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRecordType, setSelectedRecordType] = useState<DashboardRecordType | null>(null);
@@ -2049,6 +2121,9 @@ export default function DashboardPage() {
   const [detailOrderLoading, setDetailOrderLoading] = useState(false);
   const [detailOrderError, setDetailOrderError] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const isRecentActivityPopup =
+    selectedRecordType === 'recent_inquiries' ||
+    selectedRecordType === 'recent_confirmed';
 
   useEffect(() => {
     if (!accessToken) return;
@@ -2065,7 +2140,7 @@ export default function DashboardPage() {
             selectedYear === currentYear
               ? Math.min(selectedActivityMonth, now.getMonth() + 1)
               : selectedActivityMonth;
-          const [stats, reports, restaurant, cancelledDashboard, activity, averagePrice, sales] = await Promise.all([
+          const [stats, reports, restaurant, cancelledDashboard, activity, sales] = await Promise.all([
             fetchOrderStats(accessToken, selectedYear),
             fetchOrderReports(accessToken, selectedYear).catch(() => null),
             fetchMyRestaurant(accessToken).catch(() => null),
@@ -2074,7 +2149,6 @@ export default function DashboardPage() {
               year: activityYear,
               month: activityMonth,
             }).catch(() => null),
-            fetchDashboardAveragePlatePrice(accessToken).catch(() => null),
             fetchDashboardMonthlySales(accessToken, selectedYear).catch(() => null),
           ]);
           setOrderStats(stats);
@@ -2082,7 +2156,6 @@ export default function DashboardPage() {
           setMyRestaurant(restaurant);
           setCancelledAdvanceDashboard(cancelledDashboard);
           setInquiryActivity(activity);
-          setAveragePlatePrice(averagePrice);
           setMonthlySales(sales);
         } else if (user?.role === 'employee') {
           const restaurant = await fetchMyRestaurant(accessToken).catch(() => null);
@@ -2194,8 +2267,8 @@ export default function DashboardPage() {
         selectedYear={selectedYear}
         currentYear={currentYear}
         isCompanyAdmin={user?.role === 'company_admin'}
-        selectedRecordType={selectedRecordType}
-        dashboardRecords={dashboardRecords}
+        selectedRecordType={isRecentActivityPopup ? null : selectedRecordType}
+        dashboardRecords={isRecentActivityPopup ? null : dashboardRecords}
         onYearChange={setSelectedYear}
         onBackToDashboard={backToDashboard}
       />
@@ -2211,7 +2284,6 @@ export default function DashboardPage() {
           restaurant={myRestaurant}
           cancelledAdvanceDashboard={cancelledAdvanceDashboard}
           inquiryActivity={inquiryActivity}
-          averagePlatePrice={averagePlatePrice}
           monthlySales={monthlySales}
           selectedActivityMonth={selectedActivityMonth}
           onActivityMonthChange={setSelectedActivityMonth}

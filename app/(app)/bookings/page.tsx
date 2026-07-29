@@ -11,6 +11,10 @@ import {
   normalizeFollowUpReasonPayload,
 } from '@/lib/banquet/follow-up-reasons';
 import { getCalendarDayState } from '@/lib/banquet/calendar-day-state';
+import {
+  banquetBusinessDate,
+  canEditBanquetBookingDetails,
+} from '@/lib/banquet/booking-edit-window';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { BookingModeToggle } from '@/components/bookings/booking-mode-toggle';
@@ -423,7 +427,7 @@ export default function BookingsPage() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [totalItems, setTotalItems] = useState(0);
-  const todayKey = toDateInputValue(new Date());
+  const todayKey = banquetBusinessDate();
   const tomorrowDate = new Date();
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowKey = toDateInputValue(tomorrowDate);
@@ -1745,12 +1749,17 @@ export default function BookingsPage() {
         setIsInquiryOpen(false);
         return;
       } else {
-        await createOrder(accessToken, {
+        const createdOrder = await createOrder(accessToken, {
           ...payload,
           status: 'INQUIRY',
           notes: formState.additionalInformation.trim() || undefined,
         });
-        setToast({ type: 'success', message: 'Inquiry created successfully.' });
+        setToast({
+          type: 'success',
+          message: createdOrder.inquiryClosed
+            ? 'The selected hall and slot are unavailable. This record was saved as a closed inquiry.'
+            : 'Inquiry created successfully.',
+        });
       }
       if (!editingOrder) {
         setIsInquiryOpen(false);
@@ -1913,7 +1922,12 @@ export default function BookingsPage() {
         setFormState(initialFormState);
         setCustomerTitle('None');
         setCustomEventName('');
-        setToast({ type: 'success', message: 'Booking confirmed successfully.' });
+        setToast({
+          type: 'success',
+          message: createdOrder.inquiryClosed
+            ? 'The selected hall and slot are unavailable. This record was saved as a closed inquiry.'
+            : 'Booking confirmed successfully.',
+        });
         await refreshBookingViews(accessToken);
         await openOrderDetail(createdOrder.id, createdOrder);
       } else if (advancePopup?.order) {
@@ -2422,6 +2436,17 @@ export default function BookingsPage() {
 
     if (!transferPopup.newDate) {
       setToast({ type: 'error', message: 'New date is required.' });
+      return;
+    }
+
+    if (
+      transferPopup.status === 'CONFIRMED' &&
+      transferPopup.newDate < todayKey
+    ) {
+      setToast({
+        type: 'error',
+        message: 'A confirmed booking cannot be moved to a past date.',
+      });
       return;
     }
 
@@ -5482,6 +5507,7 @@ function selectionStatus(order: Order) {
                 <Field label="New Date" required>
                   <input
                     type="date"
+                    min={transferPopup.status === 'CONFIRMED' ? todayKey : undefined}
                     value={transferPopup.newDate}
                     onChange={(event) =>
                       setTransferPopup((current) =>
@@ -6822,6 +6848,11 @@ function selectionStatus(order: Order) {
                         </button>
                       ) : null}
                       {canTransferBooking &&
+                      canEditBanquetBookingDetails(
+                        detailOrder.status,
+                        detailOrder.eventDate,
+                        todayKey,
+                      ) &&
                       (detailOrder.status === 'INQUIRY' ||
                         detailOrder.status === 'CONFIRMED') ? (
                         <button
@@ -6833,7 +6864,12 @@ function selectionStatus(order: Order) {
                         </button>
                       ) : null}
                       {(detailOrder.status === 'INQUIRY' ||
-                        detailOrder.status === 'CONFIRMED') ? (
+                        (detailOrder.status === 'CONFIRMED' &&
+                          canEditBanquetBookingDetails(
+                            detailOrder.status,
+                            detailOrder.eventDate,
+                            todayKey,
+                          ))) ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -6849,9 +6885,18 @@ function selectionStatus(order: Order) {
                         >
                           Edit inquiry
                         </button>
+                      ) : detailOrder.status === 'CONFIRMED' ? (
+                        <div className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
+                          Booking details are read-only after the event date
+                        </div>
                       ) : null}
                       {(detailOrder.status === 'INQUIRY' ||
-                        detailOrder.status === 'CONFIRMED') ? (
+                        (detailOrder.status === 'CONFIRMED' &&
+                          canEditBanquetBookingDetails(
+                            detailOrder.status,
+                            detailOrder.eventDate,
+                            todayKey,
+                          ))) ? (
                         <button
                           type="button"
                           onClick={() => {
