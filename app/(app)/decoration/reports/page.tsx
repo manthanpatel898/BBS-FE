@@ -8,7 +8,7 @@ import type { DecorationLimitedReportKind } from '@/lib/auth/types';
 const REPORTS:Array<{type:DecorationLimitedReportKind;title:string;description:string;badge:string;group:'Bookings'|'Financial'}>=[
   {type:'worksheet',title:'Event Worksheet',description:'Your familiar event register inside the application. Review event details and edit inquiry rows without maintaining a separate Excel sheet.',badge:'Inline inquiry editor',group:'Bookings'},
   {type:'booking',title:'Booking Report',description:'Generate a complete event booking register for any selected date range, including customer, venue, status and payment position.',badge:'Date range report',group:'Bookings'},
-  {type:'advance',title:'Advance Collections',description:'View every advance payment collected during the selected period, with payment mode, remark and employee details.',badge:'Payment-date ledger',group:'Financial'},
+  {type:'advance',title:'Advance Collections',description:'View advance payments recorded against events scheduled in the selected date range, with payment date, mode, remark and employee details.',badge:'Event-date report',group:'Financial'},
   {type:'pending',title:'Pending Amounts',description:'See outstanding balances for committed events so collections can be followed up before the event date.',badge:'Outstanding dues',group:'Financial'},
 ];
 

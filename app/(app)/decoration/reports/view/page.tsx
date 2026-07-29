@@ -45,6 +45,13 @@ const statusLabel = (value?: string) =>
     .replace(/(^|\s)\S/g, (v) => v.toUpperCase()) ?? "—";
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => `${today().slice(0, 7)}-01`;
+const emptyReportMessage = (kind: DecorationLimitedReportKind) => {
+  if (kind === "advance")
+    return "No advance payments are recorded for events in the selected event-date range.";
+  if (kind === "pending")
+    return "No committed events with a pending amount match the selected event-date range.";
+  return "No events match the selected event-date range and filters.";
+};
 function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob),
     anchor = document.createElement("a");
@@ -413,7 +420,9 @@ function DecorationReportView() {
           <p className="text-sm text-slate-700">
             {kind === "worksheet"
               ? "Inquiry rows can be edited here. Confirmed and closed records stay read-only."
-              : "Results use the same filters as CSV, XLSX and Print / PDF."}
+              : kind === "advance"
+                ? "The range filters by event date. Payment dates may be outside the selected range. CSV, XLSX and Print / PDF use the same results."
+                : "The range filters by event date. CSV, XLSX and Print / PDF use the same results."}
           </p>
         </div>
         {loading ? (
@@ -422,7 +431,7 @@ function DecorationReportView() {
           </div>
         ) : !report?.items.length ? (
           <div className="p-10 text-center text-sm text-slate-700">
-            No records match the selected filters.
+            {emptyReportMessage(kind)}
           </div>
         ) : (
           <>
