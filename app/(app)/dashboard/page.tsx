@@ -498,7 +498,7 @@ function ComparisonChart({
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
               {entry.label}
             </p>
-            <p className="mt-3 text-2xl font-bold text-slate-900">
+            <p className="mt-3 [overflow-wrap:anywhere] text-[clamp(1.35rem,4vw,1.75rem)] font-bold leading-tight text-slate-900">
               {formatCurrency(entry.revenue)}
             </p>
             <p className="mt-1 text-sm text-slate-500">{entry.bookings} bookings</p>
@@ -1869,20 +1869,20 @@ function CompanyAdminDashboard({
         />
       ) : null}
 
-      <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 p-6 text-white shadow-xl sm:p-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+      <section className="overflow-hidden rounded-[24px] border border-emerald-200 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 p-4 text-white shadow-lg sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-emerald-200">
               {selectedYear} Revenue
             </p>
-            <p className="mt-3 break-words text-[clamp(2.1rem,8vw,4.75rem)] font-black leading-none tracking-tight text-white">
+            <p className="mt-2 [overflow-wrap:anywhere] text-[clamp(1.9rem,6vw,3.5rem)] font-black leading-none tracking-tight text-white">
               {formatCurrency(stats.monthRevenue)}
             </p>
-            <p className="mt-3 text-sm font-semibold text-emerald-100">
+            <p className="mt-2 text-xs font-semibold text-emerald-100 sm:text-sm">
               Confirmed booking value
             </p>
           </div>
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-emerald-200 ring-1 ring-white/15 sm:h-20 sm:w-20">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 text-emerald-200 ring-1 ring-white/15 sm:h-14 sm:w-14">
             <CoinIcon />
           </div>
         </div>
@@ -1974,22 +1974,24 @@ function CompanyAdminDashboard({
             </section>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div>
             <ComparisonChart
               title="Year on Year"
               subtitle={`${selectedYear} compared with ${selectedYear - 1}.`}
               current={reports.yearComparison.current}
               previous={reports.yearComparison.previous}
             />
-            {monthlySales ? (
+          </div>
+          {monthlySales ? (
+            <div>
               <MonthlySalesBoard
                 data={monthlySales}
                 currentYear={new Date().getFullYear()}
                 currentMonth={new Date().getMonth() + 1}
                 onMonthOpen={onMonthlySalesOpen}
               />
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           <BarChart
             title="Menu Item Trends"

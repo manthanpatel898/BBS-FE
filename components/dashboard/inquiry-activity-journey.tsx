@@ -3,6 +3,13 @@
 import type { InquiryActivity } from '@/lib/auth/types';
 import { buildInquiryJourney } from '@/lib/dashboard/banquet-dashboard-presenters';
 
+type DailyActivityItem = {
+  date: string;
+  created: number;
+  confirmed: number;
+  label?: string;
+};
+
 export function InquiryActivityJourney({
   activity,
   selectedYear,
@@ -16,6 +23,21 @@ export function InquiryActivityJourney({
 }) {
   const now = new Date();
   const journey = buildInquiryJourney(activity.selectedMonth);
+  const lastSevenDays: DailyActivityItem[] =
+    activity.lastSevenDays && activity.lastSevenDays.length > 0
+      ? activity.lastSevenDays
+      : [
+          {
+            date: '',
+            label: 'Today',
+            ...activity.today,
+          },
+          {
+            date: '',
+            label: 'Yesterday',
+            ...activity.yesterday,
+          },
+        ].reverse();
   const availableMonths =
     selectedYear === now.getFullYear() ? now.getMonth() + 1 : 12;
   const stages = [
@@ -117,41 +139,60 @@ export function InquiryActivityJourney({
           ))}
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {[
-            { label: 'Today', data: activity.today },
-            { label: 'Yesterday', data: activity.yesterday },
-          ].map((period) => (
+        <div className="app-scrollbar mt-4 grid auto-cols-[minmax(145px,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 md:grid-flow-row md:grid-cols-4 md:overflow-visible md:pb-0 xl:grid-cols-7">
+          {lastSevenDays.map((period) => {
+            const date = period.date
+              ? new Date(`${period.date}T00:00:00.000Z`)
+              : null;
+            return (
             <div
-              key={period.label}
-              className="flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4"
+              key={
+                period.date ||
+                period.label ||
+                `${period.created}-${period.confirmed}`
+              }
+              className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3"
             >
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                  {period.label}
+              <div className="border-b border-slate-100 pb-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  {period.label
+                    ? period.label
+                    : date?.toLocaleDateString('en-IN', {
+                        weekday: 'short',
+                        timeZone: 'UTC',
+                      })}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">Activity snapshot</p>
+                <p className="mt-0.5 text-sm font-black text-slate-950">
+                  {date
+                    ? date.toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        timeZone: 'UTC',
+                      })
+                    : 'Activity'}
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-right">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-xl font-black text-slate-950">
-                    {period.data.created}
+                  <p className="text-lg font-black text-slate-950">
+                    {period.created}
                   </p>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
                     Created
                   </p>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-emerald-600">
-                    {period.data.confirmed}
+                  <p className="text-lg font-black text-emerald-600">
+                    {period.confirmed}
                   </p>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
                     Confirmed
                   </p>
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

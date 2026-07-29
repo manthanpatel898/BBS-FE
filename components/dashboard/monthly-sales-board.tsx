@@ -35,7 +35,7 @@ export function MonthlySalesBoard({
               Actual revenue and forecast from the current average plate price.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid w-full grid-cols-2 gap-2 lg:w-auto xl:min-w-[520px] xl:grid-cols-4">
             {[
               ['Forecast', data.totals.effectiveRevenue],
               ['Actual', data.totals.actualRevenue],
@@ -49,7 +49,7 @@ export function MonthlySalesBoard({
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
                   {label}
                 </p>
-                <p className="mt-1 truncate text-sm font-black text-slate-950">
+                <p className="mt-1 [overflow-wrap:anywhere] text-[clamp(0.8rem,1.3vw,1rem)] font-black leading-tight text-slate-950">
                   {label === 'Bookings' ? value : currency.format(Number(value))}
                 </p>
               </div>
@@ -97,7 +97,7 @@ export function MonthlySalesBoard({
                   </span>
                 ) : null}
               </div>
-              <p className="mt-3 truncate text-base font-black text-slate-950">
+              <p className="mt-3 [overflow-wrap:anywhere] text-[clamp(0.85rem,1.3vw,1rem)] font-black leading-tight text-slate-950">
                 {currency.format(item.effectiveRevenue)}
               </p>
               <p className="mt-1 text-[11px] font-semibold text-slate-500">
@@ -116,13 +116,15 @@ export function MonthlySalesBoard({
                   style={{ width: `${item.estimatedPercent}%` }}
                 />
               </div>
-              <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-bold">
-                <span className="truncate text-emerald-700">
+              <div className="mt-2 space-y-1 text-[10px] font-bold leading-tight">
+                <p className="[overflow-wrap:anywhere] text-emerald-700">
+                  <span className="text-slate-400">Actual </span>
                   {currency.format(item.actualRevenue)}
-                </span>
-                <span className="truncate text-amber-700">
+                </p>
+                <p className="[overflow-wrap:anywhere] text-amber-700">
+                  <span className="text-slate-400">Estimated </span>
                   {currency.format(item.estimatedRevenue)}
-                </span>
+                </p>
               </div>
             </button>
           );

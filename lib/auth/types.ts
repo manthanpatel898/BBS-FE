@@ -1010,6 +1010,11 @@ export interface OrderStats {
 export interface InquiryActivity {
   today: { created: number; confirmed: number };
   yesterday: { created: number; confirmed: number };
+  lastSevenDays?: Array<{
+    date: string;
+    created: number;
+    confirmed: number;
+  }>;
   selectedMonth: {
     year: number;
     month: number;
