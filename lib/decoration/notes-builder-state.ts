@@ -52,9 +52,9 @@ export function hydrateDecorationNotes(
             description: block.description ?? '',
             image: {
               ...block.image,
-              displayMode: normalizeDecorationImageDisplayMode(
-                block.image.displayMode,
-              ),
+              displayMode:
+                block.image.displayMode ??
+                (block.kind === 'CUSTOM' ? 'CONTAIN' : 'COVER'),
             },
           })),
       ),
@@ -76,9 +76,9 @@ export function hydrateDecorationNotes(
       image: {
         key: line.image?.key ?? '',
         url: line.image?.url ?? '',
-        displayMode: normalizeDecorationImageDisplayMode(
-          line.image?.displayMode,
-        ),
+        displayMode:
+          line.image?.displayMode ??
+          (line.isCustom ? 'CONTAIN' : 'COVER'),
       },
     })),
     generalNotes: '',

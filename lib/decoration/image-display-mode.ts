@@ -6,8 +6,13 @@ export function normalizeDecorationImageDisplayMode(
   return value === "CONTAIN" ? "CONTAIN" : "COVER";
 }
 
-export function decorationImageFitClass(value: unknown) {
-  return normalizeDecorationImageDisplayMode(value) === "CONTAIN"
+export function decorationImageFitClass(
+  value: unknown,
+  legacyFallback: DecorationImageDisplayMode = "COVER",
+) {
+  const mode =
+    value === "COVER" || value === "CONTAIN" ? value : legacyFallback;
+  return mode === "CONTAIN"
     ? "object-contain"
     : "object-cover";
 }

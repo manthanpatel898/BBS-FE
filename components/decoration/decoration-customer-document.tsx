@@ -38,7 +38,7 @@ function ImageWithFallback({ item }: { item: DocumentItem }) {
         <img
           src={source}
           alt={item.itemName}
-          className={`h-full w-full ${decorationImageFitClass(item.image?.displayMode)}`}
+          className={`h-full w-full ${decorationImageFitClass(item.image?.displayMode, item.isCustom ? 'CONTAIN' : 'COVER')}`}
           {...printableImageAttributes}
           onError={() => setFailed(true)}
         />

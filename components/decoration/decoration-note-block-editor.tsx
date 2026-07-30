@@ -89,7 +89,7 @@ export function DecorationNoteBlockEditor({
             <img
               src={block.image.url}
               alt={block.title || `Decoration note ${index + 1}`}
-              className={`absolute inset-0 h-full w-full ${decorationImageFitClass(block.image.displayMode)}`}
+              className={`absolute inset-0 h-full w-full ${decorationImageFitClass(block.image.displayMode, block.kind === 'CUSTOM' ? 'CONTAIN' : 'COVER')}`}
             />
             <span className="absolute left-3 top-3 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-bold text-white">
               Image {index + 1}

@@ -287,7 +287,9 @@ export function DecorationSelectionModalContent({
         displayMode,
       );
       if (alive.current && request === uploadRequest.current) {
-        change((current) => addCustomNoteBlock(current, image));
+        change((current) =>
+          addCustomNoteBlock(current, { ...image, displayMode }),
+        );
         setPending(null);
         setWorkspaceTab('selected');
         window.setTimeout(() => selectedTabRef.current?.focus(), 0);
