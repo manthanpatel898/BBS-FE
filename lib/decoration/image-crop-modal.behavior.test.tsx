@@ -115,12 +115,13 @@ test('optimizes the complete image without running the crop exporter', async () 
   const original = new File(['full'], 'full.jpg', { type: 'image/jpeg' });
   const optimized = new File(['optimized'], 'full-full.jpg', { type: 'image/jpeg' });
   let confirmed: File | null = null;
+  let displayMode = '';
   let cropExports = 0;
   let fullExports = 0;
   render(<DecorationImageCropModal
     file={original}
     onCancel={() => assert.fail('must not cancel')}
-    onConfirm={(file) => { confirmed = file; }}
+    onConfirm={(file, mode) => { confirmed = file; displayMode = mode; }}
     CropperComponent={FakeCropper}
     exportCrop={async () => { cropExports += 1; return original; }}
     exportFullImage={async (file) => {
@@ -133,6 +134,22 @@ test('optimizes the complete image without running the crop exporter', async () 
   await waitFor(() => assert.equal(confirmed, optimized));
   assert.equal(cropExports, 0);
   assert.equal(fullExports, 1);
+  assert.equal(displayMode, 'CONTAIN');
+});
+
+test('marks cropped images as cover images', async () => {
+  setupUrls();
+  let displayMode = '';
+  render(<DecorationImageCropModal
+    file={new File(['a'], 'a.jpg')}
+    onCancel={() => assert.fail('must not cancel')}
+    onConfirm={(_file, mode) => { displayMode = mode; }}
+    CropperComponent={FakeCropper}
+    exportCrop={async () => new File(['crop'], 'crop.jpg')}
+  />);
+  fireEvent.click(page().getByRole('button', { name: 'Set crop' }));
+  fireEvent.click(page().getByRole('button', { name: 'Crop image' }));
+  await waitFor(() => assert.equal(displayMode, 'COVER'));
 });
 
 test('retains the file after export error, retries, and resets synchronously for a new file', async () => {

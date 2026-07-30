@@ -7,6 +7,8 @@ import {
   getInventoryCoverImage,
   getInventoryDisabledReason,
 } from '@/lib/decoration/inventory-gallery';
+import type { DecorationImageDisplayMode } from '@/lib/auth/types';
+import { normalizeDecorationImageDisplayMode } from '@/lib/decoration/image-display-mode';
 
 export type DecorationNoteBlock = {
   clientId: string;
@@ -18,7 +20,11 @@ export type DecorationNoteBlock = {
   title: string;
   quantity: number;
   description: string;
-  image: { key: string; url: string };
+  image: {
+    key: string;
+    url: string;
+    displayMode: DecorationImageDisplayMode;
+  };
 };
 
 export type DecorationNotesState = {
@@ -44,7 +50,12 @@ export function hydrateDecorationNotes(
           .map((block) => ({
             ...block,
             description: block.description ?? '',
-            image: { ...block.image },
+            image: {
+              ...block.image,
+              displayMode: normalizeDecorationImageDisplayMode(
+                block.image.displayMode,
+              ),
+            },
           })),
       ),
       generalNotes: draft.generalNotes ?? '',
@@ -65,6 +76,9 @@ export function hydrateDecorationNotes(
       image: {
         key: line.image?.key ?? '',
         url: line.image?.url ?? '',
+        displayMode: normalizeDecorationImageDisplayMode(
+          line.image?.displayMode,
+        ),
       },
     })),
     generalNotes: '',
@@ -74,7 +88,11 @@ export function hydrateDecorationNotes(
 
 export function addCustomNoteBlock(
   state: DecorationNotesState,
-  image: { key: string; url: string },
+  image: {
+    key: string;
+    url: string;
+    displayMode?: DecorationImageDisplayMode;
+  },
   clientId = crypto.randomUUID(),
 ) {
   return {
@@ -88,7 +106,10 @@ export function addCustomNoteBlock(
         title: '',
         quantity: 1,
         description: '',
-        image: { ...image },
+        image: {
+          ...image,
+          displayMode: normalizeDecorationImageDisplayMode(image.displayMode),
+        },
       },
     ],
   };
@@ -138,7 +159,11 @@ export function selectCatalogNoteBlock(
     title: item.name,
     quantity: 1,
     description: item.description ?? '',
-    image: { key: image.key ?? '', url: image.url },
+    image: {
+      key: image.key ?? '',
+      url: image.url,
+      displayMode: normalizeDecorationImageDisplayMode(image.displayMode),
+    },
   };
 
   return {
@@ -161,7 +186,13 @@ export function selectCatalogNoteImage(
         ? {
             ...block,
             imageId: image.id,
-            image: { key: image.key ?? '', url: image.url },
+            image: {
+              key: image.key ?? '',
+              url: image.url,
+              displayMode: normalizeDecorationImageDisplayMode(
+                image.displayMode,
+              ),
+            },
           }
         : block,
     ),
@@ -228,7 +259,13 @@ export function linkCatalogItem(
         categoryId: item.categoryId,
         ...(selected?.id ? { imageId: selected.id } : {}),
         image: selected
-          ? { key: selected.key ?? '', url: selected.url }
+          ? {
+              key: selected.key ?? '',
+              url: selected.url,
+              displayMode: normalizeDecorationImageDisplayMode(
+                selected.displayMode,
+              ),
+            }
           : block.image,
       };
     }),
@@ -293,6 +330,7 @@ export function buildDecorationFinalPayload(state: DecorationNotesState) {
           : {}),
         imageKey: block.image.key,
         imageUrl: block.image.url,
+        displayMode: block.image.displayMode,
       })),
     generalNotes: state.generalNotes.trim() || undefined,
   };

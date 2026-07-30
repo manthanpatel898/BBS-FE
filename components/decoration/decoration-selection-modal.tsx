@@ -30,6 +30,7 @@ import {
 import type {
   DecorationBooking,
   DecorationCategory,
+  DecorationImageDisplayMode,
   DecorationItem,
 } from '@/lib/auth/types';
 import {
@@ -56,7 +57,10 @@ export type CustomCropModalProps = {
   file: File;
   busy?: boolean;
   onCancel: () => void;
-  onConfirm: (file: File) => void | Promise<void>;
+  onConfirm: (
+    file: File,
+    displayMode: DecorationImageDisplayMode,
+  ) => void | Promise<void>;
   returnFocusRef?: RefObject<HTMLElement | null>;
 };
 
@@ -267,7 +271,10 @@ export function DecorationSelectionModalContent({
     }
   }
 
-  async function upload(file: File) {
+  async function upload(
+    file: File,
+    displayMode: DecorationImageDisplayMode,
+  ) {
     if (!accessToken || uploading) return;
     const request = ++uploadRequest.current;
     setUploading(true);
@@ -277,6 +284,7 @@ export function DecorationSelectionModalContent({
         accessToken,
         booking.id,
         stable,
+        displayMode,
       );
       if (alive.current && request === uploadRequest.current) {
         change((current) => addCustomNoteBlock(current, image));

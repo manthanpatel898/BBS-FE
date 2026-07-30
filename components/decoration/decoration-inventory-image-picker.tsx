@@ -8,6 +8,7 @@ import {
 import { BodyPortal } from '@/components/ui/body-portal';
 import { useModalViewport } from '@/components/ui/use-modal-viewport';
 import type { DecorationItem } from '@/lib/auth/types';
+import { decorationImageFitClass } from '@/lib/decoration/image-display-mode';
 
 type InventoryImage = DecorationItem['images'][number];
 
@@ -104,7 +105,7 @@ export function DecorationInventoryImagePicker({
                             return next;
                           })
                         }
-                        className="aspect-[4/3] w-full object-cover"
+                        className={`aspect-[4/3] w-full ${decorationImageFitClass(image.displayMode)}`}
                       />
                     )}
                     <span className="block bg-white px-3 py-2 text-xs font-bold text-slate-700">

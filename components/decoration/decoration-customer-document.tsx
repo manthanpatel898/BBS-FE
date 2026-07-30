@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { DecorationCustomerDocument } from '@/lib/auth/types';
 import { printableImageAttributes } from '@/lib/decoration/customer-document-image';
 import { formatDecorationTimeRange } from '@/lib/decoration/time-format';
+import { decorationImageFitClass } from '@/lib/decoration/image-display-mode';
 
 type DocumentItem = DecorationCustomerDocument['categories'][number]['items'][number];
 
@@ -37,7 +38,7 @@ function ImageWithFallback({ item }: { item: DocumentItem }) {
         <img
           src={source}
           alt={item.itemName}
-          className="h-full w-full object-cover"
+          className={`h-full w-full ${decorationImageFitClass(item.image?.displayMode)}`}
           {...printableImageAttributes}
           onError={() => setFailed(true)}
         />

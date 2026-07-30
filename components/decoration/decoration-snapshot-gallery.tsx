@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import type { DecorationSnapshotLine } from '@/lib/auth/types';
 import { orderedSnapshotGroups, safeSnapshotImage, snapshotItemKey } from '@/lib/decoration/snapshot-view';
+import { decorationImageFitClass } from '@/lib/decoration/image-display-mode';
 
 function ImageFallback({ line, large = false }: { line: DecorationSnapshotLine; large?: boolean }) {
   const [failed, setFailed] = useState(false);
   const source = failed ? null : safeSnapshotImage(line.image);
   const size = large ? 'h-full min-h-72 w-full' : 'aspect-[4/3] w-full';
   if (!source) return <div className={`${size} grid place-items-center bg-slate-100 px-4 text-center text-sm font-medium text-slate-400`} role="img" aria-label={`No image available for ${line.itemName}`}>Image unavailable</div>;
-  return <img src={source} alt={line.itemName} className={`${size} object-cover`} loading="lazy" onError={() => setFailed(true)} />;
+  return <img src={source} alt={line.itemName} className={`${size} ${decorationImageFitClass(line.image?.displayMode)}`} loading="lazy" onError={() => setFailed(true)} />;
 }
 
 export function DecorationSnapshotGallery({ lines, printable = false, internal = false, detail = false }: { lines: DecorationSnapshotLine[]; printable?: boolean; internal?: boolean; detail?: boolean }) {

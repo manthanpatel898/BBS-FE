@@ -8,6 +8,7 @@ import {
   exportDecorationCrop,
   exportDecorationFullImage,
 } from '@/lib/decoration/image-crop';
+import type { DecorationImageDisplayMode } from '@/lib/decoration/image-display-mode';
 
 export type DecorationCropperAdapterProps = {
   image: string;
@@ -27,7 +28,10 @@ type DecorationImageCropModalProps = {
   file: File;
   busy?: boolean;
   onCancel: () => void;
-  onConfirm: (file: File) => void | Promise<void>;
+  onConfirm: (
+    file: File,
+    displayMode: DecorationImageDisplayMode,
+  ) => void | Promise<void>;
   returnFocusRef?: RefObject<HTMLElement | null>;
   /** Test seam for exercising modal behavior without browser image layout. */
   CropperComponent?: ComponentType<DecorationCropperAdapterProps>;
@@ -147,7 +151,7 @@ export function DecorationImageCropModal({
     try {
       const croppedFile = await exportCrop(file, cropPixels, rotation);
       if (activeFileRef.current !== confirmingFile) return;
-      await onConfirm(croppedFile);
+      await onConfirm(croppedFile, 'COVER');
     } catch (reason) {
       if (activeFileRef.current !== confirmingFile) return;
       setError(reason instanceof Error ? reason.message : 'Unable to crop this image. Please try again.');
@@ -168,7 +172,7 @@ export function DecorationImageCropModal({
     try {
       const optimizedFile = await exportFullImage(file);
       if (activeFileRef.current !== confirmingFile) return;
-      await onConfirm(optimizedFile);
+      await onConfirm(optimizedFile, 'CONTAIN');
     } catch (reason) {
       if (activeFileRef.current !== confirmingFile) return;
       setError(reason instanceof Error ? reason.message : 'Unable to use this image. Please try again.');

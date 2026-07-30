@@ -4,6 +4,7 @@ import { DecorationInventoryImagePicker } from './decoration-inventory-image-pic
 import type { DecorationItem } from '@/lib/auth/types';
 import type { DecorationNoteBlock } from '@/lib/decoration/notes-builder-state';
 import { inventoryShortage } from '@/lib/decoration/inventory-shortage';
+import { decorationImageFitClass } from '@/lib/decoration/image-display-mode';
 
 const field = 'light-form-field min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-950 placeholder:text-slate-400';
 
@@ -88,7 +89,7 @@ export function DecorationNoteBlockEditor({
             <img
               src={block.image.url}
               alt={block.title || `Decoration note ${index + 1}`}
-              className="absolute inset-0 h-full w-full object-cover"
+              className={`absolute inset-0 h-full w-full ${decorationImageFitClass(block.image.displayMode)}`}
             />
             <span className="absolute left-3 top-3 rounded-full bg-slate-950/80 px-3 py-1 text-xs font-bold text-white">
               Image {index + 1}

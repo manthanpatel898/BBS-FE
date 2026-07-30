@@ -10,6 +10,7 @@ import {
   getInventoryCoverImage,
   getInventoryDisabledReason,
 } from '@/lib/decoration/inventory-gallery';
+import { decorationImageFitClass } from '@/lib/decoration/image-display-mode';
 
 export type DecorationInventoryGalleryModalProps = {
   categories: DecorationCategory[];
@@ -140,7 +141,7 @@ export function DecorationInventoryGalleryModal({
                           return next;
                         })
                       }
-                      className="h-full w-full object-cover"
+                      className={`h-full w-full ${decorationImageFitClass(cover.displayMode)}`}
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center px-3 text-center text-sm font-semibold text-slate-500">
