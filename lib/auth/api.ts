@@ -1116,6 +1116,8 @@ export async function createOrder(
     hallDetails?: string;
     referenceBy?: string;
     additionalInformation?: string;
+    decorationRequired?: boolean;
+    decorationPartnerNote?: string;
     menuSelectionTracking?: {
       startedAt: string;
       trigger: 'initial' | 'change';
@@ -1171,6 +1173,8 @@ export async function updateOrder(
     hallDetails?: string;
     referenceBy?: string;
     additionalInformation?: string;
+    decorationRequired?: boolean;
+    decorationPartnerNote?: string;
     menuSelectionTracking?: {
       startedAt: string;
       trigger: 'initial' | 'change';
@@ -1181,6 +1185,66 @@ export async function updateOrder(
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
+}
+
+export async function fetchPartnerInquiryPolicy(accessToken: string) {
+  return authorizedRequest<import('./types').PartnerInquiryPolicy>('/partner-inquiries/policy', accessToken);
+}
+
+export async function fetchPartnerInquiryConfig(accessToken: string) {
+  return authorizedRequest<import('./types').PartnerInquiryConfig>('/partner-inquiries/config', accessToken);
+}
+
+export async function fetchPartnerCompanies(accessToken: string) {
+  return authorizedRequest<import('./types').PartnerCompany[]>('/partner-inquiries/partners', accessToken);
+}
+
+export async function updatePartnerInquiryConfig(
+  accessToken: string,
+  payload: { enabled: boolean; partnerRestaurantIds: string[]; acceptCurrentPolicy?: boolean },
+) {
+  return authorizedRequest<import('./types').PartnerInquiryConfig>('/partner-inquiries/config', accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchIncomingPartnerInquiryCount(accessToken: string) {
+  return authorizedRequest<{ pending: number; unread: number }>('/partner-inquiries/incoming/count', accessToken);
+}
+
+export async function fetchIncomingPartnerInquiries(
+  accessToken: string,
+  query: { status?: import('./types').PartnerInquiryStatus; page?: number; limit?: number; search?: string } = {},
+) {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.page) params.set('page', String(query.page));
+  if (query.limit) params.set('limit', String(query.limit));
+  if (query.search) params.set('search', query.search);
+  return authorizedRequest<{
+    items: import('./types').PartnerInquiry[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }>(`/partner-inquiries/incoming?${params.toString()}`, accessToken);
+}
+
+export async function fetchIncomingPartnerInquiry(accessToken: string, id: string) {
+  return authorizedRequest<import('./types').PartnerInquiry>(`/partner-inquiries/incoming/${id}`, accessToken);
+}
+
+export async function acceptIncomingPartnerInquiry(accessToken: string, id: string) {
+  return authorizedRequest<import('./types').PartnerInquiry>(`/partner-inquiries/incoming/${id}/accept`, accessToken, { method: 'POST' });
+}
+
+export async function declineIncomingPartnerInquiry(accessToken: string, id: string, reason?: string) {
+  return authorizedRequest<import('./types').PartnerInquiry>(`/partner-inquiries/incoming/${id}/decline`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function applyIncomingPartnerInquiryUpdate(accessToken: string, id: string) {
+  return authorizedRequest<import('./types').PartnerInquiry>(`/partner-inquiries/incoming/${id}/apply-source-update`, accessToken, { method: 'POST' });
 }
 
 export async function deleteOrder(accessToken: string, orderId: string) {

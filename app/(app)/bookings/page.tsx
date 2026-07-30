@@ -35,6 +35,7 @@ import {
   fetchOrderById,
   fetchOrders,
   fetchSettings,
+  fetchPartnerInquiryConfig,
   processAdvancePayout,
   saveOrderSignature,
   updateAdvancePayment,
@@ -121,6 +122,8 @@ type BookingFormState = {
   referenceBy: string;
   addonEntries: AddonEntry[];
   additionalInformation: string;
+  decorationRequired: boolean;
+  decorationPartnerNote: string;
   categoryId: string;
   inquiryCustomPrice: string;
   customPricePerPlate: string;
@@ -203,6 +206,8 @@ const initialFormState: BookingFormState = {
   referenceBy: '',
   addonEntries: [],
   additionalInformation: '',
+  decorationRequired: false,
+  decorationPartnerNote: '',
   categoryId: '',
   inquiryCustomPrice: '',
   customPricePerPlate: '',
@@ -296,6 +301,8 @@ function buildInquiryPayload(
       price: Number(entry.price) || 0,
     })),
     additionalInformation: formState.additionalInformation.trim(),
+    decorationRequired: formState.decorationRequired,
+    decorationPartnerNote: formState.decorationPartnerNote.trim(),
     categoryId: formState.categoryId || undefined,
     inquiryCustomPrice: formState.inquiryCustomPrice.trim()
       ? Number(formState.inquiryCustomPrice)
@@ -426,6 +433,7 @@ export default function BookingsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [partnerInquiryEnabled, setPartnerInquiryEnabled] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
   const todayKey = banquetBusinessDate();
   const tomorrowDate = new Date();
@@ -648,7 +656,7 @@ export default function BookingsPage() {
         setIsLoading(true);
         setPageError('');
         const monthRange = getMonthRange(calendarMonth);
-        const [ordersResponse, categoriesResponse, settingsResponse] = await Promise.all([
+        const [ordersResponse, categoriesResponse, settingsResponse, partnerConfig] = await Promise.all([
           fetchOrders(token, {
             page: 1,
             limit: 1000,
@@ -659,12 +667,14 @@ export default function BookingsPage() {
           }),
           fetchCategories(token, { page: 1, limit: 100, search: '' }),
           fetchSettings(token),
+          fetchPartnerInquiryConfig(token).catch(() => ({ enabled: false })),
         ]);
 
         setOrders(ordersResponse.items);
         setTotalItems(ordersResponse.pagination.total);
         setCategories(categoriesResponse.items);
         setSettings(settingsResponse);
+        setPartnerInquiryEnabled(partnerConfig.enabled);
         void fetchMenus(token, { page: 1, limit: 200, search: '' })
           .then((menusResponse) => {
             setMenus(menusResponse.items);
@@ -1142,6 +1152,7 @@ export default function BookingsPage() {
       ...initialFormState,
       inquiryDate: toDateInputValue(new Date()),
       functionDate: prefill?.functionDate ?? '',
+      decorationRequired: partnerInquiryEnabled,
     });
     setCustomerTitle('None');
     setCustomEventName('');
@@ -1174,6 +1185,8 @@ export default function BookingsPage() {
       serviceSlot: order.serviceSlot ?? '',
       hallDetails: order.hallDetails ?? '',
       referenceBy: order.referenceBy ?? '',
+      decorationRequired: order.decorationRequired ?? false,
+      decorationPartnerNote: order.decorationPartnerNote ?? '',
       addonEntries: order.addonServiceSnapshots.map((snap) => ({
         id: snap.addonServiceId !== 'custom' ? snap.addonServiceId : undefined,
         label: snap.label,
@@ -1243,6 +1256,8 @@ export default function BookingsPage() {
       serviceSlot: order.serviceSlot ?? '',
       hallDetails: order.hallDetails ?? '',
       referenceBy: order.referenceBy ?? '',
+      decorationRequired: order.decorationRequired ?? false,
+      decorationPartnerNote: order.decorationPartnerNote ?? '',
       addonEntries: order.addonServiceSnapshots.map((snap) => ({
         id: snap.addonServiceId !== 'custom' ? snap.addonServiceId : undefined,
         label: snap.label,
@@ -4204,6 +4219,45 @@ function selectionStatus(order: Order) {
                   )}
                 </div>
               </Field>
+
+              {partnerInquiryEnabled ? (
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={formState.decorationRequired}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          decorationRequired: event.target.checked,
+                          decorationPartnerNote: event.target.checked ? current.decorationPartnerNote : '',
+                        }))
+                      }
+                      className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-slate-950">Decoration required</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-600">
+                        After confirmation, this inquiry will be shared with the decoration partners configured in Settings.
+                      </span>
+                    </span>
+                  </label>
+                  {formState.decorationRequired ? (
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                        Note for decoration partner (optional)
+                      </label>
+                      <textarea
+                        value={formState.decorationPartnerNote}
+                        maxLength={2000}
+                        onChange={(event) => setFormState((current) => ({ ...current, decorationPartnerNote: event.target.value }))}
+                        placeholder="Only enter information that should be shared with the event company"
+                        className={`${inputCls} mt-2 min-h-24 resize-none`}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <Field label="Additional Information">
                 <textarea

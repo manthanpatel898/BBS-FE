@@ -42,6 +42,7 @@ import {
 } from '@/lib/auth/api';
 import { AppSettings, Restaurant, SettingOption, UserSignature } from '@/lib/auth/types';
 import { buildHallDetailChoices } from '@/lib/hall-detail-combinations';
+import { DecorationPartnersSection } from '@/components/settings/decoration-partners-section';
 import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 
 const inputCls =
@@ -56,7 +57,8 @@ type SettingsTabKey =
   | 'addonServices'
   | 'printTag'
   | 'hotDates'
-  | 'mySignature';
+  | 'mySignature'
+  | 'decorationPartners';
 
 type TabularOptionsSectionProps = {
   title: string;
@@ -470,6 +472,7 @@ function SettingsTabs({
     { key: 'addonServices', label: 'Addon Services' },
     { key: 'printTag', label: 'Print Tag' },
     { key: 'hotDates', label: 'Hot Dates' },
+    { key: 'decorationPartners', label: 'Decoration Partners' },
     { key: 'mySignature', label: 'My Signature' },
   ];
   const tabs = canManageSettings
@@ -524,6 +527,14 @@ function getTabMeta(tab: SettingsTabKey) {
       return {
         title: 'My Signature',
         description: 'Save your signature for booking print manager sign.',
+        addPlaceholder: '',
+        addButtonLabel: '',
+        emptyMessage: '',
+      };
+    case 'decorationPartners':
+      return {
+        title: 'Decoration Partners',
+        description: 'Configure automated decoration inquiry sharing.',
         addPlaceholder: '',
         addButtonLabel: '',
         emptyMessage: '',
@@ -630,6 +641,7 @@ export default function SettingsPage() {
       'addonServices',
       'printTag',
       'hotDates',
+      'decorationPartners',
       'mySignature',
         ]
       : ['mySignature'];
@@ -1331,7 +1343,9 @@ export default function SettingsPage() {
             </section>
             ) : null}
             <SettingsTabs activeTab={activeTab} onChange={handleTabChange} canManageSettings={canManageSettings} />
-            {activeTab === 'hotDates' ? (
+            {activeTab === 'decorationPartners' ? (
+              <DecorationPartnersSection />
+            ) : activeTab === 'hotDates' ? (
               <HotDatesManager />
             ) : activeTab === 'mySignature' ? (
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
