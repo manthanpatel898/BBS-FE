@@ -18,6 +18,7 @@ import { getDecorationDetailActions, type DecorationDetailActionId } from '@/lib
 import { formatDecorationTimeRange } from '@/lib/decoration/time-format';
 import { createPdfDownloadController, saveDownloadedPdf } from '@/lib/decoration/customer-document-download';
 import { BookingDownloadLifecycle } from '@/lib/decoration/booking-download-lifecycle';
+import { decorationCustomerRows } from '@/lib/decoration/customer-details';
 
 const displayDate = (value: string) => new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 const money = (value: number) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -88,7 +89,7 @@ function Detail({ booking, warning, onClose, onAction }: { booking: DecorationBo
           {booking.decorationGeneralNotes?.trim() ? <Card title="General Notes" compact><p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{booking.decorationGeneralNotes.trim()}</p></Card> : null}
         </div>
         <aside className="min-w-0 space-y-3 lg:space-y-4">
-          <Card title="Customer" compact><Grid variant="customer" rows={[["Name", booking.customer.name], ["Mobile", booking.customer.mobile], ...(booking.customer.alternativeMobile ? [["Alternative mobile", booking.customer.alternativeMobile] as [string,string]] : [])]} /></Card>
+          <Card title="Customer" compact><Grid variant="customer" rows={decorationCustomerRows(booking.customer)} /></Card>
           <Card title="Payment Summary" compact>
             <dl className="grid grid-cols-3 gap-2 text-center lg:grid-cols-1 lg:text-left">
               {[["Package", money(booking.packageRate)], ["Received", money(booking.totalCollected)], ["Pending", money(booking.outstandingAmount)]].map(([label, value]) => <div key={label} className="min-w-0 rounded-xl bg-slate-50 px-2 py-2.5 lg:flex lg:items-center lg:justify-between lg:gap-3"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className={`mt-1 truncate text-sm font-bold lg:mt-0 ${label === 'Received' ? 'text-emerald-700' : label === 'Pending' ? 'text-red-700' : 'text-slate-900'}`}>{value}</dd></div>)}
@@ -155,4 +156,4 @@ function DocumentActionLabel({ action, active, fallback }: { action: 'view' | 'd
 
 function State({ title, message }: { title: string; message: string }) { return <main className="mx-auto max-w-xl p-16 text-center"><h1 className="text-2xl font-bold">{title}</h1><p className="mt-2 text-slate-500">{message}</p></main>; }
 function Card({ title, children, compact = false, action }: { title: string; children: ReactNode; compact?: boolean; action?: ReactNode }) { return <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${compact ? 'p-3.5 sm:p-4' : 'p-5'}`}><div className={`${compact ? 'mb-3' : 'mb-4'} flex min-w-0 items-center justify-between gap-3`}><h2 className={`${compact ? 'text-base' : 'text-lg'} min-w-0 font-bold text-slate-950`}>{title}</h2>{action}</div>{children}</section>; }
-function Grid({ rows, variant = 'default' }: { rows: Array<[string, string]>; variant?: 'default' | 'customer' }) { return <dl className={`grid gap-2 ${variant === 'customer' ? 'grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-1' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'}`}>{rows.map(([label, value]) => <div key={label} className="min-w-0 rounded-xl bg-slate-50 px-3 py-2.5"><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-slate-900">{value}</dd></div>)}</dl>; }
+function Grid({ rows, variant = 'default' }: { rows: Array<[string, string]>; variant?: 'default' | 'customer' }) { return <dl className={`grid gap-2 ${variant === 'customer' ? 'grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-1' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'}`}>{rows.map(([label, value]) => <div key={label} className={`min-w-0 rounded-xl bg-slate-50 px-3 py-2.5 ${variant === 'customer' && label === 'Address' ? 'min-[420px]:col-span-2 lg:col-span-1' : ''}`}><dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold text-slate-900">{value}</dd></div>)}</dl>; }

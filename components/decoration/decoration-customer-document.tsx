@@ -5,6 +5,7 @@ import type { DecorationCustomerDocument } from '@/lib/auth/types';
 import { printableImageAttributes } from '@/lib/decoration/customer-document-image';
 import { formatDecorationTimeRange } from '@/lib/decoration/time-format';
 import { decorationImageFitClass } from '@/lib/decoration/image-display-mode';
+import { decorationCustomerRows } from '@/lib/decoration/customer-details';
 
 type DocumentItem = DecorationCustomerDocument['categories'][number]['items'][number];
 
@@ -87,7 +88,7 @@ function DetailSection({
         {rows.map(([label, value]) => (
           <div key={label} className="grid grid-cols-[minmax(6rem,35%)_1fr] gap-3 py-2 first:pt-0">
             <dt className="text-slate-500">{label}</dt>
-            <dd className="min-w-0 break-words font-semibold text-slate-900">{value}</dd>
+            <dd className="min-w-0 whitespace-pre-wrap break-words font-semibold text-slate-900">{value}</dd>
           </div>
         ))}
       </dl>
@@ -129,11 +130,7 @@ export function DecorationCustomerDocumentView({
         <DetailSection
           id="decoration-customer-heading"
           title="Customer"
-          rows={[
-            ['Name', document.customer.name],
-            ['Mobile', document.customer.mobile],
-            ...(document.customer.alternativeMobile ? [['Alternative mobile', document.customer.alternativeMobile] as [string,string]] : []),
-          ]}
+          rows={decorationCustomerRows(document.customer)}
         />
         <DetailSection
           id="decoration-event-venue-heading"
