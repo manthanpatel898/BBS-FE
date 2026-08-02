@@ -41,7 +41,6 @@ type RestaurantFormState = {
   invoicePrefix: string;
   invoiceTaxMode: 'CGST_SGST' | 'IGST' | 'NO_GST';
   invoiceGstRateBps: number;
-  invoicePriceMode: 'GST_EXCLUSIVE';
   invoiceFinancialYearNumbering: boolean;
 };
 
@@ -68,7 +67,6 @@ const initialFormState: RestaurantFormState = {
   invoicePrefix: '',
   invoiceTaxMode: 'CGST_SGST',
   invoiceGstRateBps: 500,
-  invoicePriceMode: 'GST_EXCLUSIVE',
   invoiceFinancialYearNumbering: true,
 };
 
@@ -205,7 +203,6 @@ export default function RestaurantsPage() {
       invoicePrefix: restaurant.invoicePrefix ?? '',
       invoiceTaxMode: restaurant.invoiceTaxMode ?? 'CGST_SGST',
       invoiceGstRateBps: restaurant.invoiceGstRateBps ?? 500,
-      invoicePriceMode: 'GST_EXCLUSIVE',
       invoiceFinancialYearNumbering: restaurant.invoiceFinancialYearNumbering ?? true,
     });
     setActiveModalTab('info');
