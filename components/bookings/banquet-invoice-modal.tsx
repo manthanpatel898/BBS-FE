@@ -16,6 +16,7 @@ import {
 } from '@/lib/auth/types';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { calculateInvoicePreviewTotals } from '@/lib/banquet/invoice-calculation';
+import { buildBanquetInvoiceIssuePayload } from '@/lib/banquet/invoice-issuance';
 
 const fieldClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 
@@ -108,14 +109,14 @@ export function BanquetInvoiceModal({
     try {
       setBusy(true);
       setError('');
-      const payload = {
-        customerName: name.trim(),
-        customerMobile: mobile.trim(),
-        customerAddress: address.trim(),
-        customerGstNumber: gstin.trim() || undefined,
+      const payload = buildBanquetInvoiceIssuePayload({
+        customerName: name,
+        customerMobile: mobile,
+        customerAddress: address,
+        customerGstNumber: gstin,
         discountType,
         discountValue,
-      };
+      });
       const issued = reissueMode
         ? await cancelAndReissueBanquetInvoice(accessToken, order.id, {
             ...payload,
@@ -165,18 +166,23 @@ export function BanquetInvoiceModal({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-sm font-semibold text-slate-700">Billing name<input className={fieldClass} value={name} onChange={(e)=>setName(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required /></label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">Mobile<input className={fieldClass} value={mobile} onChange={(e)=>setMobile(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required /></label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">Billing address<textarea className={`${fieldClass} resize-y`} rows={3} value={address} onChange={(e)=>setAddress(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required /></label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">Customer GSTIN (optional)<input className={fieldClass} value={gstin} onChange={(e)=>setGstin(e.target.value.toUpperCase())} disabled={Boolean(activeInvoice) && !reissueMode} maxLength={15} /></label>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">Discount<select className={fieldClass} value={discountType} onChange={(e)=>setDiscountType(e.target.value as BanquetInvoiceDiscountType)} disabled={Boolean(activeInvoice) && !reissueMode}><option value="NONE">None</option><option value="FIXED">Fixed amount</option><option value="PERCENTAGE">Percentage</option></select></label>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">Value<input className={fieldClass} inputMode="decimal" value={discount} onChange={(e)=>setDiscount(e.target.value)} disabled={(Boolean(activeInvoice) && !reissueMode) || discountType==='NONE'} /></label>
-              </div>
+              <details className="rounded-xl border border-slate-200 bg-slate-50 sm:col-span-2" open={reissueMode || undefined}>
+                <summary className="cursor-pointer select-none px-4 py-3 text-sm font-bold text-slate-800">Additional billing details <span className="font-normal text-slate-500">(optional)</span></summary>
+                <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2">
+                  <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">Billing address (optional)<textarea className={`${fieldClass} resize-y`} rows={3} value={address} onChange={(e)=>setAddress(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} /></label>
+                  <label className="grid gap-1 text-sm font-semibold text-slate-700">Customer GSTIN (optional)<input className={fieldClass} value={gstin} onChange={(e)=>setGstin(e.target.value.toUpperCase())} disabled={Boolean(activeInvoice) && !reissueMode} maxLength={15} /></label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="grid gap-1 text-sm font-semibold text-slate-700">Discount (optional)<select className={fieldClass} value={discountType} onChange={(e)=>setDiscountType(e.target.value as BanquetInvoiceDiscountType)} disabled={Boolean(activeInvoice) && !reissueMode}><option value="NONE">None</option><option value="FIXED">Fixed amount</option><option value="PERCENTAGE">Percentage</option></select></label>
+                    <label className="grid gap-1 text-sm font-semibold text-slate-700">Value<input className={fieldClass} inputMode="decimal" value={discount} onChange={(e)=>setDiscount(e.target.value)} disabled={(Boolean(activeInvoice) && !reissueMode) || discountType==='NONE'} /></label>
+                  </div>
+                </div>
+              </details>
               {reissueMode ? <label className="grid gap-1 text-sm font-semibold text-red-700 sm:col-span-2">Reason for cancelling current invoice<textarea className={`${fieldClass} resize-y`} value={cancellationReason} onChange={(e)=>setCancellationReason(e.target.value)} minLength={3} required /></label> : null}
             </div>
             <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
               {(activeInvoice?.lines ?? preview?.lines ?? []).map((line, index)=><div key={`${line.description}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 border-b border-slate-100 px-4 py-3 last:border-0"><div><p className="font-semibold text-slate-900">{line.description}</p><p className="text-xs text-slate-500">{line.quantity} × {money(line.unitRatePaise)}</p></div><p className="font-semibold">{money(line.amountPaise)}</p></div>)}
             </div>
-            {displayedTotals ? <div className="mt-4 ml-auto grid max-w-md gap-2 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Taxable amount</span><b>{money(displayedTotals.taxableSubtotalPaise)}</b></div><div className="flex justify-between"><span>GST</span><b>{money(displayedTotals.taxPaise)}</b></div><div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span>Grand total</span><b>{money(displayedTotals.grandTotalPaise)}</b></div><div className="flex justify-between text-emerald-700"><span>Advance received</span><b>{money(displayedTotals.advanceReceivedPaise)}</b></div><div className="flex justify-between text-red-700"><span>Pending</span><b>{money(displayedTotals.balancePendingPaise)}</b></div></div> : null}
+            {displayedTotals ? <div className="mt-4 ml-auto grid max-w-md gap-2 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Taxable amount</span><b>{money(displayedTotals.taxableSubtotalPaise)}</b></div><div className="flex justify-between"><span>GST</span><b>{money(displayedTotals.taxPaise)}</b></div><div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span>Grand total</span><b>{money(displayedTotals.grandTotalPaise)}</b></div></div> : null}
             {history.some((invoice)=>invoice.status==='CANCELLED') && canDownload ? <div className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-sm font-bold text-slate-900">Invoice history</p><div className="mt-2 grid gap-2">{history.filter((invoice)=>invoice.status==='CANCELLED').map((invoice)=><button type="button" key={invoice.id} onClick={()=>void download(invoice.id)} className="flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 text-left text-sm text-slate-700"><span>{invoice.invoiceNumber}</span><span className="font-semibold">Download cancelled copy</span></button>)}</div></div> : null}
           </div>
           <footer className="safe-pad-bottom flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white p-4 sm:flex-row sm:justify-end sm:px-6">
