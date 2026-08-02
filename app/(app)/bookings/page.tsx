@@ -70,7 +70,10 @@ import {
 } from '@/lib/bookings/overlay-navigation';
 import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
-import { validateFoodServiceScheduleForm } from '@/lib/bookings/food-service-schedule';
+import {
+  formatFoodServiceTime,
+  validateFoodServiceScheduleForm,
+} from '@/lib/bookings/food-service-schedule';
 
 type ViewMode = 'list' | 'calendar';
 
@@ -6519,6 +6522,36 @@ function selectionStatus(order: Order) {
                       </p>
                     ) : null}
                   </div>
+
+                  {detailOrder.welcomeDrinkStartTime || detailOrder.mainCourseStartTime ? (
+                    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Food Service Schedule
+                      </p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {detailOrder.welcomeDrinkStartTime ? (
+                          <div className="rounded-xl bg-slate-50 px-4 py-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                              Welcome Drink Start Time
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-slate-900">
+                              {formatFoodServiceTime(detailOrder.welcomeDrinkStartTime)}
+                            </p>
+                          </div>
+                        ) : null}
+                        {detailOrder.mainCourseStartTime ? (
+                          <div className="rounded-xl bg-slate-50 px-4 py-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                              Main Course Start Time
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-slate-900">
+                              {formatFoodServiceTime(detailOrder.mainCourseStartTime)}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : null}
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-2">

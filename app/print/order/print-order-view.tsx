@@ -12,6 +12,7 @@ import {
 } from '@/lib/auth/api';
 import { AppSettings, OdcOrder, Order, Restaurant } from '@/lib/auth/types';
 import { formatPrintEventDateTime, formatSlashDate } from '@/lib/print-date';
+import { formatFoodServiceTime } from '@/lib/bookings/food-service-schedule';
 
 type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
 
@@ -234,6 +235,14 @@ function PrintDocument({
     0,
   );
   const menuComment = order.menuComment?.trim() ?? '';
+  const foodScheduleRows = [
+    order.welcomeDrinkStartTime
+      ? ['Welcome Drink Start Time', formatFoodServiceTime(order.welcomeDrinkStartTime)]
+      : null,
+    order.mainCourseStartTime
+      ? ['Main Course Start Time', formatFoodServiceTime(order.mainCourseStartTime)]
+      : null,
+  ].filter((row): row is [string, string] => Boolean(row));
   const restaurantContacts =
     restaurant?.contactNumbers?.filter(Boolean).length
       ? restaurant.contactNumbers.filter(Boolean)
@@ -326,6 +335,24 @@ function PrintDocument({
           ]}
         />
       </section>
+
+      {foodScheduleRows.length > 0 ? (
+        <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'} break-inside-avoid overflow-hidden rounded-[10px] border border-stone-400`}>
+          <div className={`${isKitchenCopy ? 'px-2 py-1' : 'px-3 py-1.5'} border-b border-stone-400 bg-stone-100`}>
+            <p className="text-[12px] font-bold uppercase text-stone-950">
+              Food Service Schedule
+            </p>
+          </div>
+          <div className={`grid ${foodScheduleRows.length > 1 ? 'grid-cols-2 divide-x divide-stone-400' : 'grid-cols-1'}`}>
+            {foodScheduleRows.map(([label, value]) => (
+              <div key={label} className={`${isKitchenCopy ? 'px-2 py-1.5' : 'px-3 py-2'} text-stone-950`}>
+                <p className="text-[10px] font-black uppercase tracking-wide text-stone-700">{label}</p>
+                <p className="mt-0.5 text-[12px] font-black">{value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'} overflow-hidden rounded-[10px] border border-stone-400`}>
         <div className={`${isKitchenCopy ? 'px-2 py-1' : 'px-3 py-1.5'} border-b border-stone-400 bg-stone-100`}>
