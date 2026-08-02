@@ -69,6 +69,8 @@ import {
   type BookingOverlayParent as BaseBookingOverlayParent,
 } from '@/lib/bookings/overlay-navigation';
 import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
+import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
+import { validateFoodServiceScheduleForm } from '@/lib/bookings/food-service-schedule';
 
 type ViewMode = 'list' | 'calendar';
 
@@ -129,6 +131,8 @@ type BookingFormState = {
   customPricePerPlate: string;
   selectedMenus: SelectedMenu[];
   menuComment: string;
+  welcomeDrinkStartTime: string;
+  mainCourseStartTime: string;
 };
 
 type EditInquirySnapshot = {
@@ -213,6 +217,8 @@ const initialFormState: BookingFormState = {
   customPricePerPlate: '',
   selectedMenus: [],
   menuComment: '',
+  welcomeDrinkStartTime: '',
+  mainCourseStartTime: '',
 };
 
 const inputCls =
@@ -1213,6 +1219,8 @@ export default function BookingsPage() {
         })),
       })),
       menuComment: order.menuComment ?? '',
+      welcomeDrinkStartTime: order.welcomeDrinkStartTime ?? '',
+      mainCourseStartTime: order.mainCourseStartTime ?? '',
     };
     setFormState(nextFormState);
     setCustomerTitle(parsedCustomerName.title);
@@ -1284,6 +1292,8 @@ export default function BookingsPage() {
         })),
       })),
       menuComment: order.menuComment ?? '',
+      welcomeDrinkStartTime: order.welcomeDrinkStartTime ?? '',
+      mainCourseStartTime: order.mainCourseStartTime ?? '',
     });
     setCustomerTitle(parsedCustomerName.title);
     setCustomEventName(resolvedEventName.customValue);
@@ -1847,6 +1857,21 @@ export default function BookingsPage() {
       return;
     }
 
+    const foodScheduleError = validateFoodServiceScheduleForm({
+      eventStartTime: formState.startTime,
+      eventEndTime: formState.endTime,
+      welcomeDrinkStartTime: settings?.enableWelcomeDrinkStartTime
+        ? formState.welcomeDrinkStartTime
+        : '',
+      mainCourseStartTime: settings?.enableMainCourseStartTime
+        ? formState.mainCourseStartTime
+        : '',
+    });
+    if (foodScheduleError) {
+      setToast({ type: 'error', message: foodScheduleError });
+      return;
+    }
+
     try {
       const menuSelectionTracking =
         menuSelectionTrackingRef.current?.orderId === editingOrder.id
@@ -1865,6 +1890,12 @@ export default function BookingsPage() {
         eventDate: formState.functionDate,
         startTime: formState.startTime,
         endTime: formState.endTime,
+        welcomeDrinkStartTime: settings?.enableWelcomeDrinkStartTime
+          ? formState.welcomeDrinkStartTime || null
+          : undefined,
+        mainCourseStartTime: settings?.enableMainCourseStartTime
+          ? formState.mainCourseStartTime || null
+          : undefined,
         categoryId: formState.categoryId,
         addonServices: formState.addonEntries.length
           ? formState.addonEntries.map((e) => ({ id: e.id, label: e.label, price: Number(e.price) || 0 }))
@@ -4880,6 +4911,48 @@ function selectionStatus(order: Order) {
                       />
                     </Field>
                   </div>
+                  {settings?.enableWelcomeDrinkStartTime ||
+                  settings?.enableMainCourseStartTime ? (
+                    <section className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:mb-4 sm:p-5">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600 sm:text-xs sm:tracking-[0.24em]">
+                        Optional Schedule
+                      </p>
+                      <h3 className="mt-1 text-base font-semibold text-slate-900 sm:text-xl">
+                        Food Service Start Times
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+                        Times must be within the booking&apos;s event start and end time.
+                      </p>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {settings.enableWelcomeDrinkStartTime ? (
+                          <FoodServiceTimeSelect
+                            label="Welcome Drink Start Time"
+                            value={formState.welcomeDrinkStartTime}
+                            disabled={isSubmitting}
+                            onChange={(value) =>
+                              setFormState((current) => ({
+                                ...current,
+                                welcomeDrinkStartTime: value,
+                              }))
+                            }
+                          />
+                        ) : null}
+                        {settings.enableMainCourseStartTime ? (
+                          <FoodServiceTimeSelect
+                            label="Main Course Start Time"
+                            value={formState.mainCourseStartTime}
+                            disabled={isSubmitting}
+                            onChange={(value) =>
+                              setFormState((current) => ({
+                                ...current,
+                                mainCourseStartTime: value,
+                              }))
+                            }
+                          />
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : null}
                 </div>
               </div>
               {subitemDescriptionPopover ? (
