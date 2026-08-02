@@ -31,6 +31,7 @@ import { getAdvancePaymentSplit } from '@/lib/advance-payment-split';
 import { InquiryActivityJourney } from '@/components/dashboard/inquiry-activity-journey';
 import { MonthlySalesBoard } from '@/components/dashboard/monthly-sales-board';
 import { MenuCategoryTrends } from '@/components/dashboard/menu-category-trends';
+import { HorizontalCategoryPerformance } from '@/components/dashboard/banquet-analytics-sections';
 import { banquetBusinessDate } from '@/lib/banquet/booking-edit-window';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
@@ -393,44 +394,6 @@ function ArrowLeftIcon() {
   );
 }
 
-function VerticalBarChart({
-  title,
-  subtitle,
-  items,
-}: {
-  title: string;
-  subtitle: string;
-  items: Array<{ label: string; value: number; helper: string }>;
-}) {
-  const maxValue = Math.max(...items.map((item) => item.value), 1);
-
-  return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {items.map((item) => (
-          <div key={item.label} className="flex min-w-0 flex-col items-center gap-3">
-            <div className="flex h-48 w-full items-end justify-center rounded-2xl bg-slate-50 px-3 py-3">
-              <div
-                className="w-full rounded-t-xl bg-gradient-to-t from-amber-400 via-orange-400 to-rose-400"
-                style={{
-                  height: `${Math.max((item.value / maxValue) * 100, item.value > 0 ? 10 : 0)}%`,
-                }}
-              />
-            </div>
-            <div className="w-full text-center">
-              <p className="text-lg font-bold text-slate-900">{formatCurrency(item.value)}</p>
-              <p className="truncate text-sm font-semibold text-slate-800">{item.label}</p>
-              <p className="text-xs text-slate-500">{item.helper}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function ComparisonChart({
   title,
   subtitle,
@@ -678,15 +641,6 @@ function CancelledAdvanceDashboardSection({
 }) {
   if (!data) return null;
 
-  const maxValue = Math.max(
-    ...data.monthly.flatMap((item) => [
-      item.cancelledAdvance,
-      item.pendingAmount,
-      item.paidBack,
-    ]),
-    1,
-  );
-
   const pendingPct = data.totalCancelledAdvance > 0
     ? (data.totalPendingAmount / data.totalCancelledAdvance) * 100
     : 0;
@@ -746,7 +700,7 @@ function CancelledAdvanceDashboardSection({
         </Link>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {summaryItems.map((item) => (
           <div key={item.label} className={`rounded-xl border ${item.border} ${item.bg} p-4`}>
             <p className="text-xs font-semibold text-slate-600">{item.label}</p>
@@ -826,55 +780,6 @@ function CancelledAdvanceDashboardSection({
         )}
       </div>
 
-      <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50 p-4">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium text-slate-600">
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-500" />Cancelled</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />Pending</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-500" />Paid Back</span>
-        </div>
-
-        <div className="mt-5 overflow-x-auto pb-2">
-          <div className="grid min-w-[900px] grid-cols-12 gap-3">
-            {data.monthly.map((item) => {
-              const bars = [
-                { value: item.cancelledAdvance, cls: 'bg-slate-500', label: 'Cancelled' },
-                { value: item.pendingAmount, cls: 'bg-amber-500', label: 'Pending' },
-                { value: item.paidBack, cls: 'bg-blue-500', label: 'Paid Back' },
-              ];
-
-              return (
-              <div key={item.month} className="flex min-w-0 flex-col items-center gap-3">
-                <div className="flex h-56 w-full items-end justify-center gap-1.5 rounded-xl bg-white px-2 py-3">
-                  {bars.map((bar) => (
-                    <div
-                      key={bar.label}
-                      className="group/bar relative flex h-full w-1/3 items-end justify-center"
-                    >
-                      <div
-                        className={`w-full rounded-t-md ${bar.cls} transition-opacity hover:opacity-80`}
-                        style={{
-                          height: `${Math.max((bar.value / maxValue) * 100, bar.value > 0 ? 8 : 0)}%`,
-                        }}
-                        title={`${item.month} ${bar.label}: ${formatCurrency(bar.value)}`}
-                      />
-                      <div className="pointer-events-none absolute left-1/2 top-2 z-20 hidden min-w-max -translate-x-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-center shadow-lg group-hover/bar:block">
-                        <p className="text-[11px] font-semibold text-slate-500">{item.month} · {bar.label}</p>
-                        <p className="mt-0.5 text-xs font-bold text-slate-900">{formatCurrency(bar.value)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="w-full text-center">
-                  <p className="text-sm font-bold text-slate-900">{item.month}</p>
-                  <p className="text-xs text-slate-500">{item.bookings} booking{item.bookings === 1 ? '' : 's'}</p>
-                  <p className="mt-1 text-xs font-semibold text-amber-700">{formatCurrency(item.pendingAmount)}</p>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
@@ -1903,15 +1808,7 @@ function CompanyAdminDashboard({
       {reports ? (
         <>
           <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-            <VerticalBarChart
-              title="Category Performance"
-              subtitle="Top categories by confirmed booking revenue."
-              items={reports.highestSellingCategories.slice(0, 5).map((category) => ({
-                label: category.name,
-                value: category.revenue,
-                helper: `${category.bookings} bookings`,
-              }))}
-            />
+            <HorizontalCategoryPerformance items={reports.highestSellingCategories} />
             <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
               <h3 className="text-lg font-semibold text-slate-900">Peak Sales Month</h3>
               <p className="mt-1 text-sm text-slate-500">Best performing month from confirmed bookings.</p>
