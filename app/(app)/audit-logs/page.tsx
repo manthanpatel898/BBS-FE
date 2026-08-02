@@ -5,16 +5,12 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import { fetchAuditLogs } from '@/lib/auth/api';
 import { AuditLogItem } from '@/lib/auth/types';
+import { AuditChange, buildAuditChanges } from '@/lib/audit-logs/changes';
 
 const inputCls =
   'light-form-field w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 const decorationModules=['decoration_bookings','decoration_configuration','decoration_catalog','decoration_reservations','decoration_selection','decoration_selection_drafts','decoration_imports','decoration_reports','decoration_maintenance'];
 const moduleLabel=(value:string)=>value.startsWith('decoration_')?`Decoration · ${titleCase(value.replace('decoration_',''))}`:titleCase(value);
-
-function prettyJson(value: Record<string, unknown> | null) {
-  if (!value) return '—';
-  return JSON.stringify(value, null, 2);
-}
 
 function titleCase(value: string) {
   return value
@@ -142,6 +138,41 @@ function DetailSection({
   );
 }
 
+function ChangesSection({ changes }: { changes: AuditChange[] }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Changes Made</p>
+      </div>
+      {changes.length === 0 ? (
+        <p className="px-4 py-5 text-sm text-slate-500">No user-visible field changes were recorded.</p>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          <div className="hidden grid-cols-[minmax(150px,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] gap-4 bg-slate-50/70 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-500 sm:grid">
+            <span>Field</span><span>Previous</span><span>New</span>
+          </div>
+          {changes.map((change) => (
+            <div key={change.path} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(150px,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] sm:gap-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 sm:hidden">Field</p>
+                <p className="break-words text-sm font-semibold text-slate-900">{change.label}</p>
+              </div>
+              <div className="rounded-lg bg-red-50 px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-red-600 sm:hidden">Previous</p>
+                <p className="break-words text-sm text-slate-700">{change.before}</p>
+              </div>
+              <div className="rounded-lg bg-emerald-50 px-3 py-2 sm:rounded-none sm:bg-transparent sm:p-0">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 sm:hidden">New</p>
+                <p className="break-words text-sm font-semibold text-slate-900">{change.after}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function operationBadge(operation: AuditLogItem['operation']) {
   const tone =
     operation === 'create'
@@ -238,7 +269,7 @@ export default function AuditLogsPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="mt-2 text-sm text-slate-500">
-              Review activity history with actor, module, action, and clear before/after values.
+              Review who made each change and see only the fields that were actually updated.
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -285,6 +316,7 @@ export default function AuditLogsPage() {
           <div className="space-y-3 p-3 md:hidden">
             {items.map((item) => {
               const expanded = expandedId === item.id;
+              const changes = buildAuditChanges(item.before, item.after, item.operation);
               return <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -300,8 +332,7 @@ export default function AuditLogsPage() {
                 <p className="mt-3 break-words text-sm leading-6 text-slate-700">{item.summary || 'No summary recorded.'}</p>
                 <button type="button" onClick={() => setExpandedId(expanded ? null : item.id)} className="mt-4 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800">{expanded ? 'Hide details' : 'View details'}</button>
                 {expanded ? <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
-                  <DetailSection title="Before Values" emptyMessage="No old values recorded." value={item.before} />
-                  <DetailSection title="After Values" emptyMessage="No new values recorded." value={item.after} />
+                  <ChangesSection changes={changes} />
                   <DetailSection title="Context" emptyMessage="No extra context recorded." value={item.metadata} />
                   <dl className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
                     <div><dt className="font-semibold text-slate-600">Entity</dt><dd className="mt-1 break-all text-slate-900">{item.entityType || '—'} · {item.entityId || '—'}</dd></div>
@@ -327,6 +358,7 @@ export default function AuditLogsPage() {
               <tbody className="divide-y divide-slate-100">
                 {items.map((item) => {
                   const expanded = expandedId === item.id;
+                  const changes = buildAuditChanges(item.before, item.after, item.operation);
 
                   return (
                     <Fragment key={item.id}>
@@ -355,9 +387,8 @@ export default function AuditLogsPage() {
                       {expanded ? (
                         <tr className="bg-slate-50/70">
                           <td colSpan={7} className="px-4 py-4">
-                            <div className="grid gap-4 lg:grid-cols-3">
-                              <DetailSection title="Before Values" emptyMessage="No old values recorded." value={item.before} />
-                              <DetailSection title="After Values" emptyMessage="No new values recorded." value={item.after} />
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+                              <ChangesSection changes={changes} />
                               <DetailSection title="Context" emptyMessage="No extra context recorded." value={item.metadata} />
                             </div>
                             <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2 xl:grid-cols-4">
