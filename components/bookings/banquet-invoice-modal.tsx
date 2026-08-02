@@ -15,6 +15,7 @@ import {
   Order,
 } from '@/lib/auth/types';
 import { LoadingButton } from '@/components/ui/loading-button';
+import { calculateInvoicePreviewTotals } from '@/lib/banquet/invoice-calculation';
 
 const fieldClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 
@@ -35,6 +36,7 @@ export function BanquetInvoiceModal({
 }) {
   const [preview, setPreview] = useState<BanquetInvoicePreview | null>(null);
   const [activeInvoice, setActiveInvoice] = useState<BanquetInvoice | null>(null);
+  const [history, setHistory] = useState<BanquetInvoice[]>([]);
   const [name, setName] = useState(`${order.customer.firstName} ${order.customer.lastName}`.trim());
   const [mobile, setMobile] = useState(order.customer.phone);
   const [address, setAddress] = useState(order.customer.address ?? '');
@@ -58,6 +60,7 @@ export function BanquetInvoiceModal({
         setPreview(nextPreview);
         const issued = history.find((invoice) => invoice.status === 'ISSUED') ?? null;
         setActiveInvoice(issued);
+        setHistory(history);
         if (issued) {
           setName(issued.recipientSnapshot.name);
           setMobile(issued.recipientSnapshot.mobile);
@@ -67,6 +70,14 @@ export function BanquetInvoiceModal({
           setName(nextPreview.recipient.name || name);
           setMobile(nextPreview.recipient.mobile || mobile);
           setAddress(nextPreview.recipient.address || address);
+          setDiscountType(nextPreview.discount.type);
+          setDiscount(
+            nextPreview.discount.type === 'PERCENTAGE'
+              ? String(nextPreview.discount.value / 100)
+              : nextPreview.discount.type === 'FIXED'
+                ? String(nextPreview.discount.value / 100)
+                : '0',
+          );
         }
       })
       .catch((requestError) => {
@@ -76,12 +87,20 @@ export function BanquetInvoiceModal({
     return () => { active = false; };
   }, [accessToken, order.id]);
 
-  const displayedTotals = activeInvoice?.totals ?? preview?.totals;
-  const money = (paise = 0) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(paise / 100);
   const discountValue = useMemo(() => {
     const value = Number(discount) || 0;
     return discountType === 'PERCENTAGE' ? Math.round(value * 100) : Math.round(value * 100);
   }, [discount, discountType]);
+  const displayedTotals = useMemo(
+    () =>
+      activeInvoice && !reissueMode
+        ? activeInvoice.totals
+        : preview
+          ? calculateInvoicePreviewTotals(preview, discountType, discountValue)
+          : null,
+    [activeInvoice, discountType, discountValue, preview, reissueMode],
+  );
+  const money = (paise = 0) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(paise / 100);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -113,11 +132,11 @@ export function BanquetInvoiceModal({
     }
   }
 
-  async function download() {
+  async function download(invoiceId?: string) {
     try {
       setBusy(true);
       setError('');
-      const result = await downloadBanquetInvoice(accessToken, order.id);
+      const result = await downloadBanquetInvoice(accessToken, order.id, invoiceId);
       const url = URL.createObjectURL(result.blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -158,6 +177,7 @@ export function BanquetInvoiceModal({
               {(activeInvoice?.lines ?? preview?.lines ?? []).map((line, index)=><div key={`${line.description}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 border-b border-slate-100 px-4 py-3 last:border-0"><div><p className="font-semibold text-slate-900">{line.description}</p><p className="text-xs text-slate-500">{line.quantity} × {money(line.unitRatePaise)}</p></div><p className="font-semibold">{money(line.amountPaise)}</p></div>)}
             </div>
             {displayedTotals ? <div className="mt-4 ml-auto grid max-w-md gap-2 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Taxable amount</span><b>{money(displayedTotals.taxableSubtotalPaise)}</b></div><div className="flex justify-between"><span>GST</span><b>{money(displayedTotals.taxPaise)}</b></div><div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span>Grand total</span><b>{money(displayedTotals.grandTotalPaise)}</b></div><div className="flex justify-between text-emerald-700"><span>Advance received</span><b>{money(displayedTotals.advanceReceivedPaise)}</b></div><div className="flex justify-between text-red-700"><span>Pending</span><b>{money(displayedTotals.balancePendingPaise)}</b></div></div> : null}
+            {history.some((invoice)=>invoice.status==='CANCELLED') && canDownload ? <div className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-sm font-bold text-slate-900">Invoice history</p><div className="mt-2 grid gap-2">{history.filter((invoice)=>invoice.status==='CANCELLED').map((invoice)=><button type="button" key={invoice.id} onClick={()=>void download(invoice.id)} className="flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 text-left text-sm text-slate-700"><span>{invoice.invoiceNumber}</span><span className="font-semibold">Download cancelled copy</span></button>)}</div></div> : null}
           </div>
           <footer className="safe-pad-bottom flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white p-4 sm:flex-row sm:justify-end sm:px-6">
             <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-300 px-5 font-semibold text-slate-700">Close</button>

@@ -306,9 +306,10 @@ export async function cancelAndReissueBanquetInvoice(
   );
 }
 
-export async function downloadBanquetInvoice(accessToken: string, bookingId: string) {
+export async function downloadBanquetInvoice(accessToken: string, bookingId: string, invoiceId?: string) {
+  const suffix = invoiceId ? `/download/${encodeURIComponent(invoiceId)}` : '/download';
   const response = await fetch(
-    `${API_URL}/orders/${encodeURIComponent(bookingId)}/invoice/download`,
+    `${API_URL}/orders/${encodeURIComponent(bookingId)}/invoice${suffix}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!response.ok) {

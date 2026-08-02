@@ -968,7 +968,7 @@ export default function BookingsPage() {
   const canViewInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_VIEW);
   const canIssueInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_ISSUE);
   const canDownloadInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_DOWNLOAD);
-  const canReissueInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_CANCEL_REISSUE);
+  const canReissueInvoice = isCompanyAdmin;
   const canCancelBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CANCEL);
   const canConfirmBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CONFIRM);
   const canSaveBookingSignature =
