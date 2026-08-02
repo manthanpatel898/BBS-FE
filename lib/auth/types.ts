@@ -77,6 +77,13 @@ export interface Restaurant {
   enableVoucherFlow?: boolean;
   enableWhatsappNotifications?: boolean;
   enableOdc?: boolean;
+  billingEnabled?: boolean;
+  gstNumber?: string | null;
+  invoicePrefix?: string | null;
+  invoiceTaxMode?: 'CGST_SGST' | 'IGST' | 'NO_GST';
+  invoiceGstRateBps?: number;
+  invoicePriceMode?: 'GST_EXCLUSIVE';
+  invoiceFinancialYearNumbering?: boolean;
   isActive?: boolean;
   subscriptionStatus?: SubscriptionStatus | null;
   notes?: string | null;
@@ -84,6 +91,14 @@ export interface Restaurant {
   createdAt: string;
   updatedAt: string;
 }
+
+export type BanquetInvoiceDiscountType = 'NONE' | 'FIXED' | 'PERCENTAGE';
+export interface BanquetInvoiceRecipient { name:string; mobile:string; address:string; gstNumber:string|null }
+export interface BanquetInvoiceLine { description:string; quantity:number; unitRatePaise:number; amountPaise:number; source?:'PACKAGE'|'ADDON'|'EXTRA' }
+export interface BanquetInvoiceTotals { grossPaise:number; discountPaise:number; taxableSubtotalPaise:number; taxPaise:number; cgstPaise:number; sgstPaise:number; igstPaise:number; grandTotalPaise:number; advanceReceivedPaise:number; balancePendingPaise:number }
+export interface BanquetInvoicePreview { invoiceNumber:string|null; recipient:BanquetInvoiceRecipient; event:Record<string,unknown>; lines:BanquetInvoiceLine[]; discount:{type:BanquetInvoiceDiscountType;value:number}; taxMode:'CGST_SGST'|'IGST'|'NO_GST'; gstRateBps:number; totals:BanquetInvoiceTotals }
+export interface BanquetInvoice extends BanquetInvoicePreview { id:string; invoiceNumber:string; status:'ISSUED'|'CANCELLED'; issuedAt:string; recipientSnapshot:BanquetInvoiceRecipient; totals:BanquetInvoiceTotals }
+export interface IssueBanquetInvoicePayload { customerName:string; customerMobile:string; customerAddress:string; customerGstNumber?:string; discountType:BanquetInvoiceDiscountType; discountValue:number }
 
 export interface DecorationEventType {
   id: string;

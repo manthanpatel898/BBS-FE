@@ -65,6 +65,9 @@ import {
   DecorationDashboardData,
   DecorationLocationType,
   DecorationCustomerDocument,
+  BanquetInvoice,
+  BanquetInvoicePreview,
+  IssueBanquetInvoicePayload,
 } from './types';
 import { isSessionInvalidatingResponse, notifySessionExpired } from './session-events';
 import { requestDecorationCustomerPdf } from '@/lib/decoration/customer-document-download';
@@ -263,6 +266,58 @@ export async function updateMyRestaurantBranding(
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
+}
+
+export async function fetchBanquetInvoicePreview(accessToken: string, bookingId: string) {
+  return authorizedRequest<BanquetInvoicePreview>(
+    `/orders/${encodeURIComponent(bookingId)}/invoice/preview`,
+    accessToken,
+  );
+}
+
+export async function fetchBanquetInvoices(accessToken: string, bookingId: string) {
+  return authorizedRequest<BanquetInvoice[]>(
+    `/orders/${encodeURIComponent(bookingId)}/invoice`,
+    accessToken,
+  );
+}
+
+export async function issueBanquetInvoice(
+  accessToken: string,
+  bookingId: string,
+  payload: IssueBanquetInvoicePayload,
+) {
+  return authorizedRequest<BanquetInvoice>(
+    `/orders/${encodeURIComponent(bookingId)}/invoice`,
+    accessToken,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function cancelAndReissueBanquetInvoice(
+  accessToken: string,
+  bookingId: string,
+  payload: IssueBanquetInvoicePayload & { cancellationReason: string },
+) {
+  return authorizedRequest<BanquetInvoice>(
+    `/orders/${encodeURIComponent(bookingId)}/invoice/cancel-and-reissue`,
+    accessToken,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function downloadBanquetInvoice(accessToken: string, bookingId: string) {
+  const response = await fetch(
+    `${API_URL}/orders/${encodeURIComponent(bookingId)}/invoice/download`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(payload?.message || 'Unable to download invoice.');
+  }
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'tax-invoice.pdf';
+  return { blob: await response.blob(), filename };
 }
 
 export async function deleteRestaurant(accessToken: string, restaurantId: string) {

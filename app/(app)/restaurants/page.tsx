@@ -36,6 +36,13 @@ type RestaurantFormState = {
   enableVoucherFlow: boolean;
   enableWhatsappNotifications: boolean;
   enableOdc: boolean;
+  billingEnabled: boolean;
+  gstNumber: string;
+  invoicePrefix: string;
+  invoiceTaxMode: 'CGST_SGST' | 'IGST' | 'NO_GST';
+  invoiceGstRateBps: number;
+  invoicePriceMode: 'GST_EXCLUSIVE';
+  invoiceFinancialYearNumbering: boolean;
 };
 
 const initialFormState: RestaurantFormState = {
@@ -56,6 +63,13 @@ const initialFormState: RestaurantFormState = {
   enableVoucherFlow: false,
   enableWhatsappNotifications: false,
   enableOdc: false,
+  billingEnabled: false,
+  gstNumber: '',
+  invoicePrefix: '',
+  invoiceTaxMode: 'CGST_SGST',
+  invoiceGstRateBps: 500,
+  invoicePriceMode: 'GST_EXCLUSIVE',
+  invoiceFinancialYearNumbering: true,
 };
 
 const inputCls =
@@ -186,6 +200,13 @@ export default function RestaurantsPage() {
       enableVoucherFlow: restaurant.enableVoucherFlow ?? false,
       enableWhatsappNotifications: restaurant.enableWhatsappNotifications ?? false,
       enableOdc: restaurant.enableOdc ?? false,
+      billingEnabled: restaurant.billingEnabled ?? false,
+      gstNumber: restaurant.gstNumber ?? '',
+      invoicePrefix: restaurant.invoicePrefix ?? '',
+      invoiceTaxMode: restaurant.invoiceTaxMode ?? 'CGST_SGST',
+      invoiceGstRateBps: restaurant.invoiceGstRateBps ?? 500,
+      invoicePriceMode: 'GST_EXCLUSIVE',
+      invoiceFinancialYearNumbering: restaurant.invoiceFinancialYearNumbering ?? true,
     });
     setActiveModalTab('info');
     setError('');
@@ -213,6 +234,8 @@ export default function RestaurantsPage() {
         contactNumbers: parseContactNumbers(formState.contactNumbers),
         website: formState.website.trim() || null,
         logoUrl: formState.logoUrl.trim() || null,
+        gstNumber: formState.gstNumber.trim() || undefined,
+        invoicePrefix: formState.invoicePrefix.trim() || undefined,
       };
 
       if (editingRestaurant) {
@@ -788,6 +811,21 @@ export default function RestaurantsPage() {
                     rows={3}
                     className={`${inputCls} md:col-span-2 resize-none`}
                   />
+                  {formState.businessType === 'BANQUET' ? (
+                    <div className="grid gap-4 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 md:col-span-2 md:grid-cols-2">
+                      <label className="flex items-center gap-3 md:col-span-2">
+                        <input type="checkbox" checked={formState.billingEnabled} onChange={(e)=>setFormState((s)=>({...s,billingEnabled:e.target.checked}))} className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400" />
+                        <span><b className="block text-sm text-slate-900">Enable GST tax invoices</b><span className="text-xs text-slate-600">Allows invoices only for confirmed banquet bookings.</span></span>
+                      </label>
+                      {formState.billingEnabled ? <>
+                        <label className="grid gap-1 text-sm font-semibold text-slate-700">Restaurant GSTIN<input value={formState.gstNumber} onChange={(e)=>setFormState((s)=>({...s,gstNumber:e.target.value.toUpperCase()}))} maxLength={15} required className={inputCls} /></label>
+                        <label className="grid gap-1 text-sm font-semibold text-slate-700">Invoice prefix<input value={formState.invoicePrefix} onChange={(e)=>setFormState((s)=>({...s,invoicePrefix:e.target.value.toUpperCase()}))} placeholder="e.g. INV" required className={inputCls} /></label>
+                        <label className="grid gap-1 text-sm font-semibold text-slate-700">Tax mode<select value={formState.invoiceTaxMode} onChange={(e)=>setFormState((s)=>({...s,invoiceTaxMode:e.target.value as RestaurantFormState['invoiceTaxMode']}))} className={inputCls}><option value="CGST_SGST">CGST + SGST</option><option value="IGST">IGST</option><option value="NO_GST">No GST</option></select></label>
+                        <label className="grid gap-1 text-sm font-semibold text-slate-700">GST rate (%)<input inputMode="decimal" value={formState.invoiceGstRateBps / 100} onChange={(e)=>setFormState((s)=>({...s,invoiceGstRateBps:Math.round((Number(e.target.value)||0)*100)}))} disabled={formState.invoiceTaxMode==='NO_GST'} className={inputCls} /></label>
+                        <p className="text-xs leading-5 text-slate-600 md:col-span-2">Prices are GST-exclusive. Invoice numbers reset by Indian financial year and previously issued invoices remain unchanged.</p>
+                      </> : null}
+                    </div>
+                  ) : null}
                   <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 md:col-span-2">
                     <input
                       type="checkbox"

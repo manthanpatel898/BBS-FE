@@ -35,6 +35,7 @@ import {
   fetchOrderById,
   fetchOrders,
   fetchSettings,
+  fetchMyRestaurant,
   fetchPartnerInquiryConfig,
   processAdvancePayout,
   saveOrderSignature,
@@ -50,6 +51,7 @@ import {
   Order,
   OrderStatus,
   PaymentMode,
+  Restaurant,
   SignatureLocationPermissionStatus,
 } from '@/lib/auth/types';
 import { filterHiddenHallDetailChoices } from '@/lib/hall-detail-combinations';
@@ -70,6 +72,7 @@ import {
 } from '@/lib/bookings/overlay-navigation';
 import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
+import { BanquetInvoiceModal } from '@/components/bookings/banquet-invoice-modal';
 import {
   formatFoodServiceTime,
   validateFoodServiceScheduleForm,
@@ -442,6 +445,7 @@ export default function BookingsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [partnerInquiryEnabled, setPartnerInquiryEnabled] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
   const todayKey = banquetBusinessDate();
@@ -506,6 +510,7 @@ export default function BookingsPage() {
   const [deletePopup, setDeletePopup] = useState<Order | null>(null);
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
@@ -665,7 +670,7 @@ export default function BookingsPage() {
         setIsLoading(true);
         setPageError('');
         const monthRange = getMonthRange(calendarMonth);
-        const [ordersResponse, categoriesResponse, settingsResponse, partnerConfig] = await Promise.all([
+        const [ordersResponse, categoriesResponse, settingsResponse, partnerConfig, restaurantResponse] = await Promise.all([
           fetchOrders(token, {
             page: 1,
             limit: 1000,
@@ -677,6 +682,7 @@ export default function BookingsPage() {
           fetchCategories(token, { page: 1, limit: 100, search: '' }),
           fetchSettings(token),
           fetchPartnerInquiryConfig(token).catch(() => ({ enabled: false })),
+          fetchMyRestaurant(token),
         ]);
 
         setOrders(ordersResponse.items);
@@ -684,6 +690,7 @@ export default function BookingsPage() {
         setCategories(categoriesResponse.items);
         setSettings(settingsResponse);
         setPartnerInquiryEnabled(partnerConfig.enabled);
+        setRestaurant(restaurantResponse);
         void fetchMenus(token, { page: 1, limit: 200, search: '' })
           .then((menusResponse) => {
             setMenus(menusResponse.items);
@@ -958,6 +965,10 @@ export default function BookingsPage() {
     isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_STATUS_UPDATE);
   const canDeleteBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_DELETE);
   const canPrintBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_PRINT);
+  const canViewInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_VIEW);
+  const canIssueInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_ISSUE);
+  const canDownloadInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_DOWNLOAD);
+  const canReissueInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_CANCEL_REISSUE);
   const canCancelBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CANCEL);
   const canConfirmBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_CONFIRM);
   const canSaveBookingSignature =
@@ -6925,6 +6936,15 @@ function selectionStatus(order: Order) {
                     <>
                       {detailOrder.status === 'CONFIRMED' ? (
                         <>
+                          {restaurant?.billingEnabled && canViewInvoice ? (
+                            <button
+                              type="button"
+                              onClick={() => setInvoiceOrder(detailOrder)}
+                              className="inline-flex min-w-0 items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100"
+                            >
+                              Tax Invoice
+                            </button>
+                          ) : null}
                           {canPrintBooking ? (
                           <Link
                             href={`/print/order?id=${detailOrder.id}`}
@@ -7141,6 +7161,16 @@ function selectionStatus(order: Order) {
               </div>
             ) : null}
           </ModalShell>
+        ) : null}
+        {invoiceOrder && accessToken ? (
+          <BanquetInvoiceModal
+            accessToken={accessToken}
+            order={invoiceOrder}
+            canIssue={canIssueInvoice}
+            canDownload={canDownloadInvoice}
+            canReissue={canReissueInvoice}
+            onClose={() => setInvoiceOrder(null)}
+          />
         ) : null}
       </section>
     </BookingsRoute>
