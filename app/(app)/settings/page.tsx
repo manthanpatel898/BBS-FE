@@ -33,6 +33,7 @@ import {
   updateBanquetRule,
   updateEventOption,
   updateEventPlanner,
+  updateFoodServiceScheduleSettings,
   updateHallDetail,
   updateHallBookingInformationVisibility,
   updateMyRestaurantBranding,
@@ -57,6 +58,7 @@ type SettingsTabKey =
   | 'addonServices'
   | 'printTag'
   | 'hotDates'
+  | 'foodSchedule'
   | 'mySignature'
   | 'decorationPartners';
 
@@ -472,6 +474,7 @@ function SettingsTabs({
     { key: 'addonServices', label: 'Addon Services' },
     { key: 'printTag', label: 'Print Tag' },
     { key: 'hotDates', label: 'Hot Dates' },
+    { key: 'foodSchedule', label: 'Food Schedule' },
     { key: 'decorationPartners', label: 'Decoration Partners' },
     { key: 'mySignature', label: 'My Signature' },
   ];
@@ -579,6 +582,14 @@ function getTabMeta(tab: SettingsTabKey) {
         addButtonLabel: '',
         emptyMessage: '',
       };
+    case 'foodSchedule':
+      return {
+        title: 'Food Schedule',
+        description: 'Choose which optional food service times are captured during menu selection.',
+        addPlaceholder: '',
+        addButtonLabel: '',
+        emptyMessage: '',
+      };
   }
 }
 
@@ -641,6 +652,7 @@ export default function SettingsPage() {
       'addonServices',
       'printTag',
       'hotDates',
+      'foodSchedule',
       'decorationPartners',
       'mySignature',
         ]
@@ -708,6 +720,22 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function handleFoodScheduleChange(
+    nextWelcomeEnabled: boolean,
+    nextMainCourseEnabled: boolean,
+  ) {
+    const token = requireToken();
+    if (!token) return;
+    await mutateSettings(
+      () =>
+        updateFoodServiceScheduleSettings(token, {
+          enableWelcomeDrinkStartTime: nextWelcomeEnabled,
+          enableMainCourseStartTime: nextMainCourseEnabled,
+        }),
+      'Food schedule settings updated successfully.',
+    );
   }
 
   function resetSignatureCanvas() {
@@ -1347,6 +1375,44 @@ export default function SettingsPage() {
               <DecorationPartnersSection />
             ) : activeTab === 'hotDates' ? (
               <HotDatesManager />
+            ) : activeTab === 'foodSchedule' ? (
+              <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
+                    Menu Selection
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold text-slate-900">Food Schedule</h2>
+                  <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                    Enable either optional time independently. Previously saved booking times remain visible if an option is disabled later.
+                  </p>
+                </div>
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <ToggleSettingCard
+                    title="Enable Welcome Drink Start Time"
+                    description="Allow the team to record when welcome drinks should begin."
+                    checked={Boolean(settings.enableWelcomeDrinkStartTime)}
+                    isSaving={isSaving}
+                    onChange={(nextValue) =>
+                      void handleFoodScheduleChange(
+                        nextValue,
+                        Boolean(settings.enableMainCourseStartTime),
+                      )
+                    }
+                  />
+                  <ToggleSettingCard
+                    title="Enable Main Course Start Time"
+                    description="Allow the team to record when the main course should begin."
+                    checked={Boolean(settings.enableMainCourseStartTime)}
+                    isSaving={isSaving}
+                    onChange={(nextValue) =>
+                      void handleFoodScheduleChange(
+                        Boolean(settings.enableWelcomeDrinkStartTime),
+                        nextValue,
+                      )
+                    }
+                  />
+                </div>
+              </section>
             ) : activeTab === 'mySignature' ? (
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
