@@ -391,6 +391,8 @@ export interface AppSettings {
   hallDetails: SettingOption[];
   hiddenHallDetailCombinations: string[];
   showHallBookingInformation?: boolean;
+  enableWelcomeDrinkStartTime?: boolean;
+  enableMainCourseStartTime?: boolean;
   enablePrintTag?: boolean;
   printTagLogoUrl?: string | null;
   banquetRules: SettingOption[];
@@ -615,6 +617,8 @@ export interface Order {
   inquiryCloseReason: string | null;
   startTime: string | null;
   endTime: string | null;
+  welcomeDrinkStartTime: string | null;
+  mainCourseStartTime: string | null;
   categorySnapshot: OrderCategorySnapshot | null;
   menuSelectionSnapshot: OrderMenuSelectionSnapshot[];
   menuComment: string | null;

@@ -1089,6 +1089,8 @@ export async function createOrder(
     inquiryDate?: string;
     startTime?: string;
     endTime?: string;
+    welcomeDrinkStartTime?: string | null;
+    mainCourseStartTime?: string | null;
     categoryId?: string;
     addonServiceIds?: string[];
     addonServiceId?: string;
@@ -1148,6 +1150,8 @@ export async function updateOrder(
     inquiryDate?: string;
     startTime?: string;
     endTime?: string;
+    welcomeDrinkStartTime?: string | null;
+    mainCourseStartTime?: string | null;
     categoryId?: string;
     addonServiceIds?: string[];
     addonServiceId?: string;
@@ -1734,6 +1738,19 @@ export async function fetchRepeatCustomersReport(
 
 export async function fetchSettings(accessToken: string) {
   return authorizedRequest<AppSettings>('/settings', accessToken);
+}
+
+export function updateFoodServiceScheduleSettings(
+  accessToken: string,
+  input: {
+    enableWelcomeDrinkStartTime: boolean;
+    enableMainCourseStartTime: boolean;
+  },
+) {
+  return authorizedRequest<AppSettings>('/settings/food-service-schedule', accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 }
 
 export async function fetchMyUserSignature(accessToken: string) {
