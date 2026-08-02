@@ -30,6 +30,7 @@ import {
 import { getAdvancePaymentSplit } from '@/lib/advance-payment-split';
 import { InquiryActivityJourney } from '@/components/dashboard/inquiry-activity-journey';
 import { MonthlySalesBoard } from '@/components/dashboard/monthly-sales-board';
+import { MenuCategoryTrends } from '@/components/dashboard/menu-category-trends';
 import { banquetBusinessDate } from '@/lib/banquet/booking-edit-window';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
@@ -389,48 +390,6 @@ function ArrowLeftIcon() {
       <path d="m12 19-7-7 7-7" />
       <path d="M19 12H5" />
     </svg>
-  );
-}
-
-function BarChart({
-  title,
-  subtitle,
-  items,
-  valuePrefix = '',
-}: {
-  title: string;
-  subtitle: string;
-  items: Array<{ label: string; value: number; helper: string }>;
-  valuePrefix?: string;
-}) {
-  const maxValue = Math.max(...items.map((item) => item.value), 1);
-
-  return (
-    <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-      <div className="mt-5 space-y-4">
-        {items.map((item) => (
-          <div key={item.label} className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">{item.label}</p>
-                <p className="text-xs text-slate-400">{item.helper}</p>
-              </div>
-              <p className="shrink-0 text-sm font-semibold text-slate-700">
-                {valuePrefix}{item.value.toLocaleString('en-IN')}
-              </p>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400"
-                style={{ width: `${Math.max((item.value / maxValue) * 100, item.value > 0 ? 10 : 0)}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -1993,15 +1952,7 @@ function CompanyAdminDashboard({
             </div>
           ) : null}
 
-          <BarChart
-            title="Menu Item Trends"
-            subtitle="Most selected menu items across confirmed bookings."
-            items={reports.bestSellingMenuItems.slice(0, 6).map((item) => ({
-              label: item.name,
-              value: item.count,
-              helper: item.categories.join(', ') || 'No category tag',
-            }))}
-          />
+          <MenuCategoryTrends groups={reports.menuItemTrendsByCategory} />
         </>
       ) : null}
         </>

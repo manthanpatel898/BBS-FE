@@ -1156,6 +1156,11 @@ export interface ReportMenuItem {
   categories: string[];
 }
 
+export interface ReportMenuCategoryTrend {
+  category: string;
+  items: Array<{ name: string; count: number }>;
+}
+
 export interface OrderReports {
   highestSellingCategories: ReportCategory[];
   busiestMonth: ReportMetric;
@@ -1168,6 +1173,7 @@ export interface OrderReports {
     previous: ReportMetric;
   };
   bestSellingMenuItems: ReportMenuItem[];
+  menuItemTrendsByCategory?: ReportMenuCategoryTrend[];
 }
 
 export interface AdvancePaymentReportRow {
