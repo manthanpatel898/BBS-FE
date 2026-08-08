@@ -14,7 +14,7 @@ import { DecorationStatusBadge } from '@/components/decoration/decoration-status
 import { deleteDecorationBooking, downloadDecorationCustomerPdf, fetchDecorationBooking } from '@/lib/auth/api';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import type { DecorationBooking } from '@/lib/auth/types';
-import { getDecorationDetailActions, type DecorationDetailActionId } from '@/lib/decoration/event-detail-view';
+import { canSelectDecorationForStatus, getDecorationDetailActions, type DecorationDetailActionId } from '@/lib/decoration/event-detail-view';
 import { formatDecorationTimeRange } from '@/lib/decoration/time-format';
 import { createPdfDownloadController, saveDownloadedPdf } from '@/lib/decoration/customer-document-download';
 import { BookingDownloadLifecycle } from '@/lib/decoration/booking-download-lifecycle';
@@ -61,8 +61,7 @@ function Detail({ booking, warning, onClose, onAction }: { booking: DecorationBo
   const canManageDecoration =
     (user?.role === 'company_admin' ||
       hasPermission(user, PERMISSIONS.DECORATION_SELECTION_MANAGE)) &&
-    (booking.status === 'CONFIRMED' ||
-      booking.status === 'DECORATION_SELECTED');
+    canSelectDecorationForStatus(booking.status);
   return <section className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
     <header data-detail-region="header" className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
       <div className="flex min-w-0 items-start gap-3 pr-14 sm:items-center sm:gap-5">
@@ -83,7 +82,7 @@ function Detail({ booking, warning, onClose, onAction }: { booking: DecorationBo
           <Card
             title={`Selected Decoration (${booking.decorationSnapshot?.length ?? 0})`}
             compact
-            action={canManageDecoration ? <button type="button" onClick={() => onAction(booking.status === 'DECORATION_SELECTED' ? 'edit-decoration' : 'choose-decoration')} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-amber-400">{booking.status === 'DECORATION_SELECTED' ? 'Edit selection' : 'Choose decoration'}</button> : null}
+            action={canManageDecoration ? <button type="button" onClick={() => onAction(booking.decorationSnapshot?.length ? 'edit-decoration' : 'choose-decoration')} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-amber-400">{booking.decorationSnapshot?.length ? 'Edit selection' : 'Choose decoration'}</button> : null}
           ><DecorationSnapshotGallery lines={booking.decorationSnapshot ?? []} detail /></Card>
           <Card title="Advance Payments" compact><DecorationAdvanceLedger booking={booking} /></Card>
           {booking.decorationGeneralNotes?.trim() ? <Card title="General Notes" compact><p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{booking.decorationGeneralNotes.trim()}</p></Card> : null}

@@ -40,9 +40,12 @@ const MUTABLE_CONFIRMED_STATUSES = new Set<DecorationBookingStatus>([
 ]);
 
 export function canShowCustomerDocument(booking: Pick<DetailBooking, 'status' | 'decorationSnapshot'>): boolean {
-  return booking.status !== 'INQUIRY'
-    && booking.status !== 'CLOSED_INQUIRY'
+  return booking.status !== 'CLOSED_INQUIRY'
     && Boolean(booking.decorationSnapshot?.length);
+}
+
+export function canSelectDecorationForStatus(status: DecorationBookingStatus): boolean {
+  return status === 'INQUIRY' || MUTABLE_CONFIRMED_STATUSES.has(status);
 }
 
 export function getDecorationDetailActions(
@@ -60,7 +63,7 @@ export function getDecorationDetailActions(
   if (booking.status === 'INQUIRY' && capabilities.canConfirm) {
     actions.push({ id: 'confirm', label: 'Confirm Booking', tone: 'success' });
   }
-  if (MUTABLE_CONFIRMED_STATUSES.has(booking.status) && capabilities.canSelectDecoration) {
+  if (canSelectDecorationForStatus(booking.status) && capabilities.canSelectDecoration) {
     const editing = Boolean(booking.decorationSnapshot?.length);
     actions.push({
       id: editing ? 'edit-decoration' : 'choose-decoration',
