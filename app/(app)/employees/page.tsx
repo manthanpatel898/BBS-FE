@@ -1318,13 +1318,15 @@ export default function EmployeesPage() {
                     >
                       {usernameMessage}
                     </span>
-                    <button
-                      type="button"
-                      onClick={regenerateUsername}
-                      className="min-h-11 rounded-lg px-2 font-semibold text-amber-700 transition hover:bg-amber-50"
-                    >
-                      Generate again
-                    </button>
+                    {!editingEmployee ? (
+                      <button
+                        type="button"
+                        onClick={regenerateUsername}
+                        className="min-h-11 rounded-lg px-2 font-semibold text-amber-700 transition hover:bg-amber-50"
+                      >
+                        Generate again
+                      </button>
+                    ) : null}
                   </div>
                   {usernameSuggestions.length > 0 ? (
                     <div className="flex flex-wrap gap-2" aria-label="Available usernames">
