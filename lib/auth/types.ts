@@ -236,6 +236,15 @@ export interface Employee {
   } | null;
 }
 
+export interface EmployeeUsernameAvailability {
+  requestedUsername: string;
+  normalizedUsername: string;
+  available: boolean;
+  valid: boolean;
+  message: string | null;
+  suggestions: string[];
+}
+
 export interface PermissionDefinition {
   key: string;
   label: string;

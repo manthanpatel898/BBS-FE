@@ -3,6 +3,7 @@ import {
   ApiEnvelope,
   AppSettings,
   Employee,
+  EmployeeUsernameAvailability,
   AuthSession,
   AuthUser,
   BulkUploadResult,
@@ -366,6 +367,28 @@ export async function fetchEmployees(
 
   return authorizedRequest<PaginatedEmployees>(
     `/employees?${query.toString()}`,
+    accessToken,
+  );
+}
+
+export async function fetchEmployeeUsernameAvailability(
+  accessToken: string,
+  input: {
+    username: string;
+    firstName?: string;
+    lastName?: string;
+    contactNo?: string;
+    excludeEmployeeId?: string;
+  },
+) {
+  const query = new URLSearchParams();
+  Object.entries(input).forEach(([key, value]) => {
+    if (value?.trim()) {
+      query.set(key, value.trim());
+    }
+  });
+  return authorizedRequest<EmployeeUsernameAvailability>(
+    `/employees/username-availability?${query.toString()}`,
     accessToken,
   );
 }

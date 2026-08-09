@@ -14,6 +14,7 @@ import {
   deleteEmployee,
   fetchEmployeePermissions,
   fetchEmployeeSignature,
+  fetchEmployeeUsernameAvailability,
   fetchEmployees,
   saveEmployeeSignature,
   updateEmployee,
@@ -28,6 +29,12 @@ import {
   buildEmployeeCreatePayload,
   buildEmployeeUpdatePayload,
 } from '@/lib/employees/employee-payload';
+import {
+  normalizeUsernameInput,
+  shouldAutoGenerateUsername,
+  UsernameMode,
+  UsernameStatus,
+} from '@/lib/employees/employee-username';
 
 // Display labels → actual UserRole mapping
 type DisplayRole = 'Company Admin' | 'Manager';
@@ -113,6 +120,11 @@ export default function EmployeesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formState, setFormState] = useState<EmployeeFormState>(initialFormState);
+  const [usernameMode, setUsernameMode] = useState<UsernameMode>('auto');
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
+  const [usernameMessage, setUsernameMessage] = useState('');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+  const [originalUsername, setOriginalUsername] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -128,6 +140,7 @@ export default function EmployeesPage() {
   const [isPermissionSaving, setIsPermissionSaving] = useState(false);
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingSignatureRef = useRef(false);
+  const usernameRequestRef = useRef(0);
   const isEventCompany = user?.businessType === 'EVENT_DECORATION';
   const canViewPermissions =
     !isEventCompany && (hasPermission(user, PERMISSIONS.EMPLOYEES_PERMISSIONS_VIEW) ||
@@ -136,6 +149,7 @@ export default function EmployeesPage() {
     user,
     PERMISSIONS.EMPLOYEES_PERMISSIONS_MANAGE,
   );
+  const manualUsername = usernameMode === 'manual' ? formState.username : '';
 
   useEffect(() => {
     if (!accessToken) {
@@ -181,9 +195,125 @@ export default function EmployeesPage() {
     return () => window.clearTimeout(timeoutId);
   }, [searchInput]);
 
+  useEffect(() => {
+    if (!isModalOpen || !accessToken) {
+      return;
+    }
+
+    const editing = Boolean(editingEmployee);
+    const isAutomatic = shouldAutoGenerateUsername({
+      editing,
+      mode: usernameMode,
+    });
+    const requestedUsername = isAutomatic
+      ? normalizeUsernameInput(`${formState.firstName} ${formState.lastName}`)
+      : normalizeUsernameInput(manualUsername);
+
+    if (
+      editing &&
+      requestedUsername === normalizeUsernameInput(originalUsername)
+    ) {
+      setUsernameStatus('available');
+      setUsernameMessage('Current username');
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    if (requestedUsername.length < 3) {
+      setUsernameStatus(requestedUsername ? 'invalid' : 'idle');
+      setUsernameMessage(
+        requestedUsername ? 'Username must contain at least 3 characters.' : '',
+      );
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    const requestId = usernameRequestRef.current + 1;
+    usernameRequestRef.current = requestId;
+    setUsernameStatus('checking');
+    setUsernameMessage('Checking username…');
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const response = await fetchEmployeeUsernameAvailability(accessToken, {
+          username: requestedUsername,
+          firstName: formState.firstName,
+          lastName: formState.lastName,
+          contactNo: formState.contactNo,
+          excludeEmployeeId: editingEmployee?.id,
+        });
+        if (usernameRequestRef.current !== requestId) {
+          return;
+        }
+
+        if (isAutomatic) {
+          const generatedUsername = response.available
+            ? response.normalizedUsername
+            : response.suggestions[0];
+          if (generatedUsername) {
+            setFormState((current) => ({
+              ...current,
+              username: generatedUsername,
+            }));
+            setUsernameStatus('available');
+            setUsernameMessage('Available username generated automatically.');
+            setUsernameSuggestions(
+              response.suggestions.filter(
+                (suggestion) => suggestion !== generatedUsername,
+              ),
+            );
+            return;
+          }
+        }
+
+        setUsernameStatus(
+          !response.valid
+            ? 'invalid'
+            : response.available
+              ? 'available'
+              : 'unavailable',
+        );
+        setUsernameMessage(response.message ?? 'Unable to validate username.');
+        setUsernameSuggestions(response.suggestions);
+      } catch (requestError) {
+        if (usernameRequestRef.current !== requestId) {
+          return;
+        }
+        setUsernameStatus('error');
+        setUsernameMessage(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to check username. Try again.',
+        );
+        setUsernameSuggestions([]);
+      }
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (usernameRequestRef.current === requestId) {
+        usernameRequestRef.current += 1;
+      }
+    };
+  }, [
+    accessToken,
+    editingEmployee,
+    formState.contactNo,
+    formState.firstName,
+    formState.lastName,
+    manualUsername,
+    isModalOpen,
+    originalUsername,
+    usernameMode,
+  ]);
+
   function openCreateModal() {
     setEditingEmployee(null);
     setFormState(initialFormState);
+    setOriginalUsername('');
+    setUsernameMode('auto');
+    setUsernameStatus('idle');
+    setUsernameMessage('');
+    setUsernameSuggestions([]);
     setShowPassword(false);
     setIsModalOpen(true);
   }
@@ -201,7 +331,27 @@ export default function EmployeesPage() {
       canAccessOdc: employee.canAccessOdc ?? false,
       permissions: employee.permissions ?? [],
     });
+    setOriginalUsername(employee.username);
+    setUsernameMode('manual');
+    setUsernameStatus('available');
+    setUsernameMessage('Current username');
+    setUsernameSuggestions([]);
     setIsModalOpen(true);
+  }
+
+  function selectUsernameSuggestion(username: string) {
+    setUsernameMode('manual');
+    setFormState((current) => ({ ...current, username }));
+    setUsernameStatus('checking');
+    setUsernameMessage('Checking username…');
+  }
+
+  function regenerateUsername() {
+    setOriginalUsername('');
+    setUsernameMode('auto');
+    setUsernameStatus('checking');
+    setUsernameMessage('Generating username…');
+    setUsernameSuggestions([]);
   }
 
   async function openPermissionsModal(employee: Employee) {
@@ -271,6 +421,11 @@ export default function EmployeesPage() {
       return;
     }
 
+    if (isUsernameSubmissionBlocked) {
+      showToast('Please choose an available username before saving.', 'error');
+      return;
+    }
+
     const token: string = accessToken;
 
     try {
@@ -293,6 +448,25 @@ export default function EmployeesPage() {
       setPage(nextPage);
       await reloadEmployees(token, nextPage);
     } catch (requestError) {
+      if (
+        requestError instanceof Error &&
+        requestError.message.toLowerCase().includes('username')
+      ) {
+        setUsernameStatus('unavailable');
+        setUsernameMessage(requestError.message);
+        try {
+          const availability = await fetchEmployeeUsernameAvailability(token, {
+            username: formState.username,
+            firstName: formState.firstName,
+            lastName: formState.lastName,
+            contactNo: formState.contactNo,
+            excludeEmployeeId: editingEmployee?.id,
+          });
+          setUsernameSuggestions(availability.suggestions);
+        } catch {
+          setUsernameSuggestions([]);
+        }
+      }
       showToast(
         requestError instanceof Error ? requestError.message : 'Unable to save employee.',
         'error',
@@ -301,6 +475,13 @@ export default function EmployeesPage() {
       setIsSubmitting(false);
     }
   }
+
+  const usernameChanged = editingEmployee
+    ? normalizeUsernameInput(formState.username) !==
+      normalizeUsernameInput(originalUsername)
+    : true;
+  const isUsernameSubmissionBlocked =
+    usernameChanged && usernameStatus !== 'available';
 
   async function handleDelete() {
     if (!accessToken || !employeeToDelete) {
@@ -1083,18 +1264,83 @@ export default function EmployeesPage() {
                   placeholder="Last name"
                   className={inputCls}
                 />
-                <input
-                  value={formState.username}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      username: event.target.value,
-                    }))
-                  }
-                  placeholder="Username"
-                  autoComplete="off"
-                  className={inputCls}
-                />
+                <div className="space-y-2">
+                  <div className="relative">
+                    <input
+                      value={formState.username}
+                      onChange={(event) => {
+                        setUsernameMode('manual');
+                        setFormState((current) => ({
+                          ...current,
+                          username: event.target.value,
+                        }));
+                        setUsernameStatus(
+                          event.target.value.trim() ? 'checking' : 'idle',
+                        );
+                        setUsernameMessage(
+                          event.target.value.trim() ? 'Checking username…' : '',
+                        );
+                      }}
+                      placeholder="Username"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      maxLength={50}
+                      className={`${inputCls} pr-9`}
+                      aria-describedby="employee-username-status"
+                    />
+                    {usernameStatus !== 'idle' ? (
+                      <span
+                        className={`absolute right-4 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${
+                          usernameStatus === 'available'
+                            ? 'bg-emerald-500'
+                            : usernameStatus === 'checking'
+                              ? 'animate-pulse bg-amber-400'
+                              : 'bg-red-500'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </div>
+                  <div
+                    id="employee-username-status"
+                    aria-live="polite"
+                    className="flex min-h-5 flex-wrap items-center justify-between gap-2 text-xs"
+                  >
+                    <span
+                      className={
+                        usernameStatus === 'available'
+                          ? 'font-medium text-emerald-700'
+                          : usernameStatus === 'checking' || usernameStatus === 'idle'
+                            ? 'text-slate-500'
+                            : 'font-medium text-red-600'
+                      }
+                    >
+                      {usernameMessage}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={regenerateUsername}
+                      className="min-h-11 rounded-lg px-2 font-semibold text-amber-700 transition hover:bg-amber-50"
+                    >
+                      Generate again
+                    </button>
+                  </div>
+                  {usernameSuggestions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2" aria-label="Available usernames">
+                      {usernameSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => selectUsernameSuggestion(suggestion)}
+                          className="min-h-11 max-w-full truncate rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs font-semibold text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 {/* Role selector */}
                 {isEventCompany ? (
                   <div className={`${inputCls} flex items-center text-slate-700`} aria-label="User type">
@@ -1258,7 +1504,7 @@ export default function EmployeesPage() {
                   </button>
                   <LoadingButton
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isUsernameSubmissionBlocked}
                     isLoading={isSubmitting}
                     className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
                   >
