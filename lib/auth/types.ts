@@ -1339,3 +1339,35 @@ export interface CategorySyncConfirmationResult {
   summary: CategorySyncSummary;
   appliedAt: string;
 }
+
+export interface MenuSyncSummary {
+  create: number;
+  update: number;
+  unchanged: number;
+  reactivate: number;
+  deactivate: number;
+  removedSections: number;
+  removedSubitems: number;
+}
+
+export interface MenuSyncIssue {
+  row: number;
+  code: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+export interface MenuSyncPreview {
+  previewId: string;
+  expiresAt: string;
+  canConfirm: boolean;
+  totalRows: number;
+  summary: MenuSyncSummary;
+  issues: MenuSyncIssue[];
+}
+
+export interface MenuSyncConfirmationResult {
+  previewId: string;
+  summary: MenuSyncSummary;
+  appliedAt: string;
+}

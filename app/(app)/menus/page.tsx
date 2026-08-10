@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useMemo, useState } from 'react';
+import { useRef, useEffect, useMemo, useReducer, useState } from 'react';
 import { ConfigRoute } from '@/components/auth/config-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
@@ -9,16 +9,23 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { RoleBasedRestaurantSelector } from '@/components/ui/role-based-restaurant-selector';
 import {
-  bulkUploadMenus,
+  confirmMenuSync,
   createMenu,
   deleteMenu,
+  downloadMenuSyncExport,
   fetchMenus,
   fetchRestaurants,
+  previewMenuSync,
   updateMenu,
 } from '@/lib/auth/api';
-import { BulkUploadError, BulkUploadResult, Menu, MenuSection, Restaurant } from '@/lib/auth/types';
+import { Menu, MenuSection, Restaurant } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
-import { createExcelBlobFromRecords } from '@/lib/excel';
+import { MenuSyncPreviewPanel } from '@/components/menus/menu-sync-preview-panel';
+import {
+  canConfirmMenuSync,
+  initialMenuSyncState,
+  menuSyncReducer,
+} from '@/lib/menus/menu-sync';
 
 type MenuFormState = {
   sectionTitle: string;
@@ -40,8 +47,6 @@ const initialFormState: MenuFormState = {
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 
-// ─── Bulk import helpers ──────────────────────────────────────────────────────
-
 function downloadFile(content: string | Blob, filename: string, mimeType: string) {
   const blob =
     content instanceof Blob ? content : new Blob([content], { type: mimeType });
@@ -52,94 +57,6 @@ function downloadFile(content: string | Blob, filename: string, mimeType: string
   a.click();
   URL.revokeObjectURL(url);
 }
-
-function generateSampleCSV(): string {
-  return [
-    'Item Name,SubItem Name',
-    'MOCKTAIL,MINT MOJITO',
-    'MOCKTAIL,BLUE LAGOON',
-    'MOCKTAIL,WATERMELON COOLER',
-    'SOUP,TOMATO SOUP',
-    'SOUP,SWEET CORN SOUP',
-    'SOUP,MANCHOW SOUP',
-    'DESSERTS,GULAB JAMUN',
-    'DESSERTS,RASGULLA',
-    'DESSERTS,ICE CREAM',
-  ].join('\n');
-}
-
-async function generateSampleExcel(): Promise<Blob> {
-  const rows = [
-    { 'Item Name': 'MOCKTAIL', 'SubItem Name': 'MINT MOJITO' },
-    { 'Item Name': 'MOCKTAIL', 'SubItem Name': 'BLUE LAGOON' },
-    { 'Item Name': 'MOCKTAIL', 'SubItem Name': 'WATERMELON COOLER' },
-    { 'Item Name': 'SOUP', 'SubItem Name': 'TOMATO SOUP' },
-    { 'Item Name': 'SOUP', 'SubItem Name': 'SWEET CORN SOUP' },
-    { 'Item Name': 'SOUP', 'SubItem Name': 'MANCHOW SOUP' },
-    { 'Item Name': 'DESSERTS', 'SubItem Name': 'GULAB JAMUN' },
-    { 'Item Name': 'DESSERTS', 'SubItem Name': 'RASGULLA' },
-  ];
-  return createExcelBlobFromRecords('Menus', rows);
-}
-
-function Spinner() {
-  return (
-    <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
-}
-
-function UploadResultSummary({ result }: { result: BulkUploadResult }) {
-  return (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Upload Result</p>
-      <div className="grid grid-cols-3 gap-3 text-center">
-        {(
-          [
-            { label: 'Total Rows', value: result.total, cls: 'border-slate-200 bg-white text-slate-700' },
-            { label: 'Inserted', value: result.inserted, cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-            { label: 'Skipped', value: result.skipped, cls: 'border-red-200 bg-red-50 text-red-700' },
-          ] as const
-        ).map(({ label, value, cls }) => (
-          <div key={label} className={`rounded-xl border px-3 py-3 ${cls}`}>
-            <p className="text-xl font-bold">{value}</p>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</p>
-          </div>
-        ))}
-      </div>
-      {result.errors.length > 0 ? (
-        <div className="max-h-40 overflow-y-auto rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-          <p className="mb-2 font-semibold">Row Errors</p>
-          <ul className="space-y-1">
-            {result.errors.map((err: BulkUploadError) => (
-              <li key={err.row}>
-                Row {err.row}: {err.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-type BulkState = {
-  file: File | null;
-  status: 'idle' | 'uploading' | 'done' | 'error';
-  result: BulkUploadResult | null;
-  errorMessage: string;
-};
-
-const initialBulkState: BulkState = {
-  file: null,
-  status: 'idle',
-  result: null,
-  errorMessage: '',
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 function parseSubitems(rawValue: string) {
   return Array.from(
@@ -191,7 +108,10 @@ export default function MenusPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [isBulkOpen, setIsBulkOpen] = useState(false);
-  const [bulk, setBulk] = useState<BulkState>(initialBulkState);
+  const [syncFile, setSyncFile] = useState<File | null>(null);
+  const [syncState, dispatchSync] = useReducer(menuSyncReducer, initialMenuSyncState);
+  const [syncDownloadFormat, setSyncDownloadFormat] = useState<'csv' | 'xlsx' | null>(null);
+  const [isSyncConfirmOpen, setIsSyncConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
@@ -474,48 +394,58 @@ export default function MenusPage() {
   }
 
   function openBulkModal() {
-    setBulk(initialBulkState);
+    setSyncFile(null);
+    dispatchSync({ type: 'RESET' });
     if (fileInputRef.current) fileInputRef.current.value = '';
     setIsBulkOpen(true);
   }
 
   function closeBulkModal() {
+    if (syncState.phase === 'uploading' || syncState.phase === 'confirming') return;
     setIsBulkOpen(false);
   }
 
-  async function handleBulkUpload(e: { preventDefault(): void }) {
-    e.preventDefault();
-    if (!bulk.file || !accessToken) return;
-
-    setBulk((prev) => ({ ...prev, status: 'uploading', result: null, errorMessage: '' }));
-
+  async function handleSyncPreview(event: { preventDefault(): void }) {
+    event.preventDefault();
+    if (!syncFile || !accessToken || !effectiveRestaurantId) return;
+    dispatchSync({ type: 'UPLOAD_STARTED', fileName: syncFile.name });
     try {
-      const result = await bulkUploadMenus(
+      const preview = await previewMenuSync(
         accessToken,
-        bulk.file,
+        syncFile,
         isSuperAdmin ? effectiveRestaurantId : undefined,
       );
-      setBulk((prev) => ({ ...prev, status: 'done', result }));
-      if (result.inserted > 0) {
-        await reloadMenus(accessToken, 1);
-        setPage(1);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Bulk upload failed.';
-      setBulk((prev) => ({ ...prev, status: 'error', errorMessage: msg }));
+      dispatchSync({ type: 'PREVIEW_RECEIVED', preview });
+    } catch (requestError) {
+      dispatchSync({ type: 'REQUEST_FAILED', message: requestError instanceof Error ? requestError.message : 'Unable to preview menu changes.' });
     }
   }
 
-  function handleDownloadSampleCSV() {
-    downloadFile(generateSampleCSV(), 'menus-sample.csv', 'text/csv');
+  async function handleSyncDownload(format: 'csv' | 'xlsx') {
+    if (!accessToken || !effectiveRestaurantId) return;
+    try {
+      setSyncDownloadFormat(format);
+      const blob = await downloadMenuSyncExport(accessToken, format, isSuperAdmin ? effectiveRestaurantId : undefined);
+      downloadFile(blob, `menus-current.${format}`, blob.type);
+    } catch (requestError) {
+      dispatchSync({ type: 'REQUEST_FAILED', message: requestError instanceof Error ? requestError.message : 'Unable to download menu data.' });
+    } finally {
+      setSyncDownloadFormat(null);
+    }
   }
 
-  async function handleDownloadSampleExcel() {
+  async function handleSyncConfirm() {
+    if (!accessToken || !syncState.preview || !canConfirmMenuSync(syncState)) return;
+    setIsSyncConfirmOpen(false);
+    dispatchSync({ type: 'CONFIRM_STARTED' });
     try {
-      const blob = await generateSampleExcel();
-      downloadFile(blob, 'menus-sample.xlsx', blob.type);
-    } catch {
-      // ignore
+      const result = await confirmMenuSync(accessToken, syncState.preview.previewId, isSuperAdmin ? effectiveRestaurantId : undefined);
+      dispatchSync({ type: 'CONFIRM_SUCCEEDED', result });
+      setSuccessMessage('Menus synchronized successfully.');
+      setPage(1);
+      await reloadMenus(accessToken, 1);
+    } catch (requestError) {
+      dispatchSync({ type: 'REQUEST_FAILED', message: requestError instanceof Error ? requestError.message : 'Unable to synchronize menus.' });
     }
   }
 
@@ -546,7 +476,7 @@ export default function MenusPage() {
               disabled={!effectiveRestaurantId}
               className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Bulk Import
+              Export & Sync
             </button>
             <button
               type="button"
@@ -954,118 +884,121 @@ export default function MenusPage() {
 
         {isBulkOpen ? (
           <CommonModal
-            title="Bulk Import Menus"
-            description="Upload a CSV or Excel file to create multiple menus at once."
+            title="Export & Sync Menus"
+            description="Download the restaurant's complete current menu data, edit it, and preview every change before applying it."
             onClose={closeBulkModal}
-            widthClassName="max-w-lg"
+            widthClassName="max-w-4xl"
           >
             <div className="space-y-5">
-              {/* Sample download */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Sample Files
+                  1. Download current menu data
                 </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Download a sample, fill in your data, then upload.
+                  Every subitem is on its own row. Do not edit the hidden menuId or categoryId columns.
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <LoadingButton
                     type="button"
-                    onClick={handleDownloadSampleCSV}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                    onClick={() => void handleSyncDownload('csv')}
+                    disabled={syncDownloadFormat !== null}
+                    isLoading={syncDownloadFormat === 'csv'}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:opacity-60"
                   >
-                    Download CSV Sample
-                  </button>
-                  <button
+                    Download Current CSV
+                  </LoadingButton>
+                  <LoadingButton
                     type="button"
-                    onClick={() => void handleDownloadSampleExcel()}
-                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                    onClick={() => void handleSyncDownload('xlsx')}
+                    disabled={syncDownloadFormat !== null}
+                    isLoading={syncDownloadFormat === 'xlsx'}
+                    className="w-full rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
                   >
-                    Download Excel Sample
-                  </button>
+                    Download Current Excel
+                  </LoadingButton>
                 </div>
               </div>
 
-              {/* Format hint */}
-              <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
-                <p><strong>Required columns:</strong> <code>title</code>, <code>items</code></p>
-                <p><strong>Optional:</strong> <code>hotSellingItems</code></p>
-                <p className="text-amber-700">Separate multiple items within a cell using <code>|</code> (pipe). Example: <code>MINT MOJITO|BLUE LAGOON</code></p>
+              <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">The uploaded file is the complete current menu snapshot.</p>
+                <p>Blank menu IDs create new menus. Missing active menus are deactivated.</p>
+                <p>Missing sections or subitems from an included menu are removed from current configuration. Historical bookings are unchanged.</p>
               </div>
 
-              {/* Upload form */}
-              <form onSubmit={(e) => void handleBulkUpload(e)} className="space-y-4">
+              <form onSubmit={(event) => void handleSyncPreview(event)} className="space-y-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    File (CSV or Excel)
+                    2. Upload the edited CSV or Excel file
                   </label>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".csv,.xlsx,.xls"
-                    disabled={bulk.status === 'uploading'}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      setBulk((prev) => ({
-                        ...prev,
-                        file: f,
-                        status: 'idle',
-                        result: null,
-                        errorMessage: '',
-                      }));
+                    accept=".csv,.xlsx"
+                    disabled={syncState.phase === 'uploading' || syncState.phase === 'confirming'}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setSyncFile(file);
+                      dispatchSync({ type: 'FILE_SELECTED', fileName: file?.name ?? '' });
                     }}
                     className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-50 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-amber-700 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
                   />
                 </div>
 
-                {/* Live progress */}
-                {bulk.status === 'uploading' ? (
-                  <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <Spinner />
-                    <span className="text-sm font-medium text-amber-700">
-                      Uploading and processing…
-                    </span>
+                {syncState.errorMessage ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {syncState.errorMessage}
                   </div>
                 ) : null}
 
-                {/* Error */}
-                {bulk.status === 'error' ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {bulk.errorMessage}
-                  </div>
+                {syncState.preview ? <MenuSyncPreviewPanel preview={syncState.preview} /> : null}
+
+                {syncState.phase === 'success' && syncState.result ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">Menus synchronized successfully. The menu list has been refreshed.</div>
                 ) : null}
 
-                {/* Result summary */}
-                {bulk.status === 'done' && bulk.result ? (
-                  <UploadResultSummary result={bulk.result} />
-                ) : null}
-
-                <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
+                <div className="grid gap-2 border-t border-slate-200 pt-4 sm:flex sm:justify-end">
                   <button
                     type="button"
                     onClick={closeBulkModal}
-                    disabled={bulk.status === 'uploading'}
-                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                    disabled={syncState.phase === 'uploading' || syncState.phase === 'confirming'}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
                   >
                     Close
                   </button>
-                  <button
+                  <LoadingButton
                     type="submit"
-                    disabled={!bulk.file || bulk.status === 'uploading'}
-                    className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!syncFile || syncState.phase === 'uploading' || syncState.phase === 'confirming'}
+                    isLoading={syncState.phase === 'uploading'}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60 sm:w-auto"
                   >
-                    {bulk.status === 'uploading' ? (
-                      <span className="flex items-center gap-2">
-                        <Spinner /> Uploading…
-                      </span>
-                    ) : (
-                      'Upload'
-                    )}
-                  </button>
+                    Preview Changes
+                  </LoadingButton>
+                  {syncState.preview ? (
+                    <LoadingButton
+                      type="button"
+                      onClick={() => setIsSyncConfirmOpen(true)}
+                      disabled={!canConfirmMenuSync(syncState)}
+                      isLoading={syncState.phase === 'confirming'}
+                      className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition hover:bg-amber-500 disabled:opacity-50 sm:w-auto"
+                    >
+                      Confirm Synchronization
+                    </LoadingButton>
+                  ) : null}
                 </div>
               </form>
             </div>
           </CommonModal>
+        ) : null}
+
+        {isSyncConfirmOpen && syncState.preview ? (
+          <ConfirmModal
+            title="Synchronize menus?"
+            message={`This will create ${syncState.preview.summary.create}, update ${syncState.preview.summary.update}, reactivate ${syncState.preview.summary.reactivate}, deactivate ${syncState.preview.summary.deactivate}, remove ${syncState.preview.summary.removedSections} sections, and remove ${syncState.preview.summary.removedSubitems} subitems. Historical bookings will not change.`}
+            confirmLabel="Synchronize"
+            isLoading={syncState.phase === 'confirming'}
+            onCancel={() => setIsSyncConfirmOpen(false)}
+            onConfirm={() => void handleSyncConfirm()}
+          />
         ) : null}
       </section>
     </ConfigRoute>
