@@ -72,7 +72,11 @@ export function categorySyncReducer(
         errorMessage: '',
       };
     case 'REQUEST_FAILED':
-      return { ...state, phase: 'error', errorMessage: event.message };
+      return {
+        ...state,
+        phase: state.preview ? 'preview' : 'error',
+        errorMessage: event.message,
+      };
     case 'RESET':
       return initialCategorySyncState;
   }

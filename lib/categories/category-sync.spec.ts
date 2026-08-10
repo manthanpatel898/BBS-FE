@@ -68,10 +68,18 @@ function main() {
 
   const failed = categorySyncReducer(confirming, {
     type: 'REQUEST_FAILED',
-    message: 'Preview expired',
+    message: 'Network request failed',
   });
-  assert.equal(failed.phase, 'error');
-  assert.equal(failed.errorMessage, 'Preview expired');
+  assert.equal(failed.phase, 'preview');
+  assert.equal(failed.errorMessage, 'Network request failed');
+  assert.equal(canConfirmCategorySync(failed), true);
+
+  const uploadFailed = categorySyncReducer(uploading, {
+    type: 'REQUEST_FAILED',
+    message: 'Invalid file',
+  });
+  assert.equal(uploadFailed.phase, 'error');
+  assert.equal(canConfirmCategorySync(uploadFailed), false);
 
   console.log('Category synchronization frontend state tests passed.');
 }
