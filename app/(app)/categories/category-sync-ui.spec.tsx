@@ -43,5 +43,11 @@ const pageSource = readFileSync(
 );
 assert.match(pageSource, /accept="\.csv,\.xlsx"/);
 assert.doesNotMatch(pageSource, /accept="[^"]*\.xls(?:,|\")/);
+assert.match(
+  pageSource,
+  /Excel includes guided menu association sheets and dropdowns/,
+);
+assert.match(pageSource, /Only the Categories sheet is synchronized/);
+assert.match(pageSource, /CSV is intended for direct table editing/);
 
 console.log('Category synchronization UI tests passed.');

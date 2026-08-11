@@ -1054,6 +1054,16 @@ export default function CategoriesPage() {
                 <p className="mt-1 text-sm text-slate-600">
                   The file contains active and inactive categories for this restaurant. Do not edit the categoryId column.
                 </p>
+                <div className="mt-2 space-y-1 text-xs leading-5 text-slate-600 sm:text-sm">
+                  <p>
+                    Excel includes guided menu association sheets and dropdowns.
+                    Only the Categories sheet is synchronized.
+                  </p>
+                  <p>
+                    CSV is intended for direct table editing. Use Excel when you
+                    want to search and associate current menu items more easily.
+                  </p>
+                </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <LoadingButton
                     type="button"
