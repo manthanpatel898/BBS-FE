@@ -1,5 +1,8 @@
 import { strict as assert } from 'node:assert';
-import { formatPrintEventDateTime } from '../lib/print-date';
+import {
+  formatAdvancePaymentDateTime,
+  formatPrintEventDateTime,
+} from '../lib/print-date';
 
 assert.equal(
   formatPrintEventDateTime({
@@ -26,4 +29,22 @@ assert.equal(
     endTime: null,
   }),
   'Pending | Time pending',
+);
+
+assert.equal(
+  formatAdvancePaymentDateTime(
+    '2026-08-09T00:00:00.000Z',
+    '2026-08-09T13:12:00.000Z',
+  ),
+  '09/08/2026, 06:42 PM',
+);
+
+assert.equal(
+  formatAdvancePaymentDateTime('2026-08-09T00:00:00.000Z', null),
+  '09/08/2026',
+);
+
+assert.equal(
+  formatAdvancePaymentDateTime('2026-08-09T00:00:00.000Z', 'invalid'),
+  '09/08/2026',
 );

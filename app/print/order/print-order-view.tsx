@@ -11,7 +11,11 @@ import {
   fetchSettings,
 } from '@/lib/auth/api';
 import { AppSettings, OdcOrder, Order, Restaurant } from '@/lib/auth/types';
-import { formatPrintEventDateTime, formatSlashDate } from '@/lib/print-date';
+import {
+  formatAdvancePaymentDateTime,
+  formatPrintEventDateTime,
+  formatSlashDate,
+} from '@/lib/print-date';
 import { formatFoodServiceTime } from '@/lib/bookings/food-service-schedule';
 
 type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
@@ -499,7 +503,7 @@ function PrintDocument({
                         key={payment.id ?? `${payment.date}-${payment.amount}-${payment.paymentMode}-${index}`}
                         className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}
                       >
-                        <td className="border-b border-stone-300 px-2 py-1">{formatDateTime(payment.date)}</td>
+                        <td className="border-b border-stone-300 px-2 py-1">{formatAdvancePaymentDateTime(payment.date, payment.createdAt)}</td>
                         <td className="border-b border-stone-300 px-2 py-1">{payment.paymentMode}</td>
                         <td className="border-b border-stone-300 px-2 py-1">{formatCurrency(payment.amount)}</td>
                         <td className="border-b border-stone-300 px-2 py-1">{payment.remark || '-'}</td>
@@ -777,7 +781,7 @@ function OdcPrintDocument({
                         key={payment.id ?? `${payment.date}-${payment.amount}-${payment.paymentMode}-${index}`}
                         className={index % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'}
                       >
-                        <td className="border-b border-stone-300 px-2 py-1">{formatDateTime(payment.date)}</td>
+                        <td className="border-b border-stone-300 px-2 py-1">{formatAdvancePaymentDateTime(payment.date, payment.createdAt)}</td>
                         <td className="border-b border-stone-300 px-2 py-1">{payment.paymentMode}</td>
                         <td className="border-b border-stone-300 px-2 py-1">{formatCurrency(payment.amount)}</td>
                         <td className="border-b border-stone-300 px-2 py-1">{payment.remark || '-'}</td>

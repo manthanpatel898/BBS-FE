@@ -28,6 +28,33 @@ export function formatSlashDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
+export function formatAdvancePaymentDateTime(
+  paymentDate: string,
+  createdAt?: string | null,
+) {
+  const date = new Date(paymentDate);
+  const dateText = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+  const captureDate = createdAt ? new Date(createdAt) : null;
+
+  if (!captureDate || Number.isNaN(captureDate.getTime())) {
+    return dateText;
+  }
+
+  const timeText = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(captureDate);
+
+  return `${dateText}, ${timeText}`;
+}
+
 function formatWeekday(value: string) {
   return new Intl.DateTimeFormat('en-GB', { weekday: 'long' }).format(
     new Date(value),
