@@ -1309,3 +1309,65 @@ export interface BulkUploadResult {
   skipped: number;
   errors: BulkUploadError[];
 }
+
+export interface CategorySyncSummary {
+  create: number;
+  update: number;
+  unchanged: number;
+  reactivate: number;
+  deactivate: number;
+}
+
+export interface CategorySyncIssue {
+  row: number;
+  code: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+export interface CategorySyncPreview {
+  previewId: string;
+  expiresAt: string;
+  canConfirm: boolean;
+  totalRows: number;
+  summary: CategorySyncSummary;
+  issues: CategorySyncIssue[];
+}
+
+export interface CategorySyncConfirmationResult {
+  previewId: string;
+  summary: CategorySyncSummary;
+  appliedAt: string;
+}
+
+export interface MenuSyncSummary {
+  create: number;
+  update: number;
+  unchanged: number;
+  reactivate: number;
+  deactivate: number;
+  removedSections: number;
+  removedSubitems: number;
+}
+
+export interface MenuSyncIssue {
+  row: number;
+  code: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+export interface MenuSyncPreview {
+  previewId: string;
+  expiresAt: string;
+  canConfirm: boolean;
+  totalRows: number;
+  summary: MenuSyncSummary;
+  issues: MenuSyncIssue[];
+}
+
+export interface MenuSyncConfirmationResult {
+  previewId: string;
+  summary: MenuSyncSummary;
+  appliedAt: string;
+}

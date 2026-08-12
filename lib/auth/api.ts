@@ -7,6 +7,10 @@ import {
   AuthSession,
   AuthUser,
   BulkUploadResult,
+  CategorySyncConfirmationResult,
+  CategorySyncPreview,
+  MenuSyncConfirmationResult,
+  MenuSyncPreview,
   CalendarOrder,
   CalendarView,
   Category,
@@ -2149,6 +2153,136 @@ export async function bulkUploadCategories(
     throw new Error(message);
   }
   return payload.data;
+}
+
+export async function downloadCategorySyncExport(
+  accessToken: string,
+  format: 'csv' | 'xlsx',
+  restaurantId?: string,
+) {
+  const query = restaurantId
+    ? `?restaurantId=${encodeURIComponent(restaurantId)}`
+    : '';
+  const response = await fetch(`${API_URL}/categories/sync/export/${format}${query}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    if (response.status === 401) notifySessionExpired();
+    const payload = (await response.json().catch(() => null)) as
+      | { message?: string | string[] }
+      | null;
+    throw new Error(
+      Array.isArray(payload?.message)
+        ? payload.message.join(', ')
+        : payload?.message ?? 'Unable to download category data.',
+    );
+  }
+  return response.blob();
+}
+
+export async function previewCategorySync(
+  accessToken: string,
+  file: File,
+  restaurantId?: string,
+) {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  const query = restaurantId
+    ? `?restaurantId=${encodeURIComponent(restaurantId)}`
+    : '';
+  const response = await fetch(`${API_URL}/categories/sync/preview${query}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+  return parseResponse<CategorySyncPreview>(response, {
+    notifyOnUnauthorized: true,
+  });
+}
+
+export async function confirmCategorySync(
+  accessToken: string,
+  previewId: string,
+  restaurantId?: string,
+) {
+  const query = restaurantId
+    ? `?restaurantId=${encodeURIComponent(restaurantId)}`
+    : '';
+  const response = await fetch(
+    `${API_URL}/categories/sync/${encodeURIComponent(previewId)}/confirm${query}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
+  return parseResponse<CategorySyncConfirmationResult>(response, {
+    notifyOnUnauthorized: true,
+  });
+}
+
+export async function downloadMenuSyncExport(
+  accessToken: string,
+  format: 'csv' | 'xlsx',
+  restaurantId?: string,
+) {
+  const query = restaurantId
+    ? `?restaurantId=${encodeURIComponent(restaurantId)}`
+    : '';
+  const response = await fetch(`${API_URL}/menus/sync/export/${format}${query}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    if (response.status === 401) notifySessionExpired();
+    const payload = (await response.json().catch(() => null)) as
+      | { message?: string | string[] }
+      | null;
+    throw new Error(
+      Array.isArray(payload?.message)
+        ? payload.message.join(', ')
+        : payload?.message ?? 'Unable to download menu data.',
+    );
+  }
+  return response.blob();
+}
+
+export async function previewMenuSync(
+  accessToken: string,
+  file: File,
+  restaurantId?: string,
+) {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  const query = restaurantId
+    ? `?restaurantId=${encodeURIComponent(restaurantId)}`
+    : '';
+  const response = await fetch(`${API_URL}/menus/sync/preview${query}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+  return parseResponse<MenuSyncPreview>(response, {
+    notifyOnUnauthorized: true,
+  });
+}
+
+export async function confirmMenuSync(
+  accessToken: string,
+  previewId: string,
+  restaurantId?: string,
+) {
+  const query = restaurantId
+    ? `?restaurantId=${encodeURIComponent(restaurantId)}`
+    : '';
+  const response = await fetch(
+    `${API_URL}/menus/sync/${encodeURIComponent(previewId)}/confirm${query}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
+  return parseResponse<MenuSyncConfirmationResult>(response, {
+    notifyOnUnauthorized: true,
+  });
 }
 
 export async function bulkUploadHotDates(
