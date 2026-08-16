@@ -284,6 +284,7 @@ export interface PaginatedEmployees {
 
 export interface Category {
   menuRules: CategoryMenuRule[];
+  flexibleChoiceGroups?: FlexibleChoiceGroup[];
   id: string;
   restaurantId: string;
   name: string;
@@ -294,6 +295,15 @@ export interface Category {
   updatedByUserId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FlexibleChoiceGroup {
+  groupId: string;
+  menuId: string;
+  menuTitle: string;
+  includedChoices: number;
+  allowedDirectItems: string[];
+  submenuRules: Array<{ sectionTitle: string; allowedItems: string[] }>;
 }
 
 export interface CategoryMenuRule {
@@ -349,6 +359,11 @@ export interface Menu {
   title: string;
   displayOrder: number;
   sections: MenuSection[];
+  directItems?: {
+    items: string[];
+    hotSellingItems?: string[];
+    subitemDescriptions?: Array<{ name: string; description: string }>;
+  };
   hotSelling?: boolean;
   isActive?: boolean;
   createdByUserId?: string;

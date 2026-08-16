@@ -545,6 +545,18 @@ export async function createCategory(
   });
 }
 
+export async function createFlexibleCategory(
+  accessToken: string,
+  payload: import('@/lib/categories/flexible-category-builder').FlexibleCategoryPayload,
+  idempotencyKey: string,
+) {
+  return authorizedRequest<Category>('/categories/flexible', accessToken, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateCategory(
   accessToken: string,
   categoryId: string,
@@ -552,11 +564,18 @@ export async function updateCategory(
     name: string;
     pricePerPlate: number;
     description: string | null;
-    menuRules: Array<{
+    menuRules?: Array<{
       menuId: string;
       sectionTitle: string;
       allowedItems: string[];
       selectionLimit: number;
+    }>;
+    flexibleChoiceGroups?: Array<{
+      groupId: string;
+      menuId: string;
+      includedChoices: number;
+      allowedDirectItems: string[];
+      submenuRules: Array<{ sectionTitle: string; allowedItems: string[] }>;
     }>;
   },
 ) {

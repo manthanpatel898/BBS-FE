@@ -11,10 +11,12 @@ import { RoleBasedRestaurantSelector } from '@/components/ui/role-based-restaura
 import {
   confirmCategorySync,
   createCategory,
+  createFlexibleCategory,
   deleteCategory,
   downloadCategorySyncExport,
   fetchCategories,
   fetchMenus,
+  fetchMyRestaurant,
   fetchRestaurants,
   previewCategorySync,
   updateCategory,
@@ -22,6 +24,13 @@ import {
 import { Category, CategoryMenuRule, Menu, Restaurant } from '@/lib/auth/types';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 import { CategorySyncPreviewPanel } from '@/components/categories/category-sync-preview-panel';
+import { FlexibleCategoryBuilder } from '@/components/categories/flexible-category-builder';
+import {
+  buildFlexibleCategoryPayload,
+  createFlexibleCategoryDraft,
+  FlexibleCategoryDraft,
+  validateFlexibleCategoryDraft,
+} from '@/lib/categories/flexible-category-builder';
 import {
   canConfirmCategorySync,
   categorySyncReducer,
@@ -71,6 +80,24 @@ export function toggleAllVisibleSubitems(
   return allSelected ? [] : [...availableItems];
 }
 
+function categoryConfigurationSummary(category: Category) {
+  if (category.flexibleChoiceGroups?.length) {
+    const visibleItems = category.flexibleChoiceGroups.reduce(
+      (total, group) => total + group.allowedDirectItems.length + group.submenuRules.reduce((sum, rule) => sum + rule.allowedItems.length, 0),
+      0,
+    );
+    return {
+      primary: `${category.flexibleChoiceGroups.length} flexible menu${category.flexibleChoiceGroups.length === 1 ? '' : 's'}`,
+      secondary: `${visibleItems} visible item${visibleItems === 1 ? '' : 's'}`,
+    };
+  }
+  const visibleItems = category.menuRules.reduce((count, rule) => count + rule.allowedItems.length, 0);
+  return {
+    primary: `${category.menuRules.length} item rule${category.menuRules.length === 1 ? '' : 's'}`,
+    secondary: `${visibleItems} visible subitems`,
+  };
+}
+
 export default function CategoriesPage() {
   useAppPageHeader({
     eyebrow: 'Categories',
@@ -80,6 +107,7 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [companyRestaurant, setCompanyRestaurant] = useState<Restaurant | null>(null);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -93,6 +121,9 @@ export default function CategoriesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formState, setFormState] = useState<CategoryFormState>(initialFormState);
+  const [configurationMode, setConfigurationMode] = useState<'STANDARD' | 'FLEXIBLE'>('STANDARD');
+  const [flexibleDraft, setFlexibleDraft] = useState<FlexibleCategoryDraft>(() => createFlexibleCategoryDraft());
+  const [flexibleErrors, setFlexibleErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -111,6 +142,19 @@ export default function CategoriesPage() {
   const isSuperAdmin = user?.role === 'super_admin';
   const effectiveRestaurantId = isSuperAdmin ? selectedRestaurantId : user?.restaurantId ?? '';
   const canLoad = Boolean(accessToken && effectiveRestaurantId);
+  const activeRestaurant = isSuperAdmin
+    ? restaurants.find((restaurant) => restaurant.id === effectiveRestaurantId) ?? null
+    : companyRestaurant;
+  const flexibleBuilderEnabled = activeRestaurant?.businessType === 'BANQUET' && activeRestaurant.enableFlexibleMenuBuilder === true;
+
+  useEffect(() => {
+    if (!accessToken || isSuperAdmin || !user?.restaurantId) return;
+    let active = true;
+    void fetchMyRestaurant(accessToken)
+      .then((restaurant) => { if (active) setCompanyRestaurant(restaurant); })
+      .catch(() => { if (active) setCompanyRestaurant(null); });
+    return () => { active = false; };
+  }, [accessToken, isSuperAdmin, user?.restaurantId]);
 
   useEffect(() => {
     if (!accessToken || !isSuperAdmin) {
@@ -205,6 +249,9 @@ export default function CategoriesPage() {
   function openCreateModal() {
     setEditingCategory(null);
     setFormState(initialFormState);
+    setConfigurationMode('STANDARD');
+    setFlexibleDraft(createFlexibleCategoryDraft());
+    setFlexibleErrors({});
     setError('');
     setSuccessMessage('');
     setIsModalOpen(true);
@@ -212,6 +259,25 @@ export default function CategoriesPage() {
 
   function openEditModal(category: Category) {
     setEditingCategory(category);
+    const isFlexible = (category.flexibleChoiceGroups?.length ?? 0) > 0;
+    setConfigurationMode(isFlexible ? 'FLEXIBLE' : 'STANDARD');
+    setFlexibleErrors({});
+    setFlexibleDraft({
+      name: category.name,
+      pricePerPlate: String(category.pricePerPlate),
+      description: category.description ?? '',
+      groups: (category.flexibleChoiceGroups ?? []).map((group) => {
+        return {
+          id: group.groupId,
+          menuMode: 'EXISTING' as const,
+          menuId: group.menuId,
+          menuTitle: group.menuTitle,
+          includedChoices: String(group.includedChoices),
+          directItems: [...group.allowedDirectItems],
+          submenus: group.submenuRules.map((rule) => ({ id: crypto.randomUUID(), title: rule.sectionTitle, items: [...rule.allowedItems] })),
+        };
+      }),
+    });
     setFormState({
       name: category.name,
       pricePerPlate: String(category.pricePerPlate),
@@ -383,6 +449,50 @@ export default function CategoriesPage() {
     }
 
     const token = accessToken;
+
+    if (configurationMode === 'FLEXIBLE') {
+      const validation = validateFlexibleCategoryDraft(flexibleDraft);
+      setFlexibleErrors(validation.errors);
+      if (!validation.isValid) {
+        setError('Review the highlighted flexible menu fields.');
+        return;
+      }
+      try {
+        setIsSubmitting(true);
+        setError('');
+        const payload = buildFlexibleCategoryPayload(flexibleDraft);
+        if (editingCategory) {
+          await updateCategory(token, editingCategory.id, {
+            name: payload.name,
+            pricePerPlate: payload.pricePerPlate,
+            description: payload.description,
+            flexibleChoiceGroups: payload.groups.map((group, index) => ({
+              groupId: group.groupId,
+              menuId: group.menuId ?? flexibleDraft.groups[index]?.menuId ?? '',
+              includedChoices: group.includedChoices,
+              allowedDirectItems: group.allowedDirectItems,
+              submenuRules: group.submenuRules,
+            })),
+          });
+          setSuccessMessage('Flexible category updated successfully.');
+        } else {
+          await createFlexibleCategory(token, {
+            ...payload,
+            ...(isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {}),
+          }, crypto.randomUUID());
+          setSuccessMessage('Flexible category created successfully.');
+        }
+        setIsModalOpen(false);
+        const nextPage = editingCategory ? page : 1;
+        setPage(nextPage);
+        await reloadCategories(token, nextPage);
+      } catch (requestError) {
+        setError(requestError instanceof Error ? requestError.message : 'Unable to save flexible category.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -699,9 +809,9 @@ export default function CategoriesPage() {
                         ₹{category.pricePerPlate.toFixed(2)}
                       </td>
                       <td className="px-5 py-4 text-slate-700">
-                        <p>{category.menuRules.length} item rule{category.menuRules.length === 1 ? '' : 's'}</p>
+                        <p>{categoryConfigurationSummary(category).primary}</p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {category.menuRules.reduce((count, rule) => count + rule.allowedItems.length, 0)} visible subitems
+                          {categoryConfigurationSummary(category).secondary}
                         </p>
                       </td>
                       <td className="px-5 py-4 text-slate-500">
@@ -755,8 +865,7 @@ export default function CategoriesPage() {
                   ₹{category.pricePerPlate.toFixed(2)} / plate
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {category.menuRules.length} item rule{category.menuRules.length === 1 ? '' : 's'} ·{' '}
-                  {category.menuRules.reduce((count, rule) => count + rule.allowedItems.length, 0)} visible subitems
+                  {categoryConfigurationSummary(category).primary} · {categoryConfigurationSummary(category).secondary}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">{category.description || 'No description'}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -812,6 +921,29 @@ export default function CategoriesPage() {
             widthClassName="max-w-6xl"
           >
             <form className="space-y-6" onSubmit={handleSubmit}>
+              {flexibleBuilderEnabled ? (
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="group" aria-label="Category configuration mode">
+                  {(['STANDARD', 'FLEXIBLE'] as const).map((mode) => {
+                    const disabled = Boolean(editingCategory) && configurationMode !== mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => setConfigurationMode(mode)}
+                        className={`min-h-12 rounded-xl px-3 py-2 text-sm font-bold transition ${configurationMode === mode ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'} disabled:cursor-not-allowed disabled:opacity-40`}
+                      >
+                        {mode === 'STANDARD' ? 'Standard configuration' : 'Flexible configuration'}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {configurationMode === 'FLEXIBLE' && flexibleBuilderEnabled ? (
+                <FlexibleCategoryBuilder draft={flexibleDraft} menus={menus} errors={flexibleErrors} onChange={(draft) => { setFlexibleDraft(draft); setFlexibleErrors({}); }} />
+              ) : (
+                <>
               <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                 <div className="grid gap-4 md:grid-cols-2">
                   <input
@@ -1079,6 +1211,8 @@ export default function CategoriesPage() {
                   )}
                 </div>
               </div>
+                </>
+              )}
 
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
@@ -1094,7 +1228,7 @@ export default function CategoriesPage() {
                   isLoading={isSubmitting}
                   className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
                 >
-                  {editingCategory ? 'Save changes' : 'Create category'}
+                  {editingCategory ? 'Save changes' : configurationMode === 'FLEXIBLE' ? 'Create flexible category' : 'Create category'}
                 </LoadingButton>
               </div>
             </form>
