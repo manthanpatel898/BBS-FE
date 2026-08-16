@@ -60,6 +60,17 @@ function makeRuleKey(menuId: string, sectionTitle: string) {
   return `${menuId}:${sectionTitle}`;
 }
 
+export function toggleAllVisibleSubitems(
+  selectedItems: string[],
+  availableItems: string[],
+) {
+  const allSelected =
+    availableItems.length > 0 &&
+    availableItems.every((item) => selectedItems.includes(item));
+
+  return allSelected ? [] : [...availableItems];
+}
+
 export default function CategoriesPage() {
   useAppPageHeader({
     eyebrow: 'Categories',
@@ -313,6 +324,34 @@ export default function CategoriesPage() {
           allowedItems,
           selectionLimit: exists
             ? Math.min(rule.selectionLimit, allowedItems.length || 1)
+            : rule.selectionLimit,
+        };
+      }),
+    }));
+  }
+
+  function toggleAllAllowedItems(
+    menuId: string,
+    sectionTitle: string,
+    availableItems: string[],
+  ) {
+    setFormState((current) => ({
+      ...current,
+      menuRules: current.menuRules.map((rule) => {
+        if (rule.menuId !== menuId || rule.sectionTitle !== sectionTitle) {
+          return rule;
+        }
+
+        const allowedItems = toggleAllVisibleSubitems(
+          rule.allowedItems,
+          availableItems,
+        );
+
+        return {
+          ...rule,
+          allowedItems,
+          selectionLimit: allowedItems.length
+            ? Math.min(rule.selectionLimit, allowedItems.length)
             : rule.selectionLimit,
         };
       }),
@@ -933,9 +972,43 @@ export default function CategoriesPage() {
                               </div>
 
                               <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                  Visible Subitems
-                                </p>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                      Visible Subitems
+                                    </p>
+                                    <p className="mt-1 text-xs font-medium text-slate-500">
+                                      {rule.allowedItems.length} of {section.items.length} selected
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      toggleAllAllowedItems(
+                                        rule.menuId,
+                                        rule.sectionTitle,
+                                        section.items,
+                                      )
+                                    }
+                                    disabled={section.items.length === 0}
+                                    className="min-h-10 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-amber-400 hover:bg-amber-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                                    aria-label={`${
+                                      section.items.length > 0 &&
+                                      section.items.every((item) =>
+                                        rule.allowedItems.includes(item),
+                                      )
+                                        ? 'Clear all'
+                                        : 'Select all'
+                                    } subitems for ${rule.sectionTitle}`}
+                                  >
+                                    {section.items.length > 0 &&
+                                    section.items.every((item) =>
+                                      rule.allowedItems.includes(item),
+                                    )
+                                      ? 'Clear all'
+                                      : 'Select all'}
+                                  </button>
+                                </div>
                                 <p className="mt-1 text-sm text-slate-500">
                                   Start with none selected, then choose only the subitems that should appear while booking.
                                 </p>
