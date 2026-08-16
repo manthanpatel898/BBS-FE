@@ -17,6 +17,7 @@ import {
 } from '@/lib/auth/api';
 import { BusinessType, Restaurant, SubscriptionLog } from '@/lib/auth/types';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
+import { normalizeFlexibleMenuBuilderFlag } from '@/lib/restaurants/flexible-menu-builder';
 
 type RestaurantFormState = {
   businessType: BusinessType;
@@ -36,6 +37,7 @@ type RestaurantFormState = {
   enableVoucherFlow: boolean;
   enableWhatsappNotifications: boolean;
   enableOdc: boolean;
+  enableFlexibleMenuBuilder: boolean;
   billingEnabled: boolean;
   gstNumber: string;
   invoicePrefix: string;
@@ -62,6 +64,7 @@ const initialFormState: RestaurantFormState = {
   enableVoucherFlow: false,
   enableWhatsappNotifications: false,
   enableOdc: false,
+  enableFlexibleMenuBuilder: false,
   billingEnabled: false,
   gstNumber: '',
   invoicePrefix: '',
@@ -198,6 +201,7 @@ export default function RestaurantsPage() {
       enableVoucherFlow: restaurant.enableVoucherFlow ?? false,
       enableWhatsappNotifications: restaurant.enableWhatsappNotifications ?? false,
       enableOdc: restaurant.enableOdc ?? false,
+      enableFlexibleMenuBuilder: restaurant.enableFlexibleMenuBuilder ?? false,
       billingEnabled: restaurant.billingEnabled ?? false,
       gstNumber: restaurant.gstNumber ?? '',
       invoicePrefix: restaurant.invoicePrefix ?? '',
@@ -228,6 +232,10 @@ export default function RestaurantsPage() {
       setError('');
       const payload = {
         ...formState,
+        enableFlexibleMenuBuilder: normalizeFlexibleMenuBuilderFlag(
+          formState.businessType,
+          formState.enableFlexibleMenuBuilder,
+        ),
         contactNumbers: parseContactNumbers(formState.contactNumbers),
         website: formState.website.trim() || null,
         logoUrl: formState.logoUrl.trim() || null,
@@ -661,6 +669,10 @@ export default function RestaurantsPage() {
                         setFormState((s) => ({
                           ...s,
                           businessType: e.target.value as BusinessType,
+                          enableFlexibleMenuBuilder:
+                            e.target.value === 'BANQUET'
+                              ? s.enableFlexibleMenuBuilder
+                              : false,
                         }))
                       }
                       disabled={Boolean(editingRestaurant)}
@@ -810,6 +822,27 @@ export default function RestaurantsPage() {
                   />
                   {formState.businessType === 'BANQUET' ? (
                     <div className="grid gap-4 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 md:col-span-2 md:grid-cols-2">
+                      <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-white px-4 py-3 md:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={formState.enableFlexibleMenuBuilder}
+                          onChange={(event) =>
+                            setFormState((state) => ({
+                              ...state,
+                              enableFlexibleMenuBuilder: event.target.checked,
+                            }))
+                          }
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-slate-900">
+                            Enable Flexible Menu Builder
+                          </span>
+                          <span className="mt-0.5 block text-xs leading-5 text-slate-600">
+                            Allows direct menu items, optional submenus, and shared choice limits for flexible package configuration.
+                          </span>
+                        </span>
+                      </label>
                       <label className="flex items-center gap-3 md:col-span-2">
                         <input type="checkbox" checked={formState.billingEnabled} onChange={(e)=>setFormState((s)=>({...s,billingEnabled:e.target.checked}))} className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400" />
                         <span><b className="block text-sm text-slate-900">Enable GST tax invoices</b><span className="text-xs text-slate-600">Allows invoices only for confirmed banquet bookings.</span></span>

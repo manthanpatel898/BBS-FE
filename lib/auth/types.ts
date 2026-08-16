@@ -77,6 +77,7 @@ export interface Restaurant {
   enableVoucherFlow?: boolean;
   enableWhatsappNotifications?: boolean;
   enableOdc?: boolean;
+  enableFlexibleMenuBuilder?: boolean;
   billingEnabled?: boolean;
   gstNumber?: string | null;
   invoicePrefix?: string | null;
