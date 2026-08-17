@@ -10,6 +10,7 @@ export function CommonModal({
   panelClassName = '',
   contentClassName = '',
   mobileFullScreen = false,
+  footer,
 }: {
   title: string;
   description?: string;
@@ -20,6 +21,7 @@ export function CommonModal({
   panelClassName?: string;
   contentClassName?: string;
   mobileFullScreen?: boolean;
+  footer?: React.ReactNode;
 }) {
   const viewportClassName = mobileFullScreen
     ? 'p-0 sm:px-4 sm:py-6'
@@ -60,6 +62,14 @@ export function CommonModal({
           </div>
         </div>
         <div className={`${mobileFullScreen ? 'app-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:mt-6 sm:p-0' : 'mt-6'} ${contentClassName}`}>{children}</div>
+        {footer ? (
+          <div
+            data-modal-footer="true"
+            className="safe-pad-bottom shrink-0 border-t border-slate-200 bg-white p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] sm:mt-6 sm:px-0 sm:pb-0"
+          >
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -677,6 +677,28 @@ export default function CategoriesPage() {
     [formState.menuRules, groupedMenus],
   );
 
+  const isFlexibleCategoryForm = configurationMode === 'FLEXIBLE' && flexibleBuilderEnabled;
+  const categoryFormActions = (externalForm: boolean) => (
+    <div className="grid gap-3 sm:flex sm:justify-end">
+      <button
+        type="button"
+        onClick={() => setIsModalOpen(false)}
+        className="min-h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
+      >
+        Cancel
+      </button>
+      <LoadingButton
+        type="submit"
+        form={externalForm ? 'category-setup-form' : undefined}
+        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        className="min-h-12 w-full rounded-xl bg-amber-400 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
+      >
+        {editingCategory ? 'Save changes' : isFlexibleCategoryForm ? 'Create flexible category' : 'Create category'}
+      </LoadingButton>
+    </div>
+  );
+
   return (
     <ConfigRoute>
       <section className="space-y-5">
@@ -912,9 +934,10 @@ export default function CategoriesPage() {
             description="Name the category, then choose which menu items are available for booking and how many selections each item allows."
             onClose={() => setIsModalOpen(false)}
             widthClassName="max-w-6xl"
-            mobileFullScreen={configurationMode === 'FLEXIBLE' && flexibleBuilderEnabled}
+            mobileFullScreen={isFlexibleCategoryForm}
+            footer={isFlexibleCategoryForm ? categoryFormActions(true) : undefined}
           >
-            <form className="space-y-6" onSubmit={handleSubmit}>
+            <form id="category-setup-form" className="space-y-6" onSubmit={handleSubmit}>
               {flexibleBuilderEnabled ? (
                 <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="group" aria-label="Category configuration mode">
                   {(['STANDARD', 'FLEXIBLE'] as const).map((mode) => {
@@ -1208,23 +1231,7 @@ export default function CategoriesPage() {
                 </>
               )}
 
-              <div className={`${configurationMode === 'FLEXIBLE' && flexibleBuilderEnabled ? 'sticky bottom-0 z-20 -mx-4 -mb-4 border-t border-slate-200 bg-white p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:p-0 sm:shadow-none' : ''} flex flex-col-reverse gap-3 sm:flex-row sm:justify-end`}>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
-                >
-                  Cancel
-                </button>
-                <LoadingButton
-                  type="submit"
-                  disabled={isSubmitting}
-                  isLoading={isSubmitting}
-                  className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:w-auto"
-                >
-                  {editingCategory ? 'Save changes' : configurationMode === 'FLEXIBLE' ? 'Create flexible category' : 'Create category'}
-                </LoadingButton>
-              </div>
+              {!isFlexibleCategoryForm ? categoryFormActions(false) : null}
             </form>
           </CommonModal>
         ) : null}
