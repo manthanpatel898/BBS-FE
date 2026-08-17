@@ -912,6 +912,7 @@ export default function CategoriesPage() {
             description="Name the category, then choose which menu items are available for booking and how many selections each item allows."
             onClose={() => setIsModalOpen(false)}
             widthClassName="max-w-6xl"
+            mobileFullScreen={configurationMode === 'FLEXIBLE' && flexibleBuilderEnabled}
           >
             <form className="space-y-6" onSubmit={handleSubmit}>
               {flexibleBuilderEnabled ? (
@@ -1207,7 +1208,7 @@ export default function CategoriesPage() {
                 </>
               )}
 
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <div className={`${configurationMode === 'FLEXIBLE' && flexibleBuilderEnabled ? 'sticky bottom-0 z-20 -mx-4 -mb-4 border-t border-slate-200 bg-white p-4 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:p-0 sm:shadow-none' : ''} flex flex-col-reverse gap-3 sm:flex-row sm:justify-end`}>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

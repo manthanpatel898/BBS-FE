@@ -21,6 +21,13 @@ async function main() {
   assert.match(html, /Bulk Add Items/);
   assert.match(html, /Add optional submenu/);
   assert.doesNotMatch(html, /overflow-x-auto/);
+  assert.match(html, /data-mobile-layout="flexible-category-builder"/);
+  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /Collapse choice group 1/);
+  assert.match(html, /sm:hidden/);
+  assert.match(html, /Choice limit/);
+  assert.match(html, /Direct items/);
+  assert.match(html, /Submenus/);
 }
 
 void main();

@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { CommonModal } from './common-modal';
+
+async function main() {
+  const html = renderToStaticMarkup(
+    <CommonModal
+      title="Create category setup"
+      description="Configure a flexible category."
+      onClose={() => undefined}
+      mobileFullScreen
+    >
+      <p>Category fields</p>
+    </CommonModal>,
+  );
+
+  assert.match(html, /data-mobile-full-screen="true"/);
+  assert.match(html, /h-\[100dvh\]/);
+  assert.match(html, /sm:rounded-2xl/);
+  assert.match(html, /overflow-y-auto/);
+}
+
+void main();

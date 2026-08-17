@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Menu } from '@/lib/auth/types';
 import { BulkMenuItemsModal } from './bulk-menu-items-modal';
 import {
@@ -20,18 +20,25 @@ type Props = {
 };
 
 export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Props) {
+  const [openGroupId, setOpenGroupId] = useState<string | null>(draft.groups[0]?.id ?? null);
   const [bulkTarget, setBulkTarget] = useState<{
     groupId: string;
     submenuId?: string;
     title: string;
     existingItems: string[];
   } | null>(null);
+
+  useEffect(() => {
+    const groupWithError = draft.groups.find((group) => errors[group.id]);
+    if (groupWithError) setOpenGroupId(groupWithError.id);
+  }, [draft.groups, errors]);
+
   function updateGroup(groupId: string, updater: (group: FlexibleChoiceGroupDraft) => FlexibleChoiceGroupDraft) {
     onChange({ ...draft, groups: draft.groups.map((group) => group.id === groupId ? updater(group) : group) });
   }
 
   return (
-    <div className="space-y-5">
+    <div data-mobile-layout="flexible-category-builder" className="space-y-4 sm:space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1.5 text-sm font-semibold text-slate-700">
           Category name
@@ -50,16 +57,41 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
       </div>
 
       {draft.groups.map((group, groupIndex) => (
-        <section key={group.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+        <section key={group.id} className={`overflow-hidden rounded-2xl border bg-slate-50 ${errors[group.id] ? 'border-red-300' : 'border-slate-200'}`}>
+          <div className="flex items-start justify-between gap-2 p-4 sm:p-5">
+            <button
+              type="button"
+              aria-expanded={openGroupId === group.id}
+              aria-controls={`choice-group-${group.id}`}
+              aria-label={`${openGroupId === group.id ? 'Collapse' : 'Expand'} choice group ${groupIndex + 1}`}
+              onClick={() => setOpenGroupId((current) => current === group.id ? null : group.id)}
+              className="min-w-0 flex-1 text-left md:pointer-events-none"
+            >
               <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">Choice group {groupIndex + 1}</p>
-              <h3 className="mt-1 text-lg font-bold text-slate-900">Menu and included choices</h3>
+              <h3 className="mt-1 truncate text-base font-bold text-slate-900 sm:text-lg">{group.menuTitle.trim() || 'Menu and included choices'}</h3>
+              <div className="mt-3 grid grid-cols-3 gap-2 sm:hidden">
+                <span className="rounded-lg bg-white px-2 py-1.5 text-center text-[11px] text-slate-600"><b className="block text-sm text-slate-900">{group.includedChoices || '—'}</b>Choice limit</span>
+                <span className="rounded-lg bg-white px-2 py-1.5 text-center text-[11px] text-slate-600"><b className="block text-sm text-slate-900">{group.directItems.length}</b>Direct items</span>
+                <span className="rounded-lg bg-white px-2 py-1.5 text-center text-[11px] text-slate-600"><b className="block text-sm text-slate-900">{group.submenus.length}</b>Submenus</span>
+              </div>
+            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              {draft.groups.length > 1 ? (
+                <button type="button" aria-label={`Remove choice group ${groupIndex + 1}`} className="flex h-11 w-11 items-center justify-center rounded-xl border border-red-200 text-xl text-red-600" onClick={() => onChange({ ...draft, groups: draft.groups.filter((item) => item.id !== group.id) })}>×</button>
+              ) : null}
+              <button
+                type="button"
+                aria-hidden="true"
+                tabIndex={-1}
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 md:hidden"
+                onClick={() => setOpenGroupId((current) => current === group.id ? null : group.id)}
+              >
+                <svg className={`h-4 w-4 transition ${openGroupId === group.id ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 7.5 5 5 5-5" /></svg>
+              </button>
             </div>
-            {draft.groups.length > 1 ? (
-              <button type="button" className="min-h-11 rounded-xl border border-red-200 px-3 text-sm font-semibold text-red-600" onClick={() => onChange({ ...draft, groups: draft.groups.filter((item) => item.id !== group.id) })}>Remove</button>
-            ) : null}
           </div>
+
+          <div id={`choice-group-${group.id}`} className={`${openGroupId === group.id ? 'block' : 'hidden'} border-t border-slate-200 p-4 md:block sm:p-5`}>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className="space-y-1.5 text-sm font-semibold text-slate-700">
@@ -180,10 +212,15 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
             </div>
           ) : null}
           {errors[group.id] ? <p className="mt-3 text-sm font-semibold text-red-600">{errors[group.id]}</p> : null}
+          </div>
         </section>
       ))}
 
-      <button type="button" className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800" onClick={() => onChange({ ...draft, groups: [...draft.groups, createFlexibleChoiceGroup()] })}>+ Add another menu choice group</button>
+      <button type="button" className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800" onClick={() => {
+        const group = createFlexibleChoiceGroup();
+        onChange({ ...draft, groups: [...draft.groups, group] });
+        setOpenGroupId(group.id);
+      }}>+ Add another menu choice group</button>
 
       {bulkTarget ? (
         <BulkMenuItemsModal
