@@ -96,7 +96,12 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className="space-y-1.5 text-sm font-semibold text-slate-700">
               Menu source
-              <select className={fieldClass} value={group.menuMode} onChange={(event) => updateGroup(group.id, (current) => ({ ...current, menuMode: event.target.value as 'EXISTING' | 'CREATE', menuId: '', menuTitle: '', directItems: [], submenus: [] }))}>
+              <select className={fieldClass} value={group.menuMode} onChange={(event) => updateGroup(group.id, (current) => {
+                const menuMode = event.target.value as FlexibleChoiceGroupDraft['menuMode'];
+                if (menuMode === 'REVISE') return { ...current, menuMode };
+                return { ...current, menuMode, menuId: '', sourceMenuId: '', menuTitle: '', directItems: [], submenus: [] };
+              })}>
+                {group.sourceMenuId ? <option value="REVISE">Edit this category&apos;s menu</option> : null}
                 <option value="CREATE">Create new reusable menu</option>
                 <option value="EXISTING">Use existing menu</option>
               </select>
@@ -160,8 +165,13 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
             </div>
           ) : (
             <div className="mt-4 space-y-4">
+              {group.menuMode === 'REVISE' ? (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm leading-5 text-blue-900">
+                  Changes create a category-specific menu revision. Other categories using the original menu remain unchanged.
+                </div>
+              ) : null}
               <label className="block space-y-1.5 text-sm font-semibold text-slate-700">
-                <span className="block">New menu name</span>
+                <span className="block">{group.menuMode === 'REVISE' ? 'Menu name' : 'New menu name'}</span>
                 <input className={fieldClass} value={group.menuTitle} onChange={(event) => updateGroup(group.id, (current) => ({ ...current, menuTitle: event.target.value }))} placeholder="e.g. Starter / Farsan" />
               </label>
               <div className="block space-y-1.5 text-sm font-semibold text-slate-700">

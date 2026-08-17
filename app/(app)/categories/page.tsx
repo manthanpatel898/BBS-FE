@@ -29,6 +29,7 @@ import { FlexibleCategoryBuilder } from '@/components/categories/flexible-catego
 import {
   buildFlexibleCategoryPayload,
   createFlexibleCategoryDraft,
+  createFlexibleCategoryEditDraft,
   FlexibleCategoryDraft,
   validateFlexibleCategoryDraft,
 } from '@/lib/categories/flexible-category-builder';
@@ -263,22 +264,7 @@ export default function CategoriesPage() {
     const isFlexible = (category.flexibleChoiceGroups?.length ?? 0) > 0;
     setConfigurationMode(isFlexible ? 'FLEXIBLE' : 'STANDARD');
     setFlexibleErrors({});
-    setFlexibleDraft({
-      name: category.name,
-      pricePerPlate: String(category.pricePerPlate),
-      description: category.description ?? '',
-      groups: (category.flexibleChoiceGroups ?? []).map((group) => {
-        return {
-          id: group.groupId,
-          menuMode: 'EXISTING' as const,
-          menuId: group.menuId,
-          menuTitle: group.menuTitle,
-          includedChoices: String(group.includedChoices),
-          directItems: [...group.allowedDirectItems],
-          submenus: group.submenuRules.map((rule) => ({ id: crypto.randomUUID(), title: rule.sectionTitle, items: [...rule.allowedItems] })),
-        };
-      }),
-    });
+    setFlexibleDraft(createFlexibleCategoryEditDraft(category));
     setFormState({
       name: category.name,
       pricePerPlate: String(category.pricePerPlate),

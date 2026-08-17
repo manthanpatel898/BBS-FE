@@ -28,6 +28,22 @@ async function main() {
   assert.match(html, /Choice limit/);
   assert.match(html, /Direct items/);
   assert.match(html, /Submenus/);
+
+  const editDraft = createFlexibleCategoryDraft();
+  editDraft.groups[0] = {
+    ...editDraft.groups[0]!,
+    menuMode: 'REVISE',
+    sourceMenuId: '67f13bbfd53448f7ab18d011',
+    menuTitle: 'Starter / Farsan',
+    directItems: ['Welcome Drink'],
+  };
+  const editHtml = renderToStaticMarkup(
+    <FlexibleCategoryBuilder draft={editDraft} menus={[]} errors={{}} onChange={() => undefined} />,
+  );
+  assert.match(editHtml, /Edit this category&#x27;s menu/);
+  assert.match(editHtml, /category-specific menu revision/);
+  assert.match(editHtml, /Welcome Drink/);
+  assert.match(editHtml, /Menu name/);
 }
 
 void main();

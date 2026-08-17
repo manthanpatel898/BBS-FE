@@ -1,4 +1,6 @@
-export type FlexibleMenuMode = 'EXISTING' | 'CREATE';
+import type { Category } from '@/lib/auth/types';
+
+export type FlexibleMenuMode = 'EXISTING' | 'CREATE' | 'REVISE';
 
 export type FlexibleSubmenuDraft = {
   id: string;
@@ -10,6 +12,7 @@ export type FlexibleChoiceGroupDraft = {
   id: string;
   menuMode: FlexibleMenuMode;
   menuId: string;
+  sourceMenuId: string;
   menuTitle: string;
   includedChoices: string;
   directItems: string[];
@@ -30,6 +33,7 @@ export type FlexibleCategoryPayload = {
   menus: Array<{
     mode: FlexibleMenuMode;
     menuId?: string;
+    sourceMenuId?: string;
     clientKey?: string;
     title?: string;
     directItems?: { items: string[] };
@@ -55,6 +59,7 @@ export function createFlexibleChoiceGroup(): FlexibleChoiceGroupDraft {
     id: id(),
     menuMode: 'CREATE',
     menuId: '',
+    sourceMenuId: '',
     menuTitle: '',
     includedChoices: '1',
     directItems: [],
@@ -68,6 +73,28 @@ export function createFlexibleCategoryDraft(): FlexibleCategoryDraft {
     pricePerPlate: '',
     description: '',
     groups: [createFlexibleChoiceGroup()],
+  };
+}
+
+export function createFlexibleCategoryEditDraft(category: Category): FlexibleCategoryDraft {
+  return {
+    name: category.name,
+    pricePerPlate: String(category.pricePerPlate),
+    description: category.description ?? '',
+    groups: (category.flexibleChoiceGroups ?? []).map((group) => ({
+      id: group.groupId,
+      menuMode: 'REVISE',
+      menuId: '',
+      sourceMenuId: group.menuId,
+      menuTitle: group.menuTitle,
+      includedChoices: String(group.includedChoices),
+      directItems: [...group.allowedDirectItems],
+      submenus: group.submenuRules.map((rule) => ({
+        id: id(),
+        title: rule.sectionTitle,
+        items: [...rule.allowedItems],
+      })),
+    })),
   };
 }
 
@@ -93,6 +120,7 @@ export function validateFlexibleCategoryDraft(draft: FlexibleCategoryDraft) {
     );
     const included = Number(group.includedChoices);
     if (!key) errors[group.id] = group.menuMode === 'EXISTING' ? 'Select a menu.' : 'Enter a menu name.';
+    else if (group.menuMode === 'REVISE' && !group.sourceMenuId) errors[group.id] = 'The source menu is missing. Close and reopen this category.';
     else if (menuKeys.has(key)) errors[group.id] = 'Each menu can be added only once.';
     else if (visibleCount < 1) errors[group.id] = 'Add at least one direct or submenu item.';
     else if (!Number.isInteger(included) || included < 1) errors[group.id] = 'Included choices must be at least 1.';
@@ -103,19 +131,21 @@ export function validateFlexibleCategoryDraft(draft: FlexibleCategoryDraft) {
 }
 
 export function buildFlexibleCategoryPayload(draft: FlexibleCategoryDraft): FlexibleCategoryPayload {
-  const menus = draft.groups.map((group) =>
-    group.menuMode === 'EXISTING'
-      ? { mode: 'EXISTING' as const, menuId: group.menuId }
-      : {
-          mode: 'CREATE' as const,
+  const menus = draft.groups.map((group) => {
+    if (group.menuMode === 'EXISTING') {
+      return { mode: 'EXISTING' as const, menuId: group.menuId };
+    }
+    return {
+          mode: group.menuMode,
+          ...(group.menuMode === 'REVISE' ? { sourceMenuId: group.sourceMenuId } : {}),
           clientKey: group.id,
           title: group.menuTitle.trim(),
           directItems: { items: clean(group.directItems) },
           sections: group.submenus
             .map((submenu) => ({ sectionTitle: submenu.title.trim(), items: clean(submenu.items) }))
             .filter((submenu) => submenu.sectionTitle && submenu.items.length),
-        },
-  );
+        };
+  });
   const groups = draft.groups.map((group) => ({
     groupId: group.id,
     ...(group.menuMode === 'EXISTING' ? { menuId: group.menuId } : { clientKey: group.id }),

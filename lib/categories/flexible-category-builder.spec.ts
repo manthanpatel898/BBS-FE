@@ -34,6 +34,32 @@ async function main() {
   assert.deepEqual(payload.menus[0]?.sections[1]?.items, ['Khaman']);
   assert.equal(payload.groups[0]?.clientKey, configured.groups[0]?.id);
 
+  const revisionDraft = builder.createFlexibleCategoryEditDraft({
+    id: 'category-1',
+    restaurantId: 'restaurant-1',
+    name: 'Flexi',
+    pricePerPlate: 899,
+    description: 'Updated category',
+    menuRules: [],
+    createdAt: '',
+    updatedAt: '',
+    flexibleChoiceGroups: [{
+      groupId: '00d29211-3f8f-4690-a243-d399579dc5fd',
+      menuId: '67f13bbfd53448f7ab18d011',
+      menuTitle: 'Starter / Farsan',
+      includedChoices: 2,
+      allowedDirectItems: ['Welcome Drink'],
+      submenuRules: [{ sectionTitle: 'Starter', allowedItems: ['Paneer Tikka'] }],
+    }],
+  });
+  assert.equal(revisionDraft.groups[0]?.menuMode, 'REVISE');
+  assert.equal(revisionDraft.groups[0]?.sourceMenuId, '67f13bbfd53448f7ab18d011');
+  const revisionPayload = builder.buildFlexibleCategoryPayload(revisionDraft);
+  assert.equal(revisionPayload.menus[0]?.mode, 'REVISE');
+  assert.equal(revisionPayload.menus[0]?.sourceMenuId, '67f13bbfd53448f7ab18d011');
+  assert.equal(revisionPayload.groups[0]?.clientKey, revisionDraft.groups[0]?.id);
+  assert.equal(revisionPayload.groups[0]?.menuId, undefined);
+
   const excessive = {
     ...configured,
     groups: [{ ...configured.groups[0], includedChoices: '4' }],
