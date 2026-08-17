@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { Menu } from '@/lib/auth/types';
+import { BulkMenuItemsModal } from './bulk-menu-items-modal';
 import {
   createFlexibleChoiceGroup,
   FlexibleCategoryDraft,
@@ -18,6 +20,12 @@ type Props = {
 };
 
 export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Props) {
+  const [bulkTarget, setBulkTarget] = useState<{
+    groupId: string;
+    submenuId?: string;
+    title: string;
+    existingItems: string[];
+  } | null>(null);
   function updateGroup(groupId: string, updater: (group: FlexibleChoiceGroupDraft) => FlexibleChoiceGroupDraft) {
     onChange({ ...draft, groups: draft.groups.map((group) => group.id === groupId ? updater(group) : group) });
   }
@@ -121,11 +129,14 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
           ) : (
             <div className="mt-4 space-y-4">
               <label className="block space-y-1.5 text-sm font-semibold text-slate-700">
-                New menu name
+                <span className="block">New menu name</span>
                 <input className={fieldClass} value={group.menuTitle} onChange={(event) => updateGroup(group.id, (current) => ({ ...current, menuTitle: event.target.value }))} placeholder="e.g. Starter / Farsan" />
               </label>
-              <label className="block space-y-1.5 text-sm font-semibold text-slate-700">
-                Direct menu items (optional)
+              <div className="block space-y-1.5 text-sm font-semibold text-slate-700">
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <span>Direct menu items (optional)</span>
+                  <button type="button" className="min-h-10 rounded-xl border border-amber-300 bg-amber-50 px-3 text-xs font-bold text-amber-900" onClick={() => setBulkTarget({ groupId: group.id, title: 'Direct menu items', existingItems: group.directItems })}>Bulk Add Items</button>
+                </span>
                 <span className="block space-y-2">
                   {group.directItems.map((item, itemIndex) => (
                     <span key={`${group.id}-direct-${itemIndex}`} className="flex gap-2">
@@ -135,13 +146,16 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
                   ))}
                   <button type="button" className="min-h-11 w-full rounded-xl border border-dashed border-slate-300 text-sm font-semibold text-slate-700" onClick={() => updateGroup(group.id, (current) => ({ ...current, directItems: [...current.directItems, ''] }))}>+ Add direct item</button>
                 </span>
-              </label>
+              </div>
               <div className="space-y-3">
                 {group.submenus.map((submenu, submenuIndex) => (
                   <div key={submenu.id} className="rounded-xl border border-slate-200 bg-white p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-bold text-slate-900">Submenu {submenuIndex + 1}</p>
-                      <button type="button" className="min-h-10 px-2 text-sm font-semibold text-red-600" onClick={() => updateGroup(group.id, (current) => ({ ...current, submenus: current.submenus.filter((item) => item.id !== submenu.id) }))}>Remove</button>
+                      <div className="flex flex-wrap items-center justify-end gap-1">
+                        <button type="button" className="min-h-10 rounded-xl border border-amber-300 bg-amber-50 px-3 text-xs font-bold text-amber-900" onClick={() => setBulkTarget({ groupId: group.id, submenuId: submenu.id, title: submenu.title || `Submenu ${submenuIndex + 1}`, existingItems: submenu.items })}>Bulk Add Items</button>
+                        <button type="button" className="min-h-10 px-2 text-sm font-semibold text-red-600" onClick={() => updateGroup(group.id, (current) => ({ ...current, submenus: current.submenus.filter((item) => item.id !== submenu.id) }))}>Remove</button>
+                      </div>
                     </div>
                     <input className={`${fieldClass} mt-2`} value={submenu.title} onChange={(event) => updateGroup(group.id, (current) => ({ ...current, submenus: current.submenus.map((item) => item.id === submenu.id ? { ...item, title: event.target.value } : item) }))} placeholder="Submenu name, e.g. Starter" />
                     <div className="mt-2 space-y-2">
@@ -170,6 +184,17 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
       ))}
 
       <button type="button" className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800" onClick={() => onChange({ ...draft, groups: [...draft.groups, createFlexibleChoiceGroup()] })}>+ Add another menu choice group</button>
+
+      {bulkTarget ? (
+        <BulkMenuItemsModal
+          title={bulkTarget.title}
+          existingItems={bulkTarget.existingItems}
+          onClose={() => setBulkTarget(null)}
+          onApply={(items) => updateGroup(bulkTarget.groupId, (group) => bulkTarget.submenuId
+            ? { ...group, submenus: group.submenus.map((submenu) => submenu.id === bulkTarget.submenuId ? { ...submenu, items: [...submenu.items, ...items] } : submenu) }
+            : { ...group, directItems: [...group.directItems, ...items] })}
+        />
+      ) : null}
     </div>
   );
 }
