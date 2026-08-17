@@ -33,6 +33,10 @@ import { MonthlySalesBoard } from '@/components/dashboard/monthly-sales-board';
 import { MenuCategoryTrends } from '@/components/dashboard/menu-category-trends';
 import { HorizontalCategoryPerformance } from '@/components/dashboard/banquet-analytics-sections';
 import { banquetBusinessDate } from '@/lib/banquet/booking-edit-window';
+import {
+  getRenderableMenus,
+  getRenderableMenuSections,
+} from '@/lib/bookings/menu-snapshot';
 
 // ─── Shared ──────────────────────────────────────────────────────────────────
 
@@ -1191,23 +1195,23 @@ function DashboardBookingDetailModal({
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Menu Snapshot
               </p>
-              {order.menuSelectionSnapshot.length > 0 ? (
+              {getRenderableMenus(order.menuSelectionSnapshot).length > 0 ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                  {order.menuSelectionSnapshot.length} menu{order.menuSelectionSnapshot.length === 1 ? '' : 's'}
+                  {getRenderableMenus(order.menuSelectionSnapshot).length} menu{getRenderableMenus(order.menuSelectionSnapshot).length === 1 ? '' : 's'}
                 </span>
               ) : null}
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {order.menuSelectionSnapshot.length === 0 ? (
+              {getRenderableMenus(order.menuSelectionSnapshot).length === 0 ? (
                 <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 md:col-span-2">
                   No menu selected yet.
                 </p>
               ) : (
-                order.menuSelectionSnapshot.map((menu) => (
+                getRenderableMenus(order.menuSelectionSnapshot).map((menu) => (
                   <div key={menu.menuId} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                     <h3 className="text-sm font-semibold text-slate-900">{menu.title}</h3>
                     <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
-                      {menu.sections.map((section) => (
+                      {getRenderableMenuSections(menu).map((section) => (
                         <div key={`${menu.menuId}-${section.sectionTitle}`} className="min-w-0">
                           {section.sectionTitle.trim().toLowerCase() !== menu.title.trim().toLowerCase() ? (
                             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">

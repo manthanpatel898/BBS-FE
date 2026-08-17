@@ -20,6 +20,7 @@ import {
   fetchRestaurants,
   previewCategorySync,
   updateCategory,
+  updateFlexibleCategory,
 } from '@/lib/auth/api';
 import { Category, CategoryMenuRule, Menu, Restaurant } from '@/lib/auth/types';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
@@ -462,17 +463,9 @@ export default function CategoriesPage() {
         setError('');
         const payload = buildFlexibleCategoryPayload(flexibleDraft);
         if (editingCategory) {
-          await updateCategory(token, editingCategory.id, {
-            name: payload.name,
-            pricePerPlate: payload.pricePerPlate,
-            description: payload.description,
-            flexibleChoiceGroups: payload.groups.map((group, index) => ({
-              groupId: group.groupId,
-              menuId: group.menuId ?? flexibleDraft.groups[index]?.menuId ?? '',
-              includedChoices: group.includedChoices,
-              allowedDirectItems: group.allowedDirectItems,
-              submenuRules: group.submenuRules,
-            })),
+          await updateFlexibleCategory(token, editingCategory.id, {
+            ...payload,
+            ...(isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {}),
           });
           setSuccessMessage('Flexible category updated successfully.');
         } else {

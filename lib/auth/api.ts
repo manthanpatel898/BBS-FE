@@ -557,6 +557,21 @@ export async function createFlexibleCategory(
   });
 }
 
+export async function updateFlexibleCategory(
+  accessToken: string,
+  categoryId: string,
+  payload: import('@/lib/categories/flexible-category-builder').FlexibleCategoryPayload,
+) {
+  return authorizedRequest<Category>(
+    `/categories/flexible/${categoryId}`,
+    accessToken,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
 export async function updateCategory(
   accessToken: string,
   categoryId: string,
@@ -1201,6 +1216,7 @@ export async function createOrder(
     inquiryCustomPrice?: number;
     selectedMenus?: Array<{
       menuId: string;
+      directItems?: string[];
       sections: Array<{
         sectionTitle: string;
         items: string[];
@@ -1261,6 +1277,7 @@ export async function updateOrder(
     customPricePerPlate?: number;
     selectedMenus?: Array<{
       menuId: string;
+      directItems?: string[];
       sections: Array<{
         sectionTitle: string;
         items: string[];

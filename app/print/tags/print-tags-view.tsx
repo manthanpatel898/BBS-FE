@@ -5,6 +5,10 @@ import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { fetchOrderPrint, fetchSettings } from '@/lib/auth/api';
 import { AppSettings, Order } from '@/lib/auth/types';
+import {
+  getRenderableMenus,
+  getRenderableMenuSections,
+} from '@/lib/bookings/menu-snapshot';
 
 type PrintTagItem = {
   id: string;
@@ -325,8 +329,8 @@ function PrintStatus({
 }
 
 function buildPrintTagItems(order: Order): PrintTagItem[] {
-  return order.menuSelectionSnapshot.flatMap((menu, menuIndex) =>
-    menu.sections.flatMap((section, sectionIndex) =>
+  return getRenderableMenus(order.menuSelectionSnapshot).flatMap((menu, menuIndex) =>
+    getRenderableMenuSections(menu).flatMap((section, sectionIndex) =>
       section.items.flatMap((itemName, itemIndex) =>
         splitPrintTagItemName(itemName).map((splitItemName, splitIndex) => ({
           id: `${menuIndex}:${sectionIndex}:${itemIndex}:${splitIndex}`,

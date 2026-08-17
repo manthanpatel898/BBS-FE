@@ -17,6 +17,10 @@ import {
   formatSlashDate,
 } from '@/lib/print-date';
 import { formatFoodServiceTime } from '@/lib/bookings/food-service-schedule';
+import {
+  getRenderableMenus,
+  getRenderableMenuSections,
+} from '@/lib/bookings/menu-snapshot';
 
 type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
 
@@ -940,11 +944,11 @@ function SummaryCell({
 }
 
 function buildMenuRows(order: Order): MenuRow[] {
-  return order.menuSelectionSnapshot.flatMap((menu) =>
-    menu.sections.flatMap((section) =>
+  return getRenderableMenus(order.menuSelectionSnapshot).flatMap((menu) =>
+    getRenderableMenuSections(menu).flatMap((section) =>
       section.items.map((item, index) => ({
         key: `${menu.menuId}-${section.sectionTitle}-${index}-${item}`,
-        section: `${section.sectionTitle} - ${section.items.length}`,
+        section: `${printMenuSectionTitle(menu.title, section.sectionTitle)} - ${section.items.length}`,
         item,
         showSection: index === 0,
       })),
@@ -956,10 +960,10 @@ function buildMenuSectionRows(
   order: Pick<Order | OdcOrder, 'menuSelectionSnapshot'>,
   columns: number,
 ) {
-  const sections: MenuSectionBox[] = order.menuSelectionSnapshot.flatMap((menu) =>
-    menu.sections.map((section) => ({
+  const sections: MenuSectionBox[] = getRenderableMenus(order.menuSelectionSnapshot).flatMap((menu) =>
+    getRenderableMenuSections(menu).map((section) => ({
       key: `${menu.menuId}-${section.sectionTitle}`,
-      section: section.sectionTitle,
+      section: printMenuSectionTitle(menu.title, section.sectionTitle),
       items: section.items,
     })),
   );
@@ -974,6 +978,10 @@ function buildMenuSectionRows(
   }
 
   return rows;
+}
+
+function printMenuSectionTitle(menuTitle: string, sectionTitle: string) {
+  return sectionTitle === 'Menu Items' ? menuTitle : sectionTitle;
 }
 
 function fullName(order: Order) {

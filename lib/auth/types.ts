@@ -451,7 +451,14 @@ export interface OrderCategorySnapshot {
 export interface OrderMenuSelectionSnapshot {
   menuId: string;
   title: string;
+  directItems?: string[];
   sections: MenuSection[];
+  flexibleChoiceSummary?: {
+    groupId: string;
+    includedChoices: number;
+    selectedChoices: number;
+    additionalChoices: number;
+  } | null;
 }
 
 export interface OdcCustomerSnapshot {

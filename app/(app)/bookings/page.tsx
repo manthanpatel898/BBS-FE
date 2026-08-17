@@ -73,6 +73,11 @@ import {
 import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
 import { BanquetInvoiceModal } from '@/components/bookings/banquet-invoice-modal';
+import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
+import {
+  getRenderableMenus,
+  getRenderableMenuSections,
+} from '@/lib/bookings/menu-snapshot';
 import {
   formatFoodServiceTime,
   validateFoodServiceScheduleForm,
@@ -88,6 +93,7 @@ type SelectedMenuSection = {
 type SelectedMenu = {
   menuId: string;
   title: string;
+  directItems?: string[];
   sections: SelectedMenuSection[];
 };
 
@@ -857,6 +863,11 @@ export default function BookingsPage() {
     () => selectedCategory?.menuRules ?? [],
     [selectedCategory],
   );
+  const flexibleCategoryGroups = useMemo(
+    () => selectedCategory?.flexibleChoiceGroups ?? [],
+    [selectedCategory],
+  );
+  const isFlexibleCategory = flexibleCategoryGroups.length > 0;
   const menuLookup = useMemo(
     () => new Map(menus.map((menu) => [menu.id, menu])),
     [menus],
@@ -941,6 +952,7 @@ export default function BookingsPage() {
   const selectedMenuItemsCount = formState.selectedMenus.reduce(
     (count, menu) =>
       count +
+      (menu.directItems?.length ?? 0) +
       menu.sections.reduce((sectionCount, section) => sectionCount + section.items.length, 0),
     0,
   );
@@ -1227,6 +1239,7 @@ export default function BookingsPage() {
       selectedMenus: order.menuSelectionSnapshot.map((menu) => ({
         menuId: menu.menuId,
         title: menu.title,
+        directItems: [...(menu.directItems ?? [])],
         sections: menu.sections.map((section) => ({
           sectionTitle: section.sectionTitle,
           items: [...section.items],
@@ -1300,6 +1313,7 @@ export default function BookingsPage() {
       selectedMenus: order.menuSelectionSnapshot.map((menu) => ({
         menuId: menu.menuId,
         title: menu.title,
+        directItems: [...(menu.directItems ?? [])],
         sections: menu.sections.map((section) => ({
           sectionTitle: section.sectionTitle,
           items: [...section.items],
@@ -1863,7 +1877,10 @@ export default function BookingsPage() {
       return;
     }
 
-    if (orderedCategoryRules.length === 0) {
+    if (
+      (!isFlexibleCategory && orderedCategoryRules.length === 0) ||
+      (isFlexibleCategory && flexibleCategoryGroups.length === 0)
+    ) {
       setToast({
         type: 'error',
         message: 'This category has no configured menu items. Update the category first.',
@@ -1919,6 +1936,7 @@ export default function BookingsPage() {
           : undefined,
         selectedMenus: formState.selectedMenus.map((menu) => ({
           menuId: menu.menuId,
+          directItems: menu.directItems ?? [],
           sections: menu.sections.map((section) => ({
             sectionTitle: section.sectionTitle,
             items: section.items,
@@ -2801,6 +2819,7 @@ export default function BookingsPage() {
         })),
         selectedMenus: order.menuSelectionSnapshot.map((menu) => ({
           menuId: menu.menuId,
+          directItems: [...(menu.directItems ?? [])],
           sections: menu.sections.map((section) => ({
             sectionTitle: section.sectionTitle,
             items: section.items,
@@ -4552,10 +4571,21 @@ function selectionStatus(order: Order) {
 
               <div className="min-h-0 flex-1">
                 <div className="h-full min-h-0 overflow-y-auto overscroll-contain pr-1 pb-3 [touch-action:pan-y]">
-                  {orderedCategoryRules.length === 0 ? (
+                  {!isFlexibleCategory && orderedCategoryRules.length === 0 ? (
                     <EmptyState
                       title="No configured items for this category"
                       description="Edit the category and assign item rules before continuing."
+                    />
+                  ) : isFlexibleCategory ? (
+                    <FlexibleMenuSelector
+                      groups={flexibleCategoryGroups}
+                      selectedMenus={formState.selectedMenus}
+                      onChange={(selectedMenus) =>
+                        setFormState((current) => ({
+                          ...current,
+                          selectedMenus,
+                        }))
+                      }
                     />
                   ) : (
                     orderedCategoryRules.map((rule) => {
@@ -4850,6 +4880,7 @@ function selectionStatus(order: Order) {
                     );
                     })
                   )}
+                  {!isFlexibleCategory ? (
                   <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:mb-4 sm:p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -4909,6 +4940,7 @@ function selectionStatus(order: Order) {
                       )}
                     </div>
                   </div>
+                  ) : null}
                   <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:mb-4 sm:p-5">
                     <Field label="Menu Comment">
                       <textarea
@@ -6569,20 +6601,20 @@ function selectionStatus(order: Order) {
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                         Menu Snapshot
                       </p>
-                      {detailOrder.menuSelectionSnapshot.length > 0 ? (
+                      {getRenderableMenus(detailOrder.menuSelectionSnapshot).length > 0 ? (
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                          {detailOrder.menuSelectionSnapshot.length} menu
-                          {detailOrder.menuSelectionSnapshot.length === 1 ? '' : 's'}
+                          {getRenderableMenus(detailOrder.menuSelectionSnapshot).length} menu
+                          {getRenderableMenus(detailOrder.menuSelectionSnapshot).length === 1 ? '' : 's'}
                         </span>
                       ) : null}
                     </div>
                     <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-                      {detailOrder.menuSelectionSnapshot.length === 0 ? (
+                      {getRenderableMenus(detailOrder.menuSelectionSnapshot).length === 0 ? (
                         <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 md:col-span-2 2xl:col-span-3">
                           No menu selected yet.
                         </p>
                       ) : (
-                        detailOrder.menuSelectionSnapshot.map((menu) => {
+                        getRenderableMenus(detailOrder.menuSelectionSnapshot).map((menu) => {
                           return (
                             <div
                               key={menu.menuId}
@@ -6590,7 +6622,7 @@ function selectionStatus(order: Order) {
                             >
                               <h3 className="text-sm font-semibold text-slate-900">{menu.title}</h3>
                               <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
-                                {menu.sections.map((section) => (
+                                {getRenderableMenuSections(menu).map((section) => (
                                   <div
                                     key={`${menu.menuId}-${section.sectionTitle}`}
                                     className="min-w-0"
@@ -7584,8 +7616,8 @@ function getMonthTileStatusCounts(orders: CalendarOrder[]) {
 }
 
 function buildPrintTagItems(order: Order): PrintTagItem[] {
-  return order.menuSelectionSnapshot.flatMap((menu, menuIndex) =>
-    menu.sections.flatMap((section, sectionIndex) =>
+  return getRenderableMenus(order.menuSelectionSnapshot).flatMap((menu, menuIndex) =>
+    getRenderableMenuSections(menu).flatMap((section, sectionIndex) =>
       section.items.flatMap((itemName, itemIndex) =>
         splitPrintTagItemName(itemName).map((splitItemName, splitIndex) => ({
           id: `${menuIndex}:${sectionIndex}:${itemIndex}:${splitIndex}`,
