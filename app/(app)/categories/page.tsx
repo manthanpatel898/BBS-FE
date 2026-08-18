@@ -8,6 +8,7 @@ import { CommonModal } from '@/components/ui/common-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { RoleBasedRestaurantSelector } from '@/components/ui/role-based-restaurant-selector';
+import { useToast } from '@/components/ui/toast';
 import {
   confirmCategorySync,
   createCategory,
@@ -106,6 +107,7 @@ export default function CategoriesPage() {
     title: 'Categories',
   });
   const { accessToken, user } = useAuth();
+  const { showToast } = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -119,6 +121,7 @@ export default function CategoriesPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -148,6 +151,11 @@ export default function CategoriesPage() {
     ? restaurants.find((restaurant) => restaurant.id === effectiveRestaurantId) ?? null
     : companyRestaurant;
   const flexibleBuilderEnabled = activeRestaurant?.businessType === 'BANQUET' && activeRestaurant.enableFlexibleMenuBuilder === true;
+
+  function showCategoryFormError(message: string) {
+    setModalError(message);
+    showToast(message, 'error');
+  }
 
   useEffect(() => {
     if (!accessToken || isSuperAdmin || !user?.restaurantId) return;
@@ -254,6 +262,7 @@ export default function CategoriesPage() {
     setConfigurationMode('STANDARD');
     setFlexibleDraft(createFlexibleCategoryDraft());
     setFlexibleErrors({});
+    setModalError('');
     setError('');
     setSuccessMessage('');
     setIsModalOpen(true);
@@ -264,6 +273,7 @@ export default function CategoriesPage() {
     const isFlexible = (category.flexibleChoiceGroups?.length ?? 0) > 0;
     setConfigurationMode(isFlexible ? 'FLEXIBLE' : 'STANDARD');
     setFlexibleErrors({});
+    setModalError('');
     setFlexibleDraft(createFlexibleCategoryEditDraft(category));
     setFormState({
       name: category.name,
@@ -283,6 +293,7 @@ export default function CategoriesPage() {
   }
 
   function toggleRule(menu: Menu, sectionTitle: string) {
+    setModalError('');
     const key = makeRuleKey(menu.id, sectionTitle);
     const exists = formState.menuRules.some(
       (rule) => makeRuleKey(rule.menuId, rule.sectionTitle) === key,
@@ -314,6 +325,7 @@ export default function CategoriesPage() {
   }
 
   function addRule(menu: Menu, sectionTitle: string) {
+    setModalError('');
     const key = makeRuleKey(menu.id, sectionTitle);
     const exists = formState.menuRules.some(
       (rule) => makeRuleKey(rule.menuId, rule.sectionTitle) === key,
@@ -345,6 +357,7 @@ export default function CategoriesPage() {
     nextValue: string,
     maxAvailableItems: number,
   ) {
+    setModalError('');
     const parsed = nextValue === '' ? 0 : Math.min(Math.max(1, Number(nextValue) || 1), maxAvailableItems);
     setFormState((current) => ({
       ...current,
@@ -360,6 +373,7 @@ export default function CategoriesPage() {
   }
 
   function toggleAllowedItem(menuId: string, sectionTitle: string, item: string) {
+    setModalError('');
     setFormState((current) => ({
       ...current,
       menuRules: current.menuRules.map((rule) => {
@@ -388,6 +402,7 @@ export default function CategoriesPage() {
     sectionTitle: string,
     availableItems: string[],
   ) {
+    setModalError('');
     setFormState((current) => ({
       ...current,
       menuRules: current.menuRules.map((rule) => {
@@ -415,12 +430,12 @@ export default function CategoriesPage() {
     event.preventDefault();
 
     if (!accessToken) {
-      setError('Missing session token.');
+      showCategoryFormError('Missing session token.');
       return;
     }
 
     if (!effectiveRestaurantId) {
-      setError('Select a restaurant first.');
+      showCategoryFormError('Select a restaurant first.');
       return;
     }
 
@@ -429,7 +444,7 @@ export default function CategoriesPage() {
     );
 
     if (invalidRule) {
-      setError(
+      showCategoryFormError(
         `Check the configuration for ${invalidRule.sectionTitle}. Enter a selection limit between 1 and the number of allowed subitems.`,
       );
       return;
@@ -441,12 +456,12 @@ export default function CategoriesPage() {
       const validation = validateFlexibleCategoryDraft(flexibleDraft);
       setFlexibleErrors(validation.errors);
       if (!validation.isValid) {
-        setError('Review the highlighted flexible menu fields.');
+        showCategoryFormError('Review the highlighted flexible menu fields.');
         return;
       }
       try {
         setIsSubmitting(true);
-        setError('');
+        setModalError('');
         const payload = buildFlexibleCategoryPayload(flexibleDraft);
         if (editingCategory) {
           await updateFlexibleCategory(token, editingCategory.id, {
@@ -462,11 +477,12 @@ export default function CategoriesPage() {
           setSuccessMessage('Flexible category created successfully.');
         }
         setIsModalOpen(false);
+        setModalError('');
         const nextPage = editingCategory ? page : 1;
         setPage(nextPage);
         await reloadCategories(token, nextPage);
       } catch (requestError) {
-        setError(requestError instanceof Error ? requestError.message : 'Unable to save flexible category.');
+        showCategoryFormError(requestError instanceof Error ? requestError.message : 'Unable to save flexible category.');
       } finally {
         setIsSubmitting(false);
       }
@@ -475,7 +491,7 @@ export default function CategoriesPage() {
 
     try {
       setIsSubmitting(true);
-      setError('');
+      setModalError('');
 
       const payload = {
         name: formState.name.trim(),
@@ -499,14 +515,13 @@ export default function CategoriesPage() {
       }
 
       setIsModalOpen(false);
+      setModalError('');
       const nextPage = editingCategory ? page : 1;
       setPage(nextPage);
       await reloadCategories(token, nextPage);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to save category.',
+      showCategoryFormError(
+        requestError instanceof Error ? requestError.message : 'Unable to save category.',
       );
     } finally {
       setIsSubmitting(false);
@@ -668,7 +683,7 @@ export default function CategoriesPage() {
     <div className="grid gap-3 sm:flex sm:justify-end">
       <button
         type="button"
-        onClick={() => setIsModalOpen(false)}
+        onClick={() => { setModalError(''); setIsModalOpen(false); }}
         className="min-h-12 w-full rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:w-auto"
       >
         Cancel
@@ -918,12 +933,17 @@ export default function CategoriesPage() {
           <CommonModal
             title={editingCategory ? 'Edit category setup' : 'Create category setup'}
             description="Name the category, then choose which menu items are available for booking and how many selections each item allows."
-            onClose={() => setIsModalOpen(false)}
+            onClose={() => { setModalError(''); setIsModalOpen(false); }}
             widthClassName="max-w-6xl"
             mobileFullScreen={isFlexibleCategoryForm}
             footer={isFlexibleCategoryForm ? categoryFormActions(true) : undefined}
           >
             <form id="category-setup-form" className="space-y-6" onSubmit={handleSubmit}>
+              {modalError ? (
+                <div role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 shadow-sm">
+                  {modalError}
+                </div>
+              ) : null}
               {flexibleBuilderEnabled ? (
                 <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5" role="group" aria-label="Category configuration mode">
                   {(['STANDARD', 'FLEXIBLE'] as const).map((mode) => {
@@ -933,7 +953,7 @@ export default function CategoriesPage() {
                         key={mode}
                         type="button"
                         disabled={disabled}
-                        onClick={() => setConfigurationMode(mode)}
+                        onClick={() => { setConfigurationMode(mode); setModalError(''); }}
                         className={`min-h-12 rounded-xl px-3 py-2 text-sm font-bold transition ${configurationMode === mode ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-900'} disabled:cursor-not-allowed disabled:opacity-40`}
                       >
                         {mode === 'STANDARD' ? 'Standard configuration' : 'Flexible configuration'}
@@ -944,16 +964,17 @@ export default function CategoriesPage() {
               ) : null}
 
               {configurationMode === 'FLEXIBLE' && flexibleBuilderEnabled ? (
-                <FlexibleCategoryBuilder draft={flexibleDraft} menus={menus} errors={flexibleErrors} onChange={(draft) => { setFlexibleDraft(draft); setFlexibleErrors({}); }} />
+                <FlexibleCategoryBuilder draft={flexibleDraft} menus={menus} errors={flexibleErrors} onChange={(draft) => { setFlexibleDraft(draft); setFlexibleErrors({}); setModalError(''); }} />
               ) : (
                 <>
               <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                 <div className="grid gap-4 md:grid-cols-2">
                   <input
                     value={formState.name}
-                    onChange={(event) =>
-                      setFormState((current) => ({ ...current, name: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      setModalError('');
+                      setFormState((current) => ({ ...current, name: event.target.value }));
+                    }}
                     placeholder="Category name"
                     className={inputCls}
                   />
@@ -962,23 +983,25 @@ export default function CategoriesPage() {
                     min="0"
                     step="0.01"
                     value={formState.pricePerPlate}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      setModalError('');
                       setFormState((current) => ({
                         ...current,
                         pricePerPlate: event.target.value,
-                      }))
-                    }
+                      }));
+                    }}
                     placeholder="Price per plate"
                     className={inputCls}
                   />
                   <textarea
                     value={formState.description}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      setModalError('');
                       setFormState((current) => ({
                         ...current,
                         description: event.target.value,
-                      }))
-                    }
+                      }));
+                    }}
                     placeholder="Description (optional)"
                     className={`${inputCls} min-h-28 resize-none md:col-span-2`}
                   />

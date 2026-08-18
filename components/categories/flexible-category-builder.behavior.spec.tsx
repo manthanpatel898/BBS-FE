@@ -19,6 +19,7 @@ async function main() {
   assert.match(html, /Included choices across this menu/);
   assert.match(html, /Add direct item/);
   assert.match(html, /Bulk Add Items/);
+  assert.match(html, /Bulk Delete Items/);
   assert.match(html, /Add optional submenu/);
   assert.doesNotMatch(html, /overflow-x-auto/);
   assert.match(html, /data-mobile-layout="flexible-category-builder"/);
@@ -44,6 +45,7 @@ async function main() {
   assert.match(editHtml, /category-specific menu revision/);
   assert.match(editHtml, /Welcome Drink/);
   assert.match(editHtml, /Menu name/);
+  assert.match(editHtml, /Bulk Delete Items/);
 }
 
 void main();

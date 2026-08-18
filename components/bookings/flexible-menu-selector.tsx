@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlexibleChoiceGroup } from '@/lib/auth/types';
 import {
   addFlexibleAddonItem,
@@ -62,6 +62,7 @@ function ChoiceButton({
 
 export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props) {
   const [searches, setSearches] = useState<Record<string, string>>({});
+  const [openGroupId, setOpenGroupId] = useState<string | null>(groups[0]?.groupId ?? null);
   const [addonEditor, setAddonEditor] = useState<{
     groupId: string;
     destination: string;
@@ -71,6 +72,14 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
   const addonGroup = addonEditor
     ? groups.find((group) => group.groupId === addonEditor.groupId) ?? null
     : null;
+
+  useEffect(() => {
+    setOpenGroupId((current) =>
+      current && groups.some((group) => group.groupId === current)
+        ? current
+        : groups[0]?.groupId ?? null,
+    );
+  }, [groups]);
 
   function destinationOptions(group: FlexibleChoiceGroup) {
     return [
@@ -107,7 +116,7 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div data-mobile-layout="flexible-menu-selector" className="space-y-3 sm:space-y-4">
       {groups.map((group) => {
         const summary = countFlexibleGroupSelection(group, selectedMenus);
         const selectedMenu = selectedMenus.find(
@@ -123,8 +132,15 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
             key={group.groupId}
             className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
           >
-            <div className="border-b border-slate-100 bg-gradient-to-r from-amber-50 to-white p-3 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <button
+              type="button"
+              aria-expanded={openGroupId === group.groupId}
+              aria-controls={`flexible-menu-${group.groupId}`}
+              aria-label={`${openGroupId === group.groupId ? 'Collapse' : 'Expand'} ${group.menuTitle}`}
+              onClick={() => setOpenGroupId((current) => current === group.groupId ? null : group.groupId)}
+              className="flex min-h-11 w-full items-start justify-between gap-3 bg-gradient-to-r from-amber-50 to-white p-3 text-left transition hover:bg-amber-50 sm:p-5"
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600 sm:text-xs">
                     Flexible menu
@@ -136,7 +152,7 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
                     Choose any {group.includedChoices}. More selections are allowed.
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
+                <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
                   <span className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
                     {summary.selected} selected · {summary.included} included
                   </span>
@@ -145,16 +161,17 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
                       +{summary.additional} additional
                     </span>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={() => openAddonEditor(group)}
-                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-amber-300 hover:bg-amber-50"
-                  >
-                    + Add-on
-                  </button>
                 </div>
               </div>
-              <input
+              <span className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition ${openGroupId === group.groupId ? 'rotate-180' : ''}`}>
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 7.5 5 5 5-5" /></svg>
+              </span>
+            </button>
+
+            {openGroupId === group.groupId ? (
+            <div id={`flexible-menu-${group.groupId}`} className="space-y-5 border-t border-slate-100 p-3 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <input
                 type="search"
                 value={search}
                 onChange={(event) =>
@@ -164,11 +181,16 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
                   }))
                 }
                 placeholder={`Search ${group.menuTitle}`}
-                className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-100 sm:max-w-sm"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-300 focus:ring-2 focus:ring-amber-100 sm:max-w-sm"
               />
-            </div>
-
-            <div className="space-y-5 p-3 sm:p-5">
+                <button
+                  type="button"
+                  onClick={() => openAddonEditor(group)}
+                  className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:bg-amber-50"
+                >
+                  + Add-on
+                </button>
+              </div>
               {(() => {
                 const directAddons = (selectedMenu?.directItems ?? []).filter(
                   (item) => !isConfiguredItem(item, group.allowedDirectItems),
@@ -303,6 +325,7 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
                 </div>
               ) : null}
             </div>
+            ) : null}
           </section>
         );
       })}
