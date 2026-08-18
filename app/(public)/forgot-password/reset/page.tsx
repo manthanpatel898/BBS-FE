@@ -1,9 +1,10 @@
 'use client';
 
-import { FormEvent, Suspense, useMemo, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { resetPasswordWithTokenRequest } from '@/lib/auth/api';
+import { resolvePasswordResetToken } from '@/lib/auth/password-reset-token';
 
 const passwordChecks = [
   { label: 'At least 8 characters', test: (v: string) => v.length >= 8 },
@@ -19,7 +20,9 @@ const strengthColors = ['', 'bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-
 function ResetPasswordForm() {
   const router   = useRouter();
   const params   = useSearchParams();
-  const token    = params.get('token') ?? '';
+  const searchParamToken = params.get('token');
+  const [token, setToken] = useState(() => searchParamToken?.trim() ?? '');
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   const [newPassword,     setNewPassword]     = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,6 +31,11 @@ function ResetPasswordForm() {
   const [error,           setError]           = useState('');
   const [isSubmitting,    setIsSubmitting]    = useState(false);
   const [success,         setSuccess]         = useState(false);
+
+  useEffect(() => {
+    setToken(resolvePasswordResetToken(searchParamToken, window.location.href));
+    setHasHydrated(true);
+  }, [searchParamToken]);
 
   const checks = useMemo(
     () => passwordChecks.map((r) => ({ label: r.label, passed: r.test(newPassword) })),
@@ -66,6 +74,10 @@ function ResetPasswordForm() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (!hasHydrated && !token) {
+    return <div className="flex min-h-[40vh] items-center justify-center text-sm text-slate-400">Loading…</div>;
   }
 
   if (!token) {
