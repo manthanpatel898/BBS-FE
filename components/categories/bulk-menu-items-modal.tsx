@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { BodyPortal } from '@/components/ui/body-portal';
 import { CommonModal } from '@/components/ui/common-modal';
 import {
   buildBulkItemPreview,
@@ -29,13 +30,30 @@ export function BulkMenuItemsModal({
     [existingItems, sourceItems],
   );
 
+  const actions = (
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+      <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 sm:px-5">Cancel</button>
+      <button
+        type="button"
+        disabled={!preview.itemsToAdd.length || isReading || Boolean(error)}
+        onClick={() => { onApply(preview.itemsToAdd); onClose(); }}
+        className="min-h-11 rounded-xl bg-amber-400 px-3 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5"
+      >
+        Add {preview.itemsToAdd.length} items
+      </button>
+    </div>
+  );
+
   return (
-    <CommonModal
+    <BodyPortal>
+      <CommonModal
       title={`Bulk add items to ${title}`}
       description="Paste one item per line or upload a CSV/XLSX file whose first column contains item names. Review the result before adding."
       onClose={onClose}
       widthClassName="max-w-2xl"
       zIndexClassName="z-[70]"
+      mobileFullScreen
+      footer={actions}
     >
       <div className="space-y-5">
         <label className="block space-y-2 text-sm font-semibold text-slate-700">
@@ -105,18 +123,8 @@ export function BulkMenuItemsModal({
           </div>
         ) : null}
 
-        <div className="sticky bottom-0 grid gap-2 border-t border-slate-200 bg-white pt-4 sm:flex sm:justify-end">
-          <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700">Cancel</button>
-          <button
-            type="button"
-            disabled={!preview.itemsToAdd.length || isReading || Boolean(error)}
-            onClick={() => { onApply(preview.itemsToAdd); onClose(); }}
-            className="min-h-11 rounded-xl bg-amber-400 px-5 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Add {preview.itemsToAdd.length} items
-          </button>
-        </div>
       </div>
-    </CommonModal>
+      </CommonModal>
+    </BodyPortal>
   );
 }

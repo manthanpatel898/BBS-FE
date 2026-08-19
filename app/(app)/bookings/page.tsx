@@ -82,6 +82,7 @@ import {
   formatFoodServiceTime,
   validateFoodServiceScheduleForm,
 } from '@/lib/bookings/food-service-schedule';
+import { buildMenuSelectionUpdatePayload } from '@/lib/bookings/menu-selection-update';
 
 type ViewMode = 'list' | 'calendar';
 
@@ -1912,52 +1913,24 @@ export default function BookingsPage() {
             }
           : undefined;
       setIsSubmitting(true);
-      const updatedOrder = await updateOrder(accessToken, editingOrder.id, {
-        status: editingOrder.status,
-        pax,
-        eventType: resolvedEventName || editingOrder.eventType || '',
-        functionName: resolvedEventName,
-        inquiryDate: formState.inquiryDate,
-        eventDate: formState.functionDate,
-        startTime: formState.startTime,
-        endTime: formState.endTime,
-        welcomeDrinkStartTime: settings?.enableWelcomeDrinkStartTime
-          ? formState.welcomeDrinkStartTime || null
-          : undefined,
-        mainCourseStartTime: settings?.enableMainCourseStartTime
-          ? formState.mainCourseStartTime || null
-          : undefined,
-        categoryId: formState.categoryId,
-        addonServices: formState.addonEntries.length
-          ? formState.addonEntries.map((e) => ({ id: e.id, label: e.label, price: Number(e.price) || 0 }))
-          : undefined,
-        customPricePerPlate: formState.customPricePerPlate.trim()
-          ? Number(formState.customPricePerPlate)
-          : undefined,
-        selectedMenus: formState.selectedMenus.map((menu) => ({
-          menuId: menu.menuId,
-          directItems: menu.directItems ?? [],
-          sections: menu.sections.map((section) => ({
-            sectionTitle: section.sectionTitle,
-            items: section.items,
-          })),
-        })),
-        menuComment: formState.menuComment.trim(),
-        extrasTotal: editingOrder.extrasTotal,
-        discountAmount: editingOrder.discountAmount,
-        advanceAmount: editingOrder.advanceAmount,
-        notes: formState.additionalInformation.trim() || undefined,
-        jainSwaminarayanPax: Number(formState.jainSwaminarayanPerson) || undefined,
-        jainSwaminarayanDetails:
-          formState.jainSwaminarayanDetails.trim() || undefined,
-        seatingRequired: Number(formState.seatingRequiredNumber) || undefined,
-        serviceSlot: formState.serviceSlot || undefined,
-        hallDetails: formState.hallDetails.trim() || undefined,
-        referenceBy: formState.referenceBy.trim() || undefined,
-        additionalInformation:
-          formState.additionalInformation.trim() || undefined,
-        menuSelectionTracking,
-      });
+      const updatedOrder = await updateOrder(
+        accessToken,
+        editingOrder.id,
+        buildMenuSelectionUpdatePayload({
+          categoryId: formState.categoryId,
+          selectedMenus: formState.selectedMenus,
+          menuComment: formState.menuComment,
+          addonEntries: formState.addonEntries,
+          customPricePerPlate: formState.customPricePerPlate,
+          welcomeDrinkStartTime: formState.welcomeDrinkStartTime,
+          mainCourseStartTime: formState.mainCourseStartTime,
+          enableWelcomeDrinkStartTime:
+            settings?.enableWelcomeDrinkStartTime ?? false,
+          enableMainCourseStartTime:
+            settings?.enableMainCourseStartTime ?? false,
+          menuSelectionTracking,
+        }),
+      );
       resetWizard(false);
       restoreBookingOverlayParent(updatedOrder);
       setToast({ type: 'success', message: 'Booking details saved successfully.' });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BodyPortal } from '@/components/ui/body-portal';
 import { CommonModal } from '@/components/ui/common-modal';
 
 export function BulkDeleteMenuItemsModal({
@@ -17,14 +18,35 @@ export function BulkDeleteMenuItemsModal({
   const [selectedIndexes, setSelectedIndexes] = useState<number[]>([]);
   const selected = new Set(selectedIndexes);
   const allSelected = items.length > 0 && selectedIndexes.length === items.length;
+  const actions = (
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+      <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700 sm:px-5">
+        Cancel
+      </button>
+      <button
+        type="button"
+        disabled={!selectedIndexes.length}
+        onClick={() => {
+          onDelete(selectedIndexes);
+          onClose();
+        }}
+        className="min-h-11 rounded-xl bg-red-600 px-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:px-5"
+      >
+        Delete {selectedIndexes.length} selected
+      </button>
+    </div>
+  );
 
   return (
-    <CommonModal
+    <BodyPortal>
+      <CommonModal
       title={`Bulk delete items from ${title}`}
       description="Select the menu items you want to remove. This only changes the category draft until you save it."
       onClose={onClose}
       widthClassName="max-w-2xl"
       zIndexClassName="z-[70]"
+      mobileFullScreen
+      footer={actions}
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -74,23 +96,8 @@ export function BulkDeleteMenuItemsModal({
           ))}
         </div>
 
-        <div className="sticky bottom-0 grid gap-2 border-t border-slate-200 bg-white pt-4 sm:flex sm:justify-end">
-          <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700">
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!selectedIndexes.length}
-            onClick={() => {
-              onDelete(selectedIndexes);
-              onClose();
-            }}
-            className="min-h-11 rounded-xl bg-red-600 px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Delete {selectedIndexes.length} selected
-          </button>
-        </div>
       </div>
-    </CommonModal>
+      </CommonModal>
+    </BodyPortal>
   );
 }
