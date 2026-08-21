@@ -751,12 +751,16 @@ export interface BookingReportRow {
   effectivePlatePrice: number;
   effectiveGrandTotal: number;
   effectivePendingAmount: number;
+  packageCount: number;
+  additionalCategoryTotal: number;
+  packageSummary: string;
 }
 
 export interface BookingReportTotals {
   grandTotal: number;
   advanceAmount: number;
   pendingAmount: number;
+  additionalCategoryTotal: number;
 }
 
 export interface BookingReportResponse {

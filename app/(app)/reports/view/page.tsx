@@ -39,6 +39,7 @@ import {
   buildBookingExportTotalRow,
   buildBookingReportFooterSections,
   flattenBookingReport,
+  getBookingPackageSummary,
   getBookingReportPrice,
   getPriceSourceLabel,
   labelEstimatedValue,
@@ -68,6 +69,9 @@ type BookingFieldKey =
   | 'eventType'
   | 'hallDetails'
   | 'packageCategory'
+  | 'packageCount'
+  | 'packageSummary'
+  | 'additionalCategoryTotal'
   | 'defaultPackagePrice'
   | 'customPackagePrice'
   | 'finalPackagePrice'
@@ -165,7 +169,7 @@ const inputCls =
   'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 const dateInputCls = `${inputCls} [color-scheme:light] [--tw-shadow:0_0_0_1000px_white_inset] [-webkit-text-fill-color:#0f172a] [&::-webkit-datetime-edit]:text-slate-900 [&::-webkit-datetime-edit-fields-wrapper]:text-slate-900 [&::-webkit-datetime-edit-text]:text-slate-500 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-80`;
 
-const BOOKING_FIELDS_STORAGE_KEY = 'banquate_report_fields_booking_v3';
+const BOOKING_FIELDS_STORAGE_KEY = 'banquate_report_fields_booking_v4';
 const CANCELLED_FIELDS_STORAGE_KEY = 'banquate_report_fields_cancelled_v2';
 
 const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
@@ -178,6 +182,9 @@ const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
   { key: 'eventType', label: 'Event Type' },
   { key: 'hallDetails', label: 'Hall Details' },
   { key: 'packageCategory', label: 'Package Category' },
+  { key: 'packageCount', label: 'Package Count' },
+  { key: 'packageSummary', label: 'Package Summary' },
+  { key: 'additionalCategoryTotal', label: 'Additional Package Total' },
   { key: 'defaultPackagePrice', label: 'Default Package Price' },
   { key: 'customPackagePrice', label: 'Custom Package Price' },
   { key: 'finalPackagePrice', label: 'Final Package Price' },
@@ -549,6 +556,18 @@ function getBookingFieldValue(order: Order | BookingReportOrder, fieldKey: Booki
       return order.categorySnapshot
         ? `${order.categorySnapshot.name} (${formatCurrency(finalPackagePrice)})`
         : '-';
+    case 'packageCount':
+      return isForecastOrder(order) ? String(order.packageCount) : '1';
+    case 'packageSummary':
+      return isForecastOrder(order)
+        ? getBookingPackageSummary(order)
+        : order.categorySnapshot?.name || '-';
+    case 'additionalCategoryTotal':
+      return formatCurrency(
+        isForecastOrder(order)
+          ? order.additionalCategoryTotal
+          : order.additionalCategoryTotal ?? 0,
+      );
     case 'defaultPackagePrice':
       return defaultPackagePrice > 0
         ? labelEstimatedValue(
@@ -649,6 +668,16 @@ function getBookingExportValue(order: Order | BookingReportOrder, fieldKey: Book
       return isForecastOrder(order)
         ? getPriceSourceLabel(order.reportForecast.priceSource)
         : '';
+    case 'packageCount':
+      return isForecastOrder(order) ? order.packageCount : 1;
+    case 'packageSummary':
+      return isForecastOrder(order)
+        ? getBookingPackageSummary(order)
+        : order.categorySnapshot?.name || '';
+    case 'additionalCategoryTotal':
+      return isForecastOrder(order)
+        ? order.additionalCategoryTotal
+        : order.additionalCategoryTotal ?? 0;
     case 'grandTotal':
       return getReportGrandTotal(order);
     case 'advanceAmount':
@@ -664,11 +693,13 @@ function getBookingColumns(selectedFields: BookingFieldKey[]): ColumnDef<Booking
   return selectedFields.map((fieldKey) => ({
     key: fieldKey,
     label: BOOKING_FIELDS.find((field) => field.key === fieldKey)?.label ?? fieldKey,
-    isCurrency: ['defaultPackagePrice', 'customPackagePrice', 'finalPackagePrice', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(fieldKey),
+    isCurrency: ['defaultPackagePrice', 'customPackagePrice', 'finalPackagePrice', 'additionalCategoryTotal', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(fieldKey),
     render: (order) => getBookingFieldValue(order, fieldKey),
     exportValue: (order) => getBookingExportValue(order, fieldKey),
     total:
-      fieldKey === 'grandTotal'
+      fieldKey === 'additionalCategoryTotal'
+        ? (order) => order.additionalCategoryTotal
+        : fieldKey === 'grandTotal'
         ? (order) => getReportGrandTotal(order)
         : fieldKey === 'advanceAmount'
           ? (order) => order.advanceAmount
@@ -684,8 +715,9 @@ function BookingReportTotalsSummary({
   totals: BookingReportTotals;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
+        ['Additional Package Total', totals.additionalCategoryTotal],
         ['Grand Total', totals.grandTotal],
         ['Advance Amount', totals.advanceAmount],
         ['Pending Amount', totals.pendingAmount],
@@ -1243,6 +1275,7 @@ export default function ReportViewPage() {
   );
   const [bookingRows, setBookingRows] = useState<BookingReportOrder[]>([]);
   const [bookingTotals, setBookingTotals] = useState<BookingReportTotals>({
+    additionalCategoryTotal: 0,
     grandTotal: 0,
     advanceAmount: 0,
     pendingAmount: 0,

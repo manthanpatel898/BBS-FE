@@ -13,6 +13,9 @@ export type BookingReportOrder = Order & {
   };
   effectiveGrandTotal: number;
   effectivePendingAmount: number;
+  packageCount: number;
+  additionalCategoryTotal: number;
+  packageSummary: string;
 };
 
 export function flattenBookingReport(response: BookingReportResponse) {
@@ -27,8 +30,15 @@ export function flattenBookingReport(response: BookingReportResponse) {
       },
       effectiveGrandTotal: row.effectiveGrandTotal,
       effectivePendingAmount: row.effectivePendingAmount,
+      packageCount: row.packageCount,
+      additionalCategoryTotal: row.additionalCategoryTotal,
+      packageSummary: row.packageSummary,
     })),
   };
+}
+
+export function getBookingPackageSummary(order: BookingReportOrder) {
+  return order.packageSummary.trim() || '-';
 }
 
 export function getBookingReportPrice(order: BookingReportOrder) {
@@ -55,6 +65,7 @@ export function buildBookingExportTotalRow(
   totals: BookingReportTotals,
 ): Array<string | number | null> {
   const financialTotals: Record<string, number> = {
+    additionalCategoryTotal: totals.additionalCategoryTotal,
     grandTotal: totals.grandTotal,
     advanceAmount: totals.advanceAmount,
     pendingAmount: totals.pendingAmount,
@@ -71,16 +82,17 @@ export function buildBookingReportFooterSections(
 ) {
   const selectedFinancialKeys = new Set(
     columnKeys.filter((key) =>
-      ['grandTotal', 'advanceAmount', 'pendingAmount'].includes(key),
+      ['additionalCategoryTotal', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(key),
     ),
   );
-  if (selectedFinancialKeys.size === 3) return undefined;
+  if (selectedFinancialKeys.size === 4) return undefined;
 
   return [
     {
       title: 'Report Totals',
       rows: [
         { label: 'Grand Total', value: totals.grandTotal },
+        { label: 'Additional Package Total', value: totals.additionalCategoryTotal },
         { label: 'Advance Amount', value: totals.advanceAmount },
         { label: 'Pending Amount', value: totals.pendingAmount },
       ],
