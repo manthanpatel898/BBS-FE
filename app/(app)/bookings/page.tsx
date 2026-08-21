@@ -74,6 +74,7 @@ import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
 import { BanquetInvoiceModal } from '@/components/bookings/banquet-invoice-modal';
 import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
+import { BookingPackageCard } from '@/components/bookings/booking-package-card';
 import {
   getRenderableMenus,
   getRenderableMenuSections,
@@ -83,6 +84,12 @@ import {
   validateFoodServiceScheduleForm,
 } from '@/lib/bookings/food-service-schedule';
 import { buildMenuSelectionUpdatePayload } from '@/lib/bookings/menu-selection-update';
+import {
+  availableCategoryIds,
+  createAdditionalCategoryFormState,
+  packageSubtotal,
+  type AdditionalCategoryFormState,
+} from '@/lib/bookings/additional-category-selection';
 
 type ViewMode = 'list' | 'calendar';
 
@@ -147,6 +154,18 @@ type BookingFormState = {
   welcomeDrinkStartTime: string;
   mainCourseStartTime: string;
 };
+
+type BookingPackageDraft = Pick<
+  BookingFormState,
+  | 'categoryId'
+  | 'totalPerson'
+  | 'serviceSlot'
+  | 'startTime'
+  | 'endTime'
+  | 'customPricePerPlate'
+  | 'selectedMenus'
+  | 'menuComment'
+>;
 
 type EditInquirySnapshot = {
   formState: BookingFormState;
@@ -233,6 +252,41 @@ const initialFormState: BookingFormState = {
   welcomeDrinkStartTime: '',
   mainCourseStartTime: '',
 };
+
+function packageDraftFromForm(form: BookingFormState): BookingPackageDraft {
+  return {
+    categoryId: form.categoryId,
+    totalPerson: form.totalPerson,
+    serviceSlot: form.serviceSlot,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    customPricePerPlate: form.customPricePerPlate,
+    selectedMenus: form.selectedMenus,
+    menuComment: form.menuComment,
+  };
+}
+
+function packageDraftFromAdditional(
+  selection: AdditionalCategoryFormState,
+): BookingPackageDraft {
+  return {
+    categoryId: selection.categoryId,
+    totalPerson: selection.pax,
+    serviceSlot: selection.serviceSlot,
+    startTime: selection.startTime,
+    endTime: selection.endTime,
+    customPricePerPlate: selection.customPricePerPlate,
+    selectedMenus: selection.selectedMenus,
+    menuComment: selection.menuComment,
+  };
+}
+
+function applyPackageDraft(
+  form: BookingFormState,
+  draft: BookingPackageDraft,
+): BookingFormState {
+  return { ...form, ...draft };
+}
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
@@ -481,6 +535,12 @@ export default function BookingsPage() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
+  const [primaryPackageDraft, setPrimaryPackageDraft] =
+    useState<BookingPackageDraft>(() => packageDraftFromForm(initialFormState));
+  const [additionalCategorySelections, setAdditionalCategorySelections] = useState<
+    AdditionalCategoryFormState[]
+  >([]);
+  const [activePackageId, setActivePackageId] = useState('primary');
   const [customerTitle, setCustomerTitle] = useState<CustomerTitle>('None');
   const [customEventName, setCustomEventName] = useState('');
   const [selectedAddonOption, setSelectedAddonOption] = useState('');
@@ -922,14 +982,67 @@ export default function BookingsPage() {
     [formState.selectedMenus],
   );
 
-  const pax = Number(formState.totalPerson) || 0;
-  const pricePerPlate = selectedCategory?.pricePerPlate ?? 0;
+  const resolvedPrimaryPackage =
+    activePackageId === 'primary'
+      ? packageDraftFromForm(formState)
+      : primaryPackageDraft;
+  const resolvedAdditionalPackages = additionalCategorySelections.map(
+    (selection) =>
+      selection.uiId === activePackageId
+        ? {
+            ...selection,
+            categoryId: formState.categoryId,
+            pax: formState.totalPerson,
+            serviceSlot: formState.serviceSlot,
+            startTime: formState.startTime,
+            endTime: formState.endTime,
+            customPricePerPlate: formState.customPricePerPlate,
+            selectedMenus: formState.selectedMenus,
+            menuComment: formState.menuComment,
+            configuredPricePerPlate:
+              categories.find((category) => category.id === formState.categoryId)
+                ?.pricePerPlate ?? selection.configuredPricePerPlate,
+          }
+        : selection,
+  );
+  const selectableCategoryIdSet = new Set(
+    availableCategoryIds(
+      categories,
+      resolvedPrimaryPackage.categoryId,
+      resolvedAdditionalPackages,
+      formState.categoryId,
+    ),
+  );
+  if (formState.categoryId) selectableCategoryIdSet.add(formState.categoryId);
+  const packageCategoryChoices = categories.filter((category) =>
+    selectableCategoryIdSet.has(category.id),
+  );
+
+  const pax = Number(resolvedPrimaryPackage.totalPerson) || 0;
+  const primaryConfiguredPrice =
+    categories.find(
+      (category) => category.id === resolvedPrimaryPackage.categoryId,
+    )?.pricePerPlate ?? 0;
+  const pricePerPlate =
+    resolvedPrimaryPackage.customPricePerPlate.trim() === ''
+      ? primaryConfiguredPrice
+      : Number(resolvedPrimaryPackage.customPricePerPlate) || 0;
   const baseTotal = pax * pricePerPlate;
   const addonPrice = formState.addonEntries.reduce(
     (sum, entry) => sum + (Number(entry.price) || 0),
     0,
   );
-  const grandTotal = baseTotal + addonPrice;
+  const additionalPackageTotal = resolvedAdditionalPackages.reduce(
+    (total, selection) =>
+      total +
+      packageSubtotal({
+        pax: selection.pax,
+        configuredPrice: selection.configuredPricePerPlate,
+        customPrice: selection.customPricePerPlate,
+      }),
+    0,
+  );
+  const grandTotal = baseTotal + additionalPackageTotal + addonPrice;
   const calendarSearchQuery = calendarSearchInput.trim().toLowerCase();
   const isCalendarSearchActive = calendarSearchQuery.length > 0;
   const filteredCalendarOrders = calendarOrders;
@@ -1170,10 +1283,93 @@ export default function BookingsPage() {
     setCustomMenuPopup(null);
     setSubitemDescriptionPopover(null);
     setFormState(initialFormState);
+    setPrimaryPackageDraft(packageDraftFromForm(initialFormState));
+    setAdditionalCategorySelections([]);
+    setActivePackageId('primary');
     setCustomerTitle('None');
     setCustomEventName('');
     setIsWizardOpen(false);
     if (restoreParent) restoreBookingOverlayParent();
+  }
+
+  function persistActivePackage(form: BookingFormState) {
+    const draft = packageDraftFromForm(form);
+    if (activePackageId === 'primary') {
+      setPrimaryPackageDraft(draft);
+      return;
+    }
+    setAdditionalCategorySelections((current) =>
+      current.map((selection) =>
+        selection.uiId === activePackageId
+          ? {
+              ...selection,
+              categoryId: draft.categoryId,
+              pax: draft.totalPerson,
+              serviceSlot: draft.serviceSlot,
+              startTime: draft.startTime,
+              endTime: draft.endTime,
+              customPricePerPlate: draft.customPricePerPlate,
+              selectedMenus: draft.selectedMenus,
+              menuComment: draft.menuComment,
+              configuredPricePerPlate:
+                categories.find((category) => category.id === draft.categoryId)
+                  ?.pricePerPlate ?? selection.configuredPricePerPlate,
+            }
+          : selection,
+      ),
+    );
+  }
+
+  function activatePackage(packageId: string) {
+    if (packageId === activePackageId) return;
+    persistActivePackage(formState);
+    const target =
+      packageId === 'primary'
+        ? primaryPackageDraft
+        : additionalCategorySelections.find(
+            (selection) => selection.uiId === packageId,
+          );
+    if (!target) return;
+    const draft =
+      packageId === 'primary'
+        ? primaryPackageDraft
+        : packageDraftFromAdditional(target as AdditionalCategoryFormState);
+    setFormState((current) => applyPackageDraft(current, draft));
+    setActivePackageId(packageId);
+    setSkippedRuleKeys([]);
+    setRuleSearches({});
+    setExpandedRuleKeys([]);
+    setWizardHeaderExpanded((current) => ({ ...current, category: true }));
+  }
+
+  function addAdditionalPackage() {
+    if (additionalCategorySelections.length >= 5) return;
+    persistActivePackage(formState);
+    const next = createAdditionalCategoryFormState();
+    setAdditionalCategorySelections((current) => [...current, next]);
+    setFormState((current) =>
+      applyPackageDraft(current, packageDraftFromAdditional(next)),
+    );
+    setActivePackageId(next.uiId);
+    setSkippedRuleKeys([]);
+    setRuleSearches({});
+    setExpandedRuleKeys([]);
+    setWizardHeaderExpanded((current) => ({ ...current, category: true }));
+  }
+
+  function removeAdditionalPackage(selection: AdditionalCategoryFormState) {
+    const categoryName =
+      categories.find((category) => category.id === selection.categoryId)?.name ||
+      'this additional package';
+    if (!window.confirm(`Remove ${categoryName} and its selected menu?`)) return;
+    const remaining = additionalCategorySelections.filter(
+      (entry) => entry.uiId !== selection.uiId,
+    );
+    setAdditionalCategorySelections(remaining);
+    if (activePackageId === selection.uiId) {
+      setFormState((current) => applyPackageDraft(current, primaryPackageDraft));
+      setActivePackageId('primary');
+    }
   }
 
   function openCreateInquiry(prefill?: { functionDate?: string }) {
@@ -1181,12 +1377,16 @@ export default function BookingsPage() {
     setToast(null);
     setEditingOrder(null);
     editInquirySnapshotRef.current = null;
-    setFormState({
+    const nextFormState: BookingFormState = {
       ...initialFormState,
       inquiryDate: toDateInputValue(new Date()),
       functionDate: prefill?.functionDate ?? '',
       decorationRequired: partnerInquiryEnabled,
-    });
+    };
+    setFormState(nextFormState);
+    setPrimaryPackageDraft(packageDraftFromForm(nextFormState));
+    setAdditionalCategorySelections([]);
+    setActivePackageId('primary');
     setCustomerTitle('None');
     setCustomEventName('');
     setIsInquiryOpen(true);
@@ -1277,7 +1477,7 @@ export default function BookingsPage() {
     const parsedCustomerName = parseCustomerDisplayName(
       `${order.customer.firstName} ${order.customer.lastName}`.trim(),
     );
-    setFormState({
+    const nextFormState: BookingFormState = {
       inquiryDate: order.inquiryDate ? formatDateKey(order.inquiryDate) : toDateInputValue(new Date()),
       customerName: parsedCustomerName.name,
       mobileNumber: order.customer.phone,
@@ -1323,7 +1523,40 @@ export default function BookingsPage() {
       menuComment: order.menuComment ?? '',
       welcomeDrinkStartTime: order.welcomeDrinkStartTime ?? '',
       mainCourseStartTime: order.mainCourseStartTime ?? '',
-    });
+    };
+    const nextAdditionalSelections: AdditionalCategoryFormState[] = (
+      order.additionalCategorySelections ?? []
+    )
+      .slice()
+      .sort((left, right) => left.displayOrder - right.displayOrder)
+      .map((selection) => ({
+        uiId: selection.selectionId,
+        selectionId: selection.selectionId,
+        categoryId: selection.categoryId,
+        pax: String(selection.pax),
+        configuredPricePerPlate: selection.configuredPricePerPlate,
+        customPricePerPlate:
+          selection.customPricePerPlate === null
+            ? ''
+            : String(selection.customPricePerPlate),
+        serviceSlot: selection.serviceSlot,
+        startTime: selection.startTime,
+        endTime: selection.endTime,
+        selectedMenus: selection.menuSelectionSnapshot.map((menu) => ({
+          menuId: menu.menuId,
+          title: menu.title,
+          directItems: [...(menu.directItems ?? [])],
+          sections: menu.sections.map((section) => ({
+            sectionTitle: section.sectionTitle,
+            items: [...section.items],
+          })),
+        })),
+        menuComment: selection.menuComment ?? '',
+      }));
+    setFormState(nextFormState);
+    setPrimaryPackageDraft(packageDraftFromForm(nextFormState));
+    setAdditionalCategorySelections(nextAdditionalSelections);
+    setActivePackageId('primary');
     setCustomerTitle(parsedCustomerName.title);
     setCustomEventName(resolvedEventName.customValue);
     setSkippedRuleKeys([]);
@@ -1843,13 +2076,15 @@ export default function BookingsPage() {
       return;
     }
 
-    if (!formState.categoryId) {
+    const primaryPackage = resolvedPrimaryPackage;
+    const additionalPackages = resolvedAdditionalPackages;
+    if (!primaryPackage.categoryId) {
       setToast({ type: 'error', message: 'Select a category before saving.' });
       return;
     }
 
-    if (formState.customPricePerPlate.trim()) {
-      const normalizedCustomPrice = Number(formState.customPricePerPlate);
+    if (primaryPackage.customPricePerPlate.trim()) {
+      const normalizedCustomPrice = Number(primaryPackage.customPricePerPlate);
       if (!Number.isFinite(normalizedCustomPrice) || normalizedCustomPrice < 0) {
         setToast({ type: 'error', message: 'Enter a valid custom price.' });
         return;
@@ -1873,14 +2108,18 @@ export default function BookingsPage() {
       return;
     }
 
-    if (!isValidTimeRange(formState.startTime, formState.endTime)) {
+    if (!isValidTimeRange(primaryPackage.startTime, primaryPackage.endTime)) {
       setToast({ type: 'error', message: 'End time must be later than start time.' });
       return;
     }
 
+    const primaryCategory = categories.find(
+      (category) => category.id === primaryPackage.categoryId,
+    );
     if (
-      (!isFlexibleCategory && orderedCategoryRules.length === 0) ||
-      (isFlexibleCategory && flexibleCategoryGroups.length === 0)
+      !primaryCategory ||
+      ((primaryCategory.flexibleChoiceGroups?.length ?? 0) === 0 &&
+        primaryCategory.menuRules.length === 0)
     ) {
       setToast({
         type: 'error',
@@ -1889,9 +2128,56 @@ export default function BookingsPage() {
       return;
     }
 
+    const usedCategoryIds = new Set([primaryPackage.categoryId]);
+    for (let index = 0; index < additionalPackages.length; index += 1) {
+      const selection = additionalPackages[index];
+      const label = `Additional package ${index + 1}`;
+      if (!selection.categoryId || usedCategoryIds.has(selection.categoryId)) {
+        setToast({
+          type: 'error',
+          message: `${label} must use a different category.`,
+        });
+        activatePackage(selection.uiId);
+        return;
+      }
+      usedCategoryIds.add(selection.categoryId);
+      if (!Number.isFinite(Number(selection.pax)) || Number(selection.pax) < 1) {
+        setToast({ type: 'error', message: `${label} requires valid pax.` });
+        activatePackage(selection.uiId);
+        return;
+      }
+      if (!selection.serviceSlot.trim()) {
+        setToast({ type: 'error', message: `${label} requires a service slot.` });
+        activatePackage(selection.uiId);
+        return;
+      }
+      if (!isValidTimeRange(selection.startTime, selection.endTime)) {
+        setToast({
+          type: 'error',
+          message: `${label} end time must be later than start time.`,
+        });
+        activatePackage(selection.uiId);
+        return;
+      }
+      if (selection.selectedMenus.length === 0) {
+        setToast({ type: 'error', message: `${label} requires menu selection.` });
+        activatePackage(selection.uiId);
+        return;
+      }
+      if (
+        selection.customPricePerPlate.trim() &&
+        (!Number.isFinite(Number(selection.customPricePerPlate)) ||
+          Number(selection.customPricePerPlate) < 0)
+      ) {
+        setToast({ type: 'error', message: `${label} has an invalid custom price.` });
+        activatePackage(selection.uiId);
+        return;
+      }
+    }
+
     const foodScheduleError = validateFoodServiceScheduleForm({
-      eventStartTime: formState.startTime,
-      eventEndTime: formState.endTime,
+      eventStartTime: primaryPackage.startTime,
+      eventEndTime: primaryPackage.endTime,
       welcomeDrinkStartTime: settings?.enableWelcomeDrinkStartTime
         ? formState.welcomeDrinkStartTime
         : '',
@@ -1917,17 +2203,18 @@ export default function BookingsPage() {
         accessToken,
         editingOrder.id,
         buildMenuSelectionUpdatePayload({
-          categoryId: formState.categoryId,
-          selectedMenus: formState.selectedMenus,
-          menuComment: formState.menuComment,
+          categoryId: primaryPackage.categoryId,
+          selectedMenus: primaryPackage.selectedMenus,
+          menuComment: primaryPackage.menuComment,
           addonEntries: formState.addonEntries,
-          customPricePerPlate: formState.customPricePerPlate,
+          customPricePerPlate: primaryPackage.customPricePerPlate,
           welcomeDrinkStartTime: formState.welcomeDrinkStartTime,
           mainCourseStartTime: formState.mainCourseStartTime,
           enableWelcomeDrinkStartTime:
             settings?.enableWelcomeDrinkStartTime ?? false,
           enableMainCourseStartTime:
             settings?.enableMainCourseStartTime ?? false,
+          additionalCategorySelections: additionalPackages,
           menuSelectionTracking,
         }),
       );
@@ -4357,7 +4644,167 @@ function selectionStatus(order: Order) {
             scrollablePanel={false}
             panelClassName="flex h-[92vh] min-h-0 flex-col"
           >
-            <div className="mt-5 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+            <div data-package-wizard-content="true" className="mt-5 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pb-28 sm:pb-0">
+              <div className="max-h-[38vh] space-y-3 overflow-y-auto pr-1">
+                <BookingPackageCard
+                  id="primary"
+                  label="Primary package"
+                  categoryName={
+                    categories.find(
+                      (category) =>
+                        category.id === resolvedPrimaryPackage.categoryId,
+                    )?.name ?? ''
+                  }
+                  pax={resolvedPrimaryPackage.totalPerson}
+                  serviceSlot={resolvedPrimaryPackage.serviceSlot}
+                  startTime={resolvedPrimaryPackage.startTime}
+                  endTime={resolvedPrimaryPackage.endTime}
+                  effectiveRate={
+                    resolvedPrimaryPackage.customPricePerPlate.trim() === ''
+                      ? categories.find(
+                          (category) =>
+                            category.id === resolvedPrimaryPackage.categoryId,
+                        )?.pricePerPlate ?? 0
+                      : Number(resolvedPrimaryPackage.customPricePerPlate) || 0
+                  }
+                  subtotal={packageSubtotal({
+                    pax: resolvedPrimaryPackage.totalPerson,
+                    configuredPrice:
+                      categories.find(
+                        (category) =>
+                          category.id === resolvedPrimaryPackage.categoryId,
+                      )?.pricePerPlate ?? 0,
+                    customPrice: resolvedPrimaryPackage.customPricePerPlate,
+                  })}
+                  selectedItemCount={resolvedPrimaryPackage.selectedMenus.reduce(
+                    (count, menu) =>
+                      count +
+                      (menu.directItems?.length ?? 0) +
+                      menu.sections.reduce(
+                        (sectionCount, section) =>
+                          sectionCount + section.items.length,
+                        0,
+                      ),
+                    0,
+                  )}
+                  expanded={activePackageId === 'primary'}
+                  onToggle={() => activatePackage('primary')}
+                >
+                  <p className="text-sm text-slate-600">
+                    The primary package uses the booking&apos;s pax, slot, and event time.
+                    Choose its category and menu below.
+                  </p>
+                </BookingPackageCard>
+
+                {resolvedAdditionalPackages.map((selection, index) => {
+                  const category = categories.find(
+                    (entry) => entry.id === selection.categoryId,
+                  );
+                  return (
+                    <BookingPackageCard
+                      key={selection.uiId}
+                      id={selection.uiId}
+                      label={`Additional package ${index + 1}`}
+                      categoryName={category?.name ?? ''}
+                      pax={selection.pax}
+                      serviceSlot={selection.serviceSlot}
+                      startTime={selection.startTime}
+                      endTime={selection.endTime}
+                      effectiveRate={
+                        selection.customPricePerPlate.trim() === ''
+                          ? selection.configuredPricePerPlate
+                          : Number(selection.customPricePerPlate) || 0
+                      }
+                      subtotal={packageSubtotal({
+                        pax: selection.pax,
+                        configuredPrice: selection.configuredPricePerPlate,
+                        customPrice: selection.customPricePerPlate,
+                      })}
+                      selectedItemCount={selection.selectedMenus.reduce(
+                        (count, menu) =>
+                          count +
+                          (menu.directItems?.length ?? 0) +
+                          menu.sections.reduce(
+                            (sectionCount, section) =>
+                              sectionCount + section.items.length,
+                            0,
+                          ),
+                        0,
+                      )}
+                      expanded={activePackageId === selection.uiId}
+                      onToggle={() => activatePackage(selection.uiId)}
+                      removable
+                      onRemove={() => removeAdditionalPackage(selection)}
+                    >
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <Field label="Pax">
+                          <input
+                            type="number"
+                            min="1"
+                            inputMode="numeric"
+                            value={formState.totalPerson}
+                            onChange={(event) =>
+                              setFormState((current) => ({
+                                ...current,
+                                totalPerson: event.target.value,
+                              }))
+                            }
+                            className={inputCls}
+                          />
+                        </Field>
+                        <Field label="Service Slot">
+                          <input
+                            value={formState.serviceSlot}
+                            onChange={(event) =>
+                              setFormState((current) => ({
+                                ...current,
+                                serviceSlot: event.target.value,
+                              }))
+                            }
+                            placeholder="Breakfast"
+                            className={inputCls}
+                          />
+                        </Field>
+                        <Field label="Start Time">
+                          <input
+                            type="time"
+                            value={formState.startTime}
+                            onChange={(event) =>
+                              setFormState((current) => ({
+                                ...current,
+                                startTime: event.target.value,
+                              }))
+                            }
+                            className={dateTimeInputCls}
+                          />
+                        </Field>
+                        <Field label="End Time">
+                          <input
+                            type="time"
+                            value={formState.endTime}
+                            onChange={(event) =>
+                              setFormState((current) => ({
+                                ...current,
+                                endTime: event.target.value,
+                              }))
+                            }
+                            className={dateTimeInputCls}
+                          />
+                        </Field>
+                      </div>
+                    </BookingPackageCard>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={addAdditionalPackage}
+                  disabled={additionalCategorySelections.length >= 5}
+                  className="w-full rounded-2xl border border-dashed border-amber-400 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  + Add meal package
+                </button>
+              </div>
               <div className="rounded-[20px] border border-slate-200 bg-[linear-gradient(145deg,#fffdf7,#ffffff)] p-3 shadow-sm sm:rounded-[24px] sm:p-4">
                 <button
                   type="button"
@@ -4449,7 +4896,7 @@ function selectionStatus(order: Order) {
                                 className={inputCls}
                               >
                                 <option value="">Select category</option>
-                                {categories.map((category) => (
+                                {packageCategoryChoices.map((category) => (
                                   <option key={category.id} value={category.id}>
                                     {category.name} ({formatCurrency(category.pricePerPlate)})
                                   </option>
@@ -4458,7 +4905,7 @@ function selectionStatus(order: Order) {
                             </Field>
                           </div>
                           <div className="grid max-h-36 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:hidden">
-                            {categories.map((category) => {
+                            {packageCategoryChoices.map((category) => {
                               const selected = formState.categoryId === category.id;
                               return (
                                 <button
@@ -5001,7 +5448,21 @@ function selectionStatus(order: Order) {
                   </div>
                 </div>
               ) : null}
-              <div className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur sm:pt-4">
+              <div data-package-wizard-footer="true" className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur sm:pt-4">
+                <div className="mb-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-xs sm:rounded-2xl sm:p-3">
+                  <div>
+                    <p className="text-slate-500">Primary</p>
+                    <p className="font-bold text-slate-950">{formatCurrency(baseTotal)}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Additional</p>
+                    <p className="font-bold text-slate-950">{formatCurrency(additionalPackageTotal)}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Package total</p>
+                    <p className="font-bold text-slate-950">{formatCurrency(grandTotal)}</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
