@@ -21,6 +21,7 @@ import {
   getRenderableMenus,
   getRenderableMenuSections,
 } from '@/lib/bookings/menu-snapshot';
+import { buildPackageDocumentSections } from '@/lib/bookings/package-document-view';
 
 type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
 
@@ -243,6 +244,9 @@ function PrintDocument({
     0,
   );
   const menuComment = order.menuComment?.trim() ?? '';
+  const additionalPackageSections = buildPackageDocumentSections(order).filter(
+    (section) => section.kind === 'ADDITIONAL',
+  );
   const foodScheduleRows = [
     order.welcomeDrinkStartTime
       ? ['Welcome Drink Start Time', formatFoodServiceTime(order.welcomeDrinkStartTime)]
@@ -468,6 +472,59 @@ function PrintDocument({
           </div>
         </section>
       ) : null}
+
+      {additionalPackageSections.map((packageSection) => {
+        const packageMenuRows = buildMenuSectionRows(
+          { menuSelectionSnapshot: packageSection.menus },
+          3,
+        );
+        return (
+          <section key={packageSection.key} className="mt-3 break-inside-avoid-page overflow-hidden rounded-[10px] border border-stone-400 print:mt-2">
+            <div className="break-after-avoid border-b border-stone-400 bg-stone-100 px-3 py-1.5">
+              <p className="text-[10px] font-black uppercase tracking-wide text-stone-700">{packageSection.label}</p>
+              <p className="text-[13px] font-black text-stone-950">
+                {packageSection.categoryName} · {packageSection.pax} Person · {packageSection.serviceSlot} · {packageSection.time}
+              </p>
+              <p className="text-[11px] font-bold text-stone-800">
+                {formatCurrency(packageSection.rate)} per plate · {formatCurrency(packageSection.subtotal)}
+              </p>
+            </div>
+            <table className="min-w-full table-fixed border-collapse text-[12px] leading-tight text-stone-950 print:text-[12px]">
+              <tbody>
+                {packageMenuRows.length > 0 ? packageMenuRows.map((row, rowIndex) => (
+                  <tr key={`${packageSection.key}-${rowIndex}`}>
+                    {row.map((section, cellIndex) => (
+                      <td key={section?.key ?? `empty-${cellIndex}`} className="w-1/3 border-b border-r border-stone-400 align-top last:border-r-0">
+                        {section ? (
+                          <div>
+                            <div className="border-b border-stone-300 bg-stone-100 px-1.5 py-0.5 font-black uppercase text-stone-950">
+                              {section.section} - {section.items.length}
+                            </div>
+                            <div className="px-1.5 py-1">
+                              {section.items.map((item, itemIndex) => (
+                                <div key={`${section.key}-${itemIndex}`} className="border-b border-dotted border-stone-300 py-0.5 font-semibold text-stone-900 last:border-b-0">
+                                  {item}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </td>
+                    ))}
+                  </tr>
+                )) : (
+                  <tr><td className="px-3 py-3 text-center font-bold text-stone-700">Menu selection pending</td></tr>
+                )}
+              </tbody>
+            </table>
+            {packageSection.comment ? (
+              <div className="border-t border-stone-400 px-3 py-2 text-[12px] font-bold text-stone-950">
+                Menu Comment: {packageSection.comment}
+              </div>
+            ) : null}
+          </section>
+        );
+      })}
 
       <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'}`}>
         <div className={`${isKitchenCopy ? 'overflow-hidden rounded-[10px] border border-stone-400' : 'mt-2 overflow-hidden rounded-[10px] border border-stone-400'}`}>

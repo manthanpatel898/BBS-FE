@@ -84,6 +84,7 @@ import {
   validateFoodServiceScheduleForm,
 } from '@/lib/bookings/food-service-schedule';
 import { buildMenuSelectionUpdatePayload } from '@/lib/bookings/menu-selection-update';
+import { buildPackageDocumentSections } from '@/lib/bookings/package-document-view';
 import {
   availableCategoryIds,
   createAdditionalCategoryFormState,
@@ -7030,63 +7031,94 @@ function selectionStatus(order: Order) {
                     </section>
                   ) : null}
 
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Menu Snapshot
-                      </p>
-                      {getRenderableMenus(detailOrder.menuSelectionSnapshot).length > 0 ? (
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                          {getRenderableMenus(detailOrder.menuSelectionSnapshot).length} menu
-                          {getRenderableMenus(detailOrder.menuSelectionSnapshot).length === 1 ? '' : 's'}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-                      {getRenderableMenus(detailOrder.menuSelectionSnapshot).length === 0 ? (
-                        <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 md:col-span-2 2xl:col-span-3">
-                          No menu selected yet.
-                        </p>
-                      ) : (
-                        getRenderableMenus(detailOrder.menuSelectionSnapshot).map((menu) => {
-                          return (
-                            <div
-                              key={menu.menuId}
-                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
-                            >
-                              <h3 className="text-sm font-semibold text-slate-900">{menu.title}</h3>
-                              <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
-                                {getRenderableMenuSections(menu).map((section) => (
-                                  <div
-                                    key={`${menu.menuId}-${section.sectionTitle}`}
-                                    className="min-w-0"
-                                  >
-                                    {section.sectionTitle.trim().toLowerCase() !==
-                                    menu.title.trim().toLowerCase() ? (
-                                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                        {section.sectionTitle}
-                                      </p>
-                                    ) : null}
-                                    <p className="mt-0.5 leading-5">{section.items.join(', ')}</p>
-                                  </div>
-                                ))}
+                  <div className="space-y-4">
+                    {buildPackageDocumentSections(detailOrder).map((packageSection) => (
+                      <section
+                        key={packageSection.key}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-600">
+                              {packageSection.label}
+                            </p>
+                            <h3 className="mt-1 text-lg font-bold text-slate-950">
+                              {packageSection.categoryName}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {packageSection.serviceSlot} · {packageSection.time} · {packageSection.pax} pax
+                            </p>
+                          </div>
+                          <div className="text-right text-sm">
+                            <p className="text-slate-500">{formatCurrency(packageSection.rate)} / plate</p>
+                            <p className="font-bold text-slate-950">{formatCurrency(packageSection.subtotal)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+                          {getRenderableMenus(packageSection.menus).length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 md:col-span-2 2xl:col-span-3">
+                              No menu selected yet.
+                            </p>
+                          ) : (
+                            getRenderableMenus(packageSection.menus).map((menu) => (
+                              <div key={menu.menuId} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                <h4 className="text-sm font-semibold text-slate-900">{menu.title}</h4>
+                                <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
+                                  {getRenderableMenuSections(menu).map((section) => (
+                                    <div key={`${menu.menuId}-${section.sectionTitle}`} className="min-w-0">
+                                      {section.sectionTitle.trim().toLowerCase() !== menu.title.trim().toLowerCase() ? (
+                                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{section.sectionTitle}</p>
+                                      ) : null}
+                                      <p className="mt-0.5 leading-5">{section.items.join(', ')}</p>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
+                            ))
+                          )}
+                        </div>
+                        {packageSection.comment ? (
+                          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Menu Comment</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{packageSection.comment}</p>
+                          </div>
+                        ) : null}
+                      </section>
+                    ))}
                   </div>
-                  {detailOrder.menuComment ? (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Menu Comment
-                      </p>
-                      <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                        {detailOrder.menuComment}
+
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                          Package Summary
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Primary and additional meal packages for this booking.
+                        </p>
+                      </div>
+                      <p className="text-lg font-bold text-slate-950">
+                        {formatCurrency(detailOrder.grandTotal)}
                       </p>
                     </div>
-                  ) : null}
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      {[
+                        ['Primary package', detailOrder.baseTotal],
+                        ['Additional packages', detailOrder.additionalCategoryTotal],
+                        ['Addon services', detailOrder.extrasTotal],
+                        ['Discount', detailOrder.discountAmount],
+                      ].map(([label, amount]) => (
+                        <div key={label} className="rounded-xl bg-slate-50 px-3 py-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                            {label}
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-slate-950">
+                            {formatCurrency(Number(amount))}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
 
                 <div className="grid gap-4">
