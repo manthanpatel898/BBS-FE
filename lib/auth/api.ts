@@ -1283,6 +1283,22 @@ export async function updateOrder(
         items: string[];
       }>;
     }>;
+    additionalCategorySelections?: Array<{
+      selectionId?: string;
+      categoryId: string;
+      pax: number;
+      customPricePerPlate: number | null;
+      serviceSlot: string;
+      startTime: string;
+      endTime: string;
+      selectedMenus: Array<{
+        menuId: string;
+        directItems?: string[];
+        sections: Array<{ sectionTitle: string; items: string[] }>;
+      }>;
+      menuComment: string;
+      displayOrder: number;
+    }>;
     menuComment?: string;
     extrasTotal?: number;
     discountAmount?: number;

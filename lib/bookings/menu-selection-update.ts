@@ -1,3 +1,8 @@
+import {
+  normalizeSelectedMenus,
+  type AdditionalCategoryFormState,
+} from './additional-category-selection';
+
 export type MenuSelectionUpdateInput = {
   categoryId: string;
   selectedMenus: Array<{
@@ -13,6 +18,7 @@ export type MenuSelectionUpdateInput = {
   mainCourseStartTime: string;
   enableWelcomeDrinkStartTime: boolean;
   enableMainCourseStartTime: boolean;
+  additionalCategorySelections?: AdditionalCategoryFormState[];
   menuSelectionTracking?: {
     startedAt: string;
     trigger: 'initial' | 'change';
@@ -34,20 +40,35 @@ export function buildMenuSelectionUpdatePayload(input: MenuSelectionUpdateInput)
     ...(input.customPricePerPlate.trim()
       ? { customPricePerPlate: Number(input.customPricePerPlate) }
       : {}),
-    selectedMenus: input.selectedMenus.map((menu) => ({
-      menuId: menu.menuId,
-      directItems: menu.directItems ?? [],
-      sections: menu.sections.map((section) => ({
-        sectionTitle: section.sectionTitle,
-        items: section.items,
-      })),
-    })),
+    selectedMenus: normalizeSelectedMenus(input.selectedMenus),
     menuComment: input.menuComment.trim(),
     ...(input.enableWelcomeDrinkStartTime
       ? { welcomeDrinkStartTime: input.welcomeDrinkStartTime || null }
       : {}),
     ...(input.enableMainCourseStartTime
       ? { mainCourseStartTime: input.mainCourseStartTime || null }
+      : {}),
+    ...((input.additionalCategorySelections?.length ?? 0) > 0
+      ? {
+          additionalCategorySelections:
+            input.additionalCategorySelections!.map((selection, index) => ({
+              ...(selection.selectionId
+                ? { selectionId: selection.selectionId }
+                : {}),
+              categoryId: selection.categoryId,
+              pax: Number(selection.pax),
+              customPricePerPlate:
+                selection.customPricePerPlate.trim() === ''
+                  ? null
+                  : Number(selection.customPricePerPlate),
+              serviceSlot: selection.serviceSlot,
+              startTime: selection.startTime,
+              endTime: selection.endTime,
+              selectedMenus: normalizeSelectedMenus(selection.selectedMenus),
+              menuComment: selection.menuComment.trim(),
+              displayOrder: index,
+            })),
+        }
       : {}),
     ...(input.menuSelectionTracking
       ? { menuSelectionTracking: input.menuSelectionTracking }

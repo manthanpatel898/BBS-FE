@@ -461,6 +461,23 @@ export interface OrderMenuSelectionSnapshot {
   } | null;
 }
 
+export interface OrderAdditionalCategorySelection {
+  selectionId: string;
+  categoryId: string;
+  categorySnapshot: OrderCategorySnapshot;
+  pax: number;
+  configuredPricePerPlate: number;
+  customPricePerPlate: number | null;
+  effectivePricePerPlate: number;
+  serviceSlot: string;
+  startTime: string;
+  endTime: string;
+  menuSelectionSnapshot: OrderMenuSelectionSnapshot[];
+  menuComment: string | null;
+  subtotal: number;
+  displayOrder: number;
+}
+
 export interface OdcCustomerSnapshot {
   firstName: string;
   lastName: string;
@@ -668,6 +685,8 @@ export interface Order {
   mainCourseStartTime: string | null;
   categorySnapshot: OrderCategorySnapshot | null;
   menuSelectionSnapshot: OrderMenuSelectionSnapshot[];
+  additionalCategorySelections: OrderAdditionalCategorySelection[];
+  additionalCategoryTotal: number;
   menuComment: string | null;
   pricePerPlate: number;
   customPricePerPlate: number | null;

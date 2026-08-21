@@ -20,6 +20,29 @@ test('menu selection update contains only fields owned by the menu workflow', ()
     mainCourseStartTime: '',
     enableWelcomeDrinkStartTime: true,
     enableMainCourseStartTime: true,
+    additionalCategorySelections: [
+      {
+        uiId: 'ui-selection-1',
+        selectionId: 'saved-selection-1',
+        categoryId: 'breakfast-category',
+        pax: '60',
+        configuredPricePerPlate: 400,
+        customPricePerPlate: '',
+        serviceSlot: 'Breakfast',
+        startTime: '08:00',
+        endTime: '10:00',
+        selectedMenus: [
+          {
+            menuId: 'breakfast-menu',
+            title: 'Breakfast',
+            sections: [
+              { sectionTitle: 'Breakfast', items: ['Poha'] },
+            ],
+          },
+        ],
+        menuComment: ' Less spicy ',
+      },
+    ],
     menuSelectionTracking: {
       startedAt: '2026-08-19T12:59:12.050Z',
       trigger: 'change',
@@ -40,6 +63,26 @@ test('menu selection update contains only fields owned by the menu workflow', ()
     menuComment: 'No ice',
     welcomeDrinkStartTime: '19:15',
     mainCourseStartTime: null,
+    additionalCategorySelections: [
+      {
+        selectionId: 'saved-selection-1',
+        categoryId: 'breakfast-category',
+        pax: 60,
+        customPricePerPlate: null,
+        serviceSlot: 'Breakfast',
+        startTime: '08:00',
+        endTime: '10:00',
+        selectedMenus: [
+          {
+            menuId: 'breakfast-menu',
+            directItems: [],
+            sections: [{ sectionTitle: 'Breakfast', items: ['Poha'] }],
+          },
+        ],
+        menuComment: 'Less spicy',
+        displayOrder: 0,
+      },
+    ],
     menuSelectionTracking: {
       startedAt: '2026-08-19T12:59:12.050Z',
       trigger: 'change',
@@ -71,6 +114,7 @@ test('menu selection update supports structured and flexible menu shapes', () =>
     mainCourseStartTime: '',
     enableWelcomeDrinkStartTime: false,
     enableMainCourseStartTime: false,
+    additionalCategorySelections: [],
   });
 
   assert.deepEqual(payload.selectedMenus, [
