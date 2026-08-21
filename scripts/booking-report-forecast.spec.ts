@@ -30,12 +30,16 @@ const response: BookingReportResponse = {
       effectivePlatePrice: 600,
       effectiveGrandTotal: 62000,
       effectivePendingAmount: 52000,
+      packageCount: 0,
+      additionalCategoryTotal: 0,
+      packageSummary: '',
     },
   ],
   totals: {
     grandTotal: 62000,
     advanceAmount: 10000,
     pendingAmount: 52000,
+    additionalCategoryTotal: 0,
   },
 };
 

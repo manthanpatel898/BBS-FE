@@ -105,7 +105,6 @@ export default function OdcReportsPage() {
   useEffect(() => {
     if (!accessToken || !hasOdcAccess || !effectiveRestaurantId) return;
     void loadReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, effectiveRestaurantId, hasOdcAccess]);
 
   async function loadReport() {

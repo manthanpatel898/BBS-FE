@@ -18,7 +18,7 @@ const png = (name: string, tail = 1) => new File([
 const FakeCropModal: ComponentType<CatalogCropModalProps> = ({ file, onCancel, onConfirm }) => <div role="dialog" aria-label="Crop test image">
   <span>{file.name}</span>
   <button type="button" onClick={onCancel}>Cancel crop</button>
-  <button type="button" onClick={() => void onConfirm(png(`cropped-${file.name}`, 2))}>Confirm crop</button>
+  <button type="button" onClick={() => void onConfirm(png(`cropped-${file.name}`, 2), 'COVER')}>Confirm crop</button>
 </div>;
 
 const CropperAdapter = (props: DecorationCropperAdapterProps) => <button type="button" onClick={() => props.onCropComplete(

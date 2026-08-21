@@ -31,7 +31,7 @@ async function main() {
   assert.equal(payload.pricePerPlate, 799);
   assert.equal(payload.groups[0]?.includedChoices, 2);
   assert.deepEqual(payload.menus[0]?.directItems?.items, ['Welcome Drink']);
-  assert.deepEqual(payload.menus[0]?.sections[1]?.items, ['Khaman']);
+  assert.deepEqual(payload.menus[0]?.sections?.[1]?.items, ['Khaman']);
   assert.equal(payload.groups[0]?.clientKey, configured.groups[0]?.id);
 
   const revisionDraft = builder.createFlexibleCategoryEditDraft({

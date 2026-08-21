@@ -11,7 +11,7 @@ import { DecorationImageCropModal, type DecorationCropperAdapterProps } from '..
 
 const page = () => within(document.body);
 const png = (name: string, value = 'source') => new File([value], name, { type: 'image/png' });
-const uploadedImage = (key = 'key') => ({ key, url: 'url', mimeType: 'image/png', sizeBytes: 7 });
+const uploadedImage = (key = 'key') => ({ key, url: 'url', mimeType: 'image/png', sizeBytes: 7, displayMode: 'COVER' as const });
 const booking = { id: 'booking-1', customer: { name: 'Customer' }, decorationSnapshot: [] } as any;
 const categories = [{ id: 'category-1', name: 'Stage' }] as any;
 const items = [{ id: 'item-1', categoryId: 'category-1', name: 'Arch', isActive: true, availableQuantity: 3, totalQuantity: 3, images: [] }] as any;
@@ -19,7 +19,7 @@ const items = [{ id: 'item-1', categoryId: 'category-1', name: 'Arch', isActive:
 const FakeCropModal: ComponentType<CustomCropModalProps> = ({ file, busy, onCancel, onConfirm }) => <div role="dialog" aria-label="Crop custom image">
   <span>{file.name}</span>
   <button type="button" disabled={busy} onClick={onCancel}>Cancel crop</button>
-  <button type="button" disabled={busy} onClick={() => void onConfirm(png(`cropped-${file.name}`, 'cropped'))}>Confirm crop</button>
+  <button type="button" disabled={busy} onClick={() => void onConfirm(png(`cropped-${file.name}`, 'cropped'), 'COVER')}>Confirm crop</button>
 </div>;
 
 const CropperAdapter = (props: DecorationCropperAdapterProps) => {
