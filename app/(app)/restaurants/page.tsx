@@ -44,6 +44,17 @@ type RestaurantFormState = {
   invoiceTaxMode: 'CGST_SGST' | 'IGST' | 'NO_GST';
   invoiceGstRateBps: number;
   invoiceFinancialYearNumbering: boolean;
+  billingLegalName: string;
+  billingAddress: string;
+  billingPanNumber: string;
+  billingState: string;
+  billingCountry: string;
+  billingContactNumber: string;
+  bankAccountHolderName: string;
+  bankName: string;
+  bankAccountNumber: string;
+  bankBranchName: string;
+  bankIfscCode: string;
 };
 
 const initialFormState: RestaurantFormState = {
@@ -71,6 +82,9 @@ const initialFormState: RestaurantFormState = {
   invoiceTaxMode: 'CGST_SGST',
   invoiceGstRateBps: 500,
   invoiceFinancialYearNumbering: true,
+  billingLegalName: '', billingAddress: '', billingPanNumber: '', billingState: '',
+  billingCountry: 'India', billingContactNumber: '', bankAccountHolderName: '',
+  bankName: '', bankAccountNumber: '', bankBranchName: '', bankIfscCode: '',
 };
 
 const inputCls =
@@ -208,6 +222,17 @@ export default function RestaurantsPage() {
       invoiceTaxMode: restaurant.invoiceTaxMode ?? 'CGST_SGST',
       invoiceGstRateBps: restaurant.invoiceGstRateBps ?? 500,
       invoiceFinancialYearNumbering: restaurant.invoiceFinancialYearNumbering ?? true,
+      billingLegalName: restaurant.invoiceBillingProfile?.legalName ?? '',
+      billingAddress: restaurant.invoiceBillingProfile?.address ?? '',
+      billingPanNumber: restaurant.invoiceBillingProfile?.panNumber ?? '',
+      billingState: restaurant.invoiceBillingProfile?.state ?? '',
+      billingCountry: restaurant.invoiceBillingProfile?.country ?? 'India',
+      billingContactNumber: restaurant.invoiceBillingProfile?.contactNumber ?? '',
+      bankAccountHolderName: restaurant.invoiceBankAccount?.accountHolderName ?? '',
+      bankName: restaurant.invoiceBankAccount?.bankName ?? '',
+      bankAccountNumber: restaurant.invoiceBankAccount?.accountNumber ?? '',
+      bankBranchName: restaurant.invoiceBankAccount?.branchName ?? '',
+      bankIfscCode: restaurant.invoiceBankAccount?.ifscCode ?? '',
     });
     setActiveModalTab('info');
     setError('');
@@ -230,8 +255,16 @@ export default function RestaurantsPage() {
     try {
       setIsSubmitting(true);
       setError('');
+      const {
+        billingLegalName: _billingLegalName, billingAddress: _billingAddress,
+        billingPanNumber: _billingPanNumber, billingState: _billingState,
+        billingCountry: _billingCountry, billingContactNumber: _billingContactNumber,
+        bankAccountHolderName: _bankAccountHolderName, bankName: _bankName,
+        bankAccountNumber: _bankAccountNumber, bankBranchName: _bankBranchName,
+        bankIfscCode: _bankIfscCode, ...baseFormState
+      } = formState;
       const payload = {
-        ...formState,
+        ...baseFormState,
         enableFlexibleMenuBuilder: normalizeFlexibleMenuBuilderFlag(
           formState.businessType,
           formState.enableFlexibleMenuBuilder,
@@ -241,6 +274,17 @@ export default function RestaurantsPage() {
         logoUrl: formState.logoUrl.trim() || null,
         gstNumber: formState.gstNumber.trim() || undefined,
         invoicePrefix: formState.invoicePrefix.trim() || undefined,
+        invoiceBillingProfile: formState.billingEnabled ? {
+          legalName: formState.billingLegalName.trim(), address: formState.billingAddress.trim(),
+          panNumber: formState.billingPanNumber.trim().toUpperCase(),
+          gstNumber: formState.gstNumber.trim().toUpperCase(), state: formState.billingState.trim(),
+          country: formState.billingCountry.trim() || 'India', contactNumber: formState.billingContactNumber.trim(),
+        } : undefined,
+        invoiceBankAccount: formState.billingEnabled ? {
+          accountHolderName: formState.bankAccountHolderName.trim(), bankName: formState.bankName.trim(),
+          accountNumber: formState.bankAccountNumber.trim(), branchName: formState.bankBranchName.trim(),
+          ifscCode: formState.bankIfscCode.trim().toUpperCase(),
+        } : undefined,
       };
 
       if (editingRestaurant) {
@@ -852,6 +896,23 @@ export default function RestaurantsPage() {
                         <label className="grid gap-1 text-sm font-semibold text-slate-700">Invoice prefix<input value={formState.invoicePrefix} onChange={(e)=>setFormState((s)=>({...s,invoicePrefix:e.target.value.toUpperCase()}))} placeholder="e.g. INV" required className={inputCls} /></label>
                         <label className="grid gap-1 text-sm font-semibold text-slate-700">Tax mode<select value={formState.invoiceTaxMode} onChange={(e)=>setFormState((s)=>({...s,invoiceTaxMode:e.target.value as RestaurantFormState['invoiceTaxMode']}))} className={inputCls}><option value="CGST_SGST">CGST + SGST</option><option value="IGST">IGST</option><option value="NO_GST">No GST</option></select></label>
                         <label className="grid gap-1 text-sm font-semibold text-slate-700">GST rate (%)<input inputMode="decimal" value={formState.invoiceGstRateBps / 100} onChange={(e)=>setFormState((s)=>({...s,invoiceGstRateBps:Math.round((Number(e.target.value)||0)*100)}))} disabled={formState.invoiceTaxMode==='NO_GST'} className={inputCls} /></label>
+                        <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 md:grid-cols-2">
+                          <h4 className="font-bold text-slate-900 md:col-span-2">Company billing profile</h4>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">Legal company name<input required className={inputCls} value={formState.billingLegalName} onChange={(e)=>setFormState((s)=>({...s,billingLegalName:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">Billing contact number<input required className={inputCls} value={formState.billingContactNumber} onChange={(e)=>setFormState((s)=>({...s,billingContactNumber:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700 md:col-span-2">Company address<textarea required rows={2} className={`${inputCls} resize-y`} value={formState.billingAddress} onChange={(e)=>setFormState((s)=>({...s,billingAddress:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">PAN<input required maxLength={10} className={inputCls} value={formState.billingPanNumber} onChange={(e)=>setFormState((s)=>({...s,billingPanNumber:e.target.value.toUpperCase()}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">State<input required className={inputCls} value={formState.billingState} onChange={(e)=>setFormState((s)=>({...s,billingState:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">Country<input required className={inputCls} value={formState.billingCountry} onChange={(e)=>setFormState((s)=>({...s,billingCountry:e.target.value}))} /></label>
+                        </section>
+                        <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:col-span-2 md:grid-cols-2">
+                          <h4 className="font-bold text-slate-900 md:col-span-2">Company bank details</h4>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">Account holder name<input required className={inputCls} value={formState.bankAccountHolderName} onChange={(e)=>setFormState((s)=>({...s,bankAccountHolderName:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">Bank name<input required className={inputCls} value={formState.bankName} onChange={(e)=>setFormState((s)=>({...s,bankName:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">Account number<input required inputMode="numeric" className={inputCls} value={formState.bankAccountNumber} onChange={(e)=>setFormState((s)=>({...s,bankAccountNumber:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">Branch name<input required className={inputCls} value={formState.bankBranchName} onChange={(e)=>setFormState((s)=>({...s,bankBranchName:e.target.value}))} /></label>
+                          <label className="grid gap-1 text-sm font-semibold text-slate-700">IFSC code<input required maxLength={11} className={inputCls} value={formState.bankIfscCode} onChange={(e)=>setFormState((s)=>({...s,bankIfscCode:e.target.value.toUpperCase()}))} /></label>
+                        </section>
                         <p className="text-xs leading-5 text-slate-600 md:col-span-2">Prices are GST-exclusive. Invoice numbers reset by Indian financial year and previously issued invoices remain unchanged.</p>
                       </> : null}
                     </div>

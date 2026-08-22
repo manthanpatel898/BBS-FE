@@ -41,6 +41,8 @@ export function BanquetInvoiceModal({
   const [name, setName] = useState(`${order.customer.firstName} ${order.customer.lastName}`.trim());
   const [mobile, setMobile] = useState(order.customer.phone);
   const [address, setAddress] = useState(order.customer.address ?? '');
+  const [state, setState] = useState('');
+  const [country, setCountry] = useState('India');
   const [gstin, setGstin] = useState('');
   const [discountType, setDiscountType] = useState<BanquetInvoiceDiscountType>('NONE');
   const [discount, setDiscount] = useState('0');
@@ -66,11 +68,15 @@ export function BanquetInvoiceModal({
           setName(issued.recipientSnapshot.name);
           setMobile(issued.recipientSnapshot.mobile);
           setAddress(issued.recipientSnapshot.address);
+          setState(issued.recipientSnapshot.state ?? '');
+          setCountry(issued.recipientSnapshot.country || 'India');
           setGstin(issued.recipientSnapshot.gstNumber ?? '');
         } else {
           setName(nextPreview.recipient.name || name);
           setMobile(nextPreview.recipient.mobile || mobile);
           setAddress(nextPreview.recipient.address || address);
+          setState(nextPreview.recipient.state || '');
+          setCountry(nextPreview.recipient.country || 'India');
           setDiscountType(nextPreview.discount.type);
           setDiscount(
             nextPreview.discount.type === 'PERCENTAGE'
@@ -113,6 +119,8 @@ export function BanquetInvoiceModal({
         customerName: name,
         customerMobile: mobile,
         customerAddress: address,
+        customerState: state,
+        customerCountry: country,
         customerGstNumber: gstin,
         discountType,
         discountValue,
@@ -164,13 +172,17 @@ export function BanquetInvoiceModal({
           <div className="app-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
             {error ? <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{error}</div> : null}
             <div className="grid gap-3 sm:grid-cols-2">
+              {preview ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2"><p className="text-xs font-bold uppercase tracking-wider text-amber-700">Bill From</p><p className="mt-1 font-bold text-slate-950">{preview.supplier.legalName}</p><p className="mt-1 whitespace-pre-line text-sm text-slate-600">{preview.supplier.address}</p><p className="mt-1 text-sm text-slate-600">GSTIN: {preview.supplier.gstNumber} · PAN: {preview.supplier.panNumber}</p></div> : null}
+              <p className="text-xs font-bold uppercase tracking-wider text-amber-700 sm:col-span-2">Bill To</p>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">Billing name<input className={fieldClass} value={name} onChange={(e)=>setName(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required /></label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">Mobile<input className={fieldClass} value={mobile} onChange={(e)=>setMobile(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required /></label>
+              <label className="grid gap-1 text-sm font-semibold text-slate-700">Mobile (optional)<input className={fieldClass} value={mobile} onChange={(e)=>setMobile(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} /></label>
               <details className="rounded-xl border border-slate-200 bg-slate-50 sm:col-span-2" open={reissueMode || undefined}>
                 <summary className="cursor-pointer select-none px-4 py-3 text-sm font-bold text-slate-800">Additional billing details <span className="font-normal text-slate-500">(optional)</span></summary>
                 <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2">
                   <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">Billing address (optional)<textarea className={`${fieldClass} resize-y`} rows={3} value={address} onChange={(e)=>setAddress(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} /></label>
                   <label className="grid gap-1 text-sm font-semibold text-slate-700">Customer GSTIN (optional)<input className={fieldClass} value={gstin} onChange={(e)=>setGstin(e.target.value.toUpperCase())} disabled={Boolean(activeInvoice) && !reissueMode} maxLength={15} /></label>
+                  <label className="grid gap-1 text-sm font-semibold text-slate-700">State {gstin ? '(required)' : '(optional)'}<input className={fieldClass} value={state} onChange={(e)=>setState(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required={Boolean(gstin)} /></label>
+                  <label className="grid gap-1 text-sm font-semibold text-slate-700">Country<input className={fieldClass} value={country} onChange={(e)=>setCountry(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required /></label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="grid gap-1 text-sm font-semibold text-slate-700">Discount (optional)<select className={fieldClass} value={discountType} onChange={(e)=>setDiscountType(e.target.value as BanquetInvoiceDiscountType)} disabled={Boolean(activeInvoice) && !reissueMode}><option value="NONE">None</option><option value="FIXED">Fixed amount</option><option value="PERCENTAGE">Percentage</option></select></label>
                     <label className="grid gap-1 text-sm font-semibold text-slate-700">Value<input className={fieldClass} inputMode="decimal" value={discount} onChange={(e)=>setDiscount(e.target.value)} disabled={(Boolean(activeInvoice) && !reissueMode) || discountType==='NONE'} /></label>
@@ -182,7 +194,8 @@ export function BanquetInvoiceModal({
             <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
               {(activeInvoice?.lines ?? preview?.lines ?? []).map((line, index)=><div key={`${line.description}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 border-b border-slate-100 px-4 py-3 last:border-0"><div><p className="font-semibold text-slate-900">{line.description}</p><p className="text-xs text-slate-500">{line.quantity} × {money(line.unitRatePaise)}</p></div><p className="font-semibold">{money(line.amountPaise)}</p></div>)}
             </div>
-            {displayedTotals ? <div className="mt-4 ml-auto grid max-w-md gap-2 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Taxable amount</span><b>{money(displayedTotals.taxableSubtotalPaise)}</b></div><div className="flex justify-between"><span>GST</span><b>{money(displayedTotals.taxPaise)}</b></div><div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span>Grand total</span><b>{money(displayedTotals.grandTotalPaise)}</b></div></div> : null}
+            {displayedTotals ? <div className="mt-4 ml-auto grid max-w-md gap-2 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Taxable amount</span><b>{money(displayedTotals.taxableSubtotalPaise)}</b></div>{preview?.taxMode==='CGST_SGST'?<><div className="flex justify-between"><span>CGST</span><b>{money(displayedTotals.cgstPaise)}</b></div><div className="flex justify-between"><span>SGST</span><b>{money(displayedTotals.sgstPaise)}</b></div></>:<div className="flex justify-between"><span>IGST</span><b>{money(displayedTotals.igstPaise)}</b></div>}<div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span>Grand total</span><b>{money(displayedTotals.grandTotalPaise)}</b></div>{preview?.amountInWords?<p className="border-t border-slate-200 pt-2 text-xs font-semibold text-slate-600">{preview.amountInWords}</p>:null}</div> : null}
+            {preview?.bank ? <div className="mt-4 rounded-xl border border-slate-200 p-4 text-sm text-slate-700"><p className="font-bold text-slate-950">Company&apos;s Bank Details</p><p>{preview.bank.accountHolderName} · {preview.bank.bankName}</p><p>A/c: {preview.bank.accountNumber} · {preview.bank.branchName} / {preview.bank.ifscCode}</p></div> : null}
             {history.some((invoice)=>invoice.status==='CANCELLED') && canDownload ? <div className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-sm font-bold text-slate-900">Invoice history</p><div className="mt-2 grid gap-2">{history.filter((invoice)=>invoice.status==='CANCELLED').map((invoice)=><button type="button" key={invoice.id} onClick={()=>void download(invoice.id)} className="flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 text-left text-sm text-slate-700"><span>{invoice.invoiceNumber}</span><span className="font-semibold">Download cancelled copy</span></button>)}</div></div> : null}
           </div>
           <footer className="safe-pad-bottom flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white p-4 sm:flex-row sm:justify-end sm:px-6">

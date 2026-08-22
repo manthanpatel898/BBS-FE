@@ -85,6 +85,8 @@ export interface Restaurant {
   invoiceGstRateBps?: number;
   invoicePriceMode?: 'GST_EXCLUSIVE';
   invoiceFinancialYearNumbering?: boolean;
+  invoiceBillingProfile?: InvoiceBillingProfile | null;
+  invoiceBankAccount?: InvoiceBankAccount | null;
   isActive?: boolean;
   subscriptionStatus?: SubscriptionStatus | null;
   notes?: string | null;
@@ -94,12 +96,14 @@ export interface Restaurant {
 }
 
 export type BanquetInvoiceDiscountType = 'NONE' | 'FIXED' | 'PERCENTAGE';
-export interface BanquetInvoiceRecipient { name:string; mobile:string; address:string; gstNumber:string|null }
+export interface InvoiceBillingProfile { legalName:string; address:string; panNumber:string; gstNumber:string; state:string; country:string; contactNumber:string }
+export interface InvoiceBankAccount { accountHolderName:string; bankName:string; accountNumber:string; branchName:string; ifscCode:string }
+export interface BanquetInvoiceRecipient { name:string; mobile:string; address:string; state:string; country:string; gstNumber:string|null }
 export interface BanquetInvoiceLine { description:string; quantity:number; unitRatePaise:number; amountPaise:number; source?:'PACKAGE'|'ADDON'|'EXTRA' }
 export interface BanquetInvoiceTotals { grossPaise:number; discountPaise:number; taxableSubtotalPaise:number; taxPaise:number; cgstPaise:number; sgstPaise:number; igstPaise:number; grandTotalPaise:number; advanceReceivedPaise:number; balancePendingPaise:number }
-export interface BanquetInvoicePreview { invoiceNumber:string|null; recipient:BanquetInvoiceRecipient; event:Record<string,unknown>; lines:BanquetInvoiceLine[]; discount:{type:BanquetInvoiceDiscountType;value:number}; taxMode:'CGST_SGST'|'IGST'|'NO_GST'; gstRateBps:number; totals:BanquetInvoiceTotals }
-export interface BanquetInvoice extends BanquetInvoicePreview { id:string; invoiceNumber:string; status:'ISSUED'|'CANCELLED'; issuedAt:string; recipientSnapshot:BanquetInvoiceRecipient; totals:BanquetInvoiceTotals }
-export interface IssueBanquetInvoicePayload { customerName:string; customerMobile:string; customerAddress?:string; customerGstNumber?:string; discountType?:BanquetInvoiceDiscountType; discountValue?:number }
+export interface BanquetInvoicePreview { invoiceNumber:string|null; recipient:BanquetInvoiceRecipient; supplier:InvoiceBillingProfile; bank:InvoiceBankAccount; event:Record<string,unknown>; lines:BanquetInvoiceLine[]; discount:{type:BanquetInvoiceDiscountType;value:number}; taxMode:'CGST_SGST'|'IGST'|'NO_GST'; gstRateBps:number; totals:BanquetInvoiceTotals; amountInWords:string }
+export interface BanquetInvoice extends BanquetInvoicePreview { id:string; invoiceNumber:string; status:'ISSUED'|'CANCELLED'; issuedAt:string; recipientSnapshot:BanquetInvoiceRecipient; supplierSnapshot:InvoiceBillingProfile; bankSnapshot:InvoiceBankAccount; totals:BanquetInvoiceTotals }
+export interface IssueBanquetInvoicePayload { customerName:string; customerMobile?:string; customerAddress?:string; customerState?:string; customerCountry?:string; customerGstNumber?:string; discountType?:BanquetInvoiceDiscountType; discountValue?:number }
 
 export interface DecorationEventType {
   id: string;
