@@ -13,6 +13,7 @@ import {
 import { getCalendarDayState } from '@/lib/banquet/calendar-day-state';
 import {
   banquetBusinessDate,
+  banquetDetailActionMode,
   canEditBanquetBookingDetails,
 } from '@/lib/banquet/booking-edit-window';
 import { BookingsRoute } from '@/components/auth/bookings-route';
@@ -7127,6 +7128,9 @@ function selectionStatus(order: Order) {
               </div>
               <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
                 {(() => {
+                  const isPastEvent =
+                    banquetDetailActionMode(detailOrder.eventDate, todayKey) ===
+                    'DOCUMENTS_ONLY';
                   const renderDetailActionButtons = () => (
                     <>
                       {detailOrder.status === 'CONFIRMED' ? (
@@ -7179,7 +7183,7 @@ function selectionStatus(order: Order) {
                               Print Tag
                             </button>
                           ) : null}
-                          {canAddAdvancePayment ? (
+                          {!isPastEvent && canAddAdvancePayment ? (
                           <button
                             type="button"
                             onClick={() => {
@@ -7194,7 +7198,9 @@ function selectionStatus(order: Order) {
                             Add Advance
                           </button>
                           ) : null}
-                          {detailOrder.activeSignature && !canSaveBookingSignature ? (
+                          {!isPastEvent &&
+                          detailOrder.activeSignature &&
+                          !canSaveBookingSignature ? (
                             <button
                               type="button"
                               disabled
@@ -7202,7 +7208,7 @@ function selectionStatus(order: Order) {
                             >
                               Signed
                             </button>
-                          ) : canSaveBookingSignature ? (
+                          ) : !isPastEvent && canSaveBookingSignature ? (
                             <button
                               type="button"
                               onClick={() => openSignaturePopup(detailOrder)}
@@ -7213,7 +7219,9 @@ function selectionStatus(order: Order) {
                           ) : null}
                         </>
                       ) : null}
-                      {detailOrder.status === 'INQUIRY' && canConfirmBooking ? (
+                      {!isPastEvent &&
+                      detailOrder.status === 'INQUIRY' &&
+                      canConfirmBooking ? (
                         <button
                           type="button"
                           onClick={() => handleOpenConvertInquiry(detailOrder)}
@@ -7222,7 +7230,8 @@ function selectionStatus(order: Order) {
                           Confirm Inquiry
                         </button>
                       ) : null}
-                      {canTransferBooking &&
+                      {!isPastEvent &&
+                      canTransferBooking &&
                       canEditBanquetBookingDetails(
                         detailOrder.status,
                         detailOrder.eventDate,
@@ -7238,7 +7247,8 @@ function selectionStatus(order: Order) {
                           Transfer
                         </button>
                       ) : null}
-                      {(detailOrder.status === 'INQUIRY' ||
+                      {!isPastEvent &&
+                      (detailOrder.status === 'INQUIRY' ||
                         (detailOrder.status === 'CONFIRMED' &&
                           canEditBanquetBookingDetails(
                             detailOrder.status,
@@ -7260,12 +7270,9 @@ function selectionStatus(order: Order) {
                         >
                           Edit inquiry
                         </button>
-                      ) : detailOrder.status === 'CONFIRMED' ? (
-                        <div className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
-                          Booking details are read-only after the event date
-                        </div>
                       ) : null}
-                      {(detailOrder.status === 'INQUIRY' ||
+                      {!isPastEvent &&
+                      (detailOrder.status === 'INQUIRY' ||
                         (detailOrder.status === 'CONFIRMED' &&
                           canEditBanquetBookingDetails(
                             detailOrder.status,
@@ -7288,7 +7295,8 @@ function selectionStatus(order: Order) {
                           {detailOrder.categorySnapshot ? 'Select Menu' : 'Choose category'}
                         </button>
                       ) : null}
-                      {canCancelBooking &&
+                      {!isPastEvent &&
+                      canCancelBooking &&
                       (detailOrder.status === 'INQUIRY' ||
                         detailOrder.status === 'CONFIRMED') ? (
                         <button

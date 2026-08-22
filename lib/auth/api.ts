@@ -79,15 +79,29 @@ import { requestDecorationCustomerPdf } from '@/lib/decoration/customer-document
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+export function formatApiErrorMessage(
+  payload: { message?: unknown } | null,
+  fallback = 'Request failed',
+): string {
+  if (typeof payload?.message === 'string' && payload.message.trim()) {
+    return payload.message.trim();
+  }
+  if (Array.isArray(payload?.message)) {
+    const messages = payload.message
+      .filter((message): message is string => typeof message === 'string')
+      .map((message) => message.trim())
+      .filter(Boolean);
+    if (messages.length) return messages.join('. ');
+  }
+  return fallback;
+}
+
 async function parseResponse<T>(
   response: Response,
   options?: { notifyOnUnauthorized?: boolean },
 ): Promise<T> {
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
-  const message =
-    typeof payload?.message === 'string'
-      ? payload.message
-      : 'Request failed';
+  const message = formatApiErrorMessage(payload);
 
   if (options?.notifyOnUnauthorized) {
     const shouldExpireSession = isSessionInvalidatingResponse(response.status, message);
@@ -318,8 +332,8 @@ export async function downloadBanquetInvoice(accessToken: string, bookingId: str
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(payload?.message || 'Unable to download invoice.');
+    const payload = (await response.json().catch(() => null)) as { message?: unknown } | null;
+    throw new Error(formatApiErrorMessage(payload, 'Unable to download invoice.'));
   }
   const disposition = response.headers.get('content-disposition') ?? '';
   const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'tax-invoice.pdf';

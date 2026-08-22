@@ -39,3 +39,18 @@ assert.deepEqual(detailed, {
   discountType: 'FIXED',
   discountValue: 50_000,
 });
+
+assert.throws(
+  () =>
+    buildBanquetInvoiceIssuePayload({
+      customerName: 'Manthan Patel',
+      customerMobile: '',
+      customerAddress: 'Ahmedabad',
+      customerState: 'Gujarat',
+      customerCountry: 'India',
+      customerGstNumber: 'INVALID-GSTIN',
+      discountType: 'NONE',
+      discountValue: 0,
+    }),
+  /Enter a valid 15-character customer GSTIN/,
+);

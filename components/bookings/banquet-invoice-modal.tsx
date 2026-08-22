@@ -17,6 +17,7 @@ import {
 import { LoadingButton } from '@/components/ui/loading-button';
 import { calculateInvoicePreviewTotals } from '@/lib/banquet/invoice-calculation';
 import { buildBanquetInvoiceIssuePayload } from '@/lib/banquet/invoice-issuance';
+import { useToast } from '@/components/ui/toast';
 
 const fieldClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 
@@ -35,6 +36,7 @@ export function BanquetInvoiceModal({
   canReissue: boolean;
   onClose: () => void;
 }) {
+  const { showToast } = useToast();
   const [preview, setPreview] = useState<BanquetInvoicePreview | null>(null);
   const [activeInvoice, setActiveInvoice] = useState<BanquetInvoice | null>(null);
   const [history, setHistory] = useState<BanquetInvoice[]>([]);
@@ -88,11 +90,14 @@ export function BanquetInvoiceModal({
         }
       })
       .catch((requestError) => {
-        if (active) setError(requestError instanceof Error ? requestError.message : 'Unable to load invoice.');
+        if (!active) return;
+        const message = requestError instanceof Error ? requestError.message : 'Unable to load invoice.';
+        setError(message);
+        showToast(message, 'error');
       })
       .finally(() => active && setBusy(false));
     return () => { active = false; };
-  }, [accessToken, order.id]);
+  }, [accessToken, order.id, showToast]);
 
   const discountValue = useMemo(() => {
     const value = Number(discount) || 0;
@@ -135,7 +140,9 @@ export function BanquetInvoiceModal({
       setReissueMode(false);
       setCancellationReason('');
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to issue invoice.');
+      const message = requestError instanceof Error ? requestError.message : 'Unable to issue invoice.';
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setBusy(false);
     }
@@ -155,7 +162,9 @@ export function BanquetInvoiceModal({
       anchor.remove();
       URL.revokeObjectURL(url);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to download invoice.');
+      const message = requestError instanceof Error ? requestError.message : 'Unable to download invoice.';
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setBusy(false);
     }

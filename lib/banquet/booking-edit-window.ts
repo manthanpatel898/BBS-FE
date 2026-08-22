@@ -27,3 +27,14 @@ export function canEditBanquetBookingDetails(
   return eventKey !== null && eventKey >= todayKey;
 }
 
+export type BanquetDetailActionMode = 'FULL' | 'DOCUMENTS_ONLY';
+
+export function banquetDetailActionMode(
+  eventDate: string | null | undefined,
+  todayKey = banquetBusinessDate(),
+): BanquetDetailActionMode {
+  const eventKey = dateKey(eventDate);
+  return eventKey !== null && eventKey < todayKey
+    ? 'DOCUMENTS_ONLY'
+    : 'FULL';
+}
