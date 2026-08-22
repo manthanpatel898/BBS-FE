@@ -83,7 +83,7 @@ export function buildPackageDocumentSections(
       pax: selection.pax,
       rate: selection.effectivePricePerPlate,
       subtotal: selection.subtotal,
-      serviceSlot: selection.serviceSlot,
+      serviceSlot: '',
       startTime: selection.startTime,
       endTime: selection.endTime,
       time: formatRange(selection.startTime, selection.endTime),

@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  addMinutesToTime,
   availableCategoryIds,
   combinedPackageTotal,
   packageSubtotal,
 } from './additional-category-selection';
+
+test('additional package end time defaults to 90 minutes after its start time', () => {
+  assert.equal(addMinutesToTime('08:00', 90), '09:30');
+  assert.equal(addMinutesToTime('23:30', 90), '01:00');
+  assert.equal(addMinutesToTime('', 90), '');
+});
 
 test('available categories exclude the primary and other selected packages', () => {
   assert.deepEqual(

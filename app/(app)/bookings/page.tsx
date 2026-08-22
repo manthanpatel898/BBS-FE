@@ -74,7 +74,8 @@ import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
 import { BanquetInvoiceModal } from '@/components/bookings/banquet-invoice-modal';
 import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
-import { BookingPackageCard } from '@/components/bookings/booking-package-card';
+import { BookingPackageTabs } from '@/components/bookings/booking-package-tabs';
+import { BookingActivePackageEditor } from '@/components/bookings/booking-active-package-editor';
 import {
   getRenderableMenus,
   getRenderableMenuSections,
@@ -86,6 +87,7 @@ import {
 import { buildMenuSelectionUpdatePayload } from '@/lib/bookings/menu-selection-update';
 import { buildPackageDocumentSections } from '@/lib/bookings/package-document-view';
 import {
+  addMinutesToTime,
   availableCategoryIds,
   createAdditionalCategoryFormState,
   packageSubtotal,
@@ -273,7 +275,7 @@ function packageDraftFromAdditional(
   return {
     categoryId: selection.categoryId,
     totalPerson: selection.pax,
-    serviceSlot: selection.serviceSlot,
+    serviceSlot: '',
     startTime: selection.startTime,
     endTime: selection.endTime,
     customPricePerPlate: selection.customPricePerPlate,
@@ -619,12 +621,6 @@ export default function BookingsPage() {
   const [subitemDescriptionPopover, setSubitemDescriptionPopover] =
     useState<SubitemDescriptionPopoverState | null>(null);
   const subitemDescriptionPopoverRef = useRef<HTMLDivElement | null>(null);
-  const [wizardHeaderExpanded, setWizardHeaderExpanded] = useState({
-    summary: true,
-    customer: false,
-    category: true,
-    price: false,
-  });
   const [addonPopup, setAddonPopup] = useState<{
     menuId: string;
     menuTitle: string;
@@ -994,7 +990,6 @@ export default function BookingsPage() {
             ...selection,
             categoryId: formState.categoryId,
             pax: formState.totalPerson,
-            serviceSlot: formState.serviceSlot,
             startTime: formState.startTime,
             endTime: formState.endTime,
             customPricePerPlate: formState.customPricePerPlate,
@@ -1279,7 +1274,6 @@ export default function BookingsPage() {
     setSkippedRuleKeys([]);
     setRuleSearches({});
     setExpandedRuleKeys([]);
-    setWizardHeaderExpanded({ summary: true, customer: false, category: true, price: false });
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setSubitemDescriptionPopover(null);
@@ -1306,7 +1300,6 @@ export default function BookingsPage() {
               ...selection,
               categoryId: draft.categoryId,
               pax: draft.totalPerson,
-              serviceSlot: draft.serviceSlot,
               startTime: draft.startTime,
               endTime: draft.endTime,
               customPricePerPlate: draft.customPricePerPlate,
@@ -1340,7 +1333,6 @@ export default function BookingsPage() {
     setSkippedRuleKeys([]);
     setRuleSearches({});
     setExpandedRuleKeys([]);
-    setWizardHeaderExpanded((current) => ({ ...current, category: true }));
   }
 
   function addAdditionalPackage() {
@@ -1355,7 +1347,6 @@ export default function BookingsPage() {
     setSkippedRuleKeys([]);
     setRuleSearches({});
     setExpandedRuleKeys([]);
-    setWizardHeaderExpanded((current) => ({ ...current, category: true }));
   }
 
   function removeAdditionalPackage(selection: AdditionalCategoryFormState) {
@@ -1540,7 +1531,6 @@ export default function BookingsPage() {
           selection.customPricePerPlate === null
             ? ''
             : String(selection.customPricePerPlate),
-        serviceSlot: selection.serviceSlot,
         startTime: selection.startTime,
         endTime: selection.endTime,
         selectedMenus: selection.menuSelectionSnapshot.map((menu) => ({
@@ -1562,14 +1552,6 @@ export default function BookingsPage() {
     setCustomEventName(resolvedEventName.customValue);
     setSkippedRuleKeys([]);
     setRuleSearches({});
-    setWizardHeaderExpanded({
-      summary: !order.categorySnapshot,
-      customer: false,
-      category: !order.categorySnapshot,
-      price:
-        order.customPricePerPlate !== null ||
-        order.inquiryCustomPrice !== null,
-    });
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setIsWizardOpen(true);
@@ -1781,13 +1763,6 @@ export default function BookingsPage() {
     setExpandedRuleKeys((current) =>
       current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
     );
-  }
-
-  function toggleWizardHeaderSection(section: keyof typeof wizardHeaderExpanded) {
-    setWizardHeaderExpanded((current) => ({
-      ...current,
-      [section]: !current[section],
-    }));
   }
 
   function removeSectionFromSelectedMenus(menuId: string, sectionTitle: string) {
@@ -2144,11 +2119,6 @@ export default function BookingsPage() {
       usedCategoryIds.add(selection.categoryId);
       if (!Number.isFinite(Number(selection.pax)) || Number(selection.pax) < 1) {
         setToast({ type: 'error', message: `${label} requires valid pax.` });
-        activatePackage(selection.uiId);
-        return;
-      }
-      if (!selection.serviceSlot.trim()) {
-        setToast({ type: 'error', message: `${label} requires a service slot.` });
         activatePackage(selection.uiId);
         return;
       }
@@ -4035,7 +4005,7 @@ function selectionStatus(order: Order) {
             onClose={() => {
               closeEditInquiry();
             }}
-            widthClassName="max-w-5xl"
+            widthClassName="max-w-4xl"
           >
             <div className="mt-6 space-y-5">
               <div>
@@ -4638,358 +4608,91 @@ function selectionStatus(order: Order) {
 
         {isWizardOpen ? (
           <ModalShell
-            title="Choose category"
+            title={`Choose category (${composeCustomerDisplayName(customerTitle, formState.customerName) || 'Customer'})`}
             eyebrow="Booking Category"
             onClose={resetWizard}
             widthClassName="max-w-5xl"
             scrollablePanel={false}
-            panelClassName="flex h-[92vh] min-h-0 flex-col"
+            panelClassName="flex h-[88vh] min-h-0 flex-col"
           >
-            <div data-package-wizard-content="true" className="mt-5 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden pb-28 sm:pb-0">
-              <div className="max-h-[38vh] space-y-3 overflow-y-auto pr-1">
-                <BookingPackageCard
-                  id="primary"
-                  label="Primary package"
-                  categoryName={
-                    categories.find(
-                      (category) =>
-                        category.id === resolvedPrimaryPackage.categoryId,
-                    )?.name ?? ''
-                  }
-                  pax={resolvedPrimaryPackage.totalPerson}
-                  serviceSlot={resolvedPrimaryPackage.serviceSlot}
-                  startTime={resolvedPrimaryPackage.startTime}
-                  endTime={resolvedPrimaryPackage.endTime}
-                  effectiveRate={
-                    resolvedPrimaryPackage.customPricePerPlate.trim() === ''
-                      ? categories.find(
+            <div data-package-wizard-content="true" className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-24 sm:pb-0">
+              <div className="space-y-2">
+                <BookingPackageTabs
+                  activeId={activePackageId}
+                  packages={[
+                    {
+                      id: 'primary',
+                      label: 'Primary',
+                      categoryName:
+                        categories.find(
                           (category) =>
                             category.id === resolvedPrimaryPackage.categoryId,
-                        )?.pricePerPlate ?? 0
-                      : Number(resolvedPrimaryPackage.customPricePerPlate) || 0
+                        )?.name ?? '',
+                      pax: resolvedPrimaryPackage.totalPerson,
+                    },
+                    ...resolvedAdditionalPackages.map((selection, index) => ({
+                      id: selection.uiId,
+                      label: `Additional ${index + 1}`,
+                      categoryName:
+                        categories.find(
+                          (category) => category.id === selection.categoryId,
+                        )?.name ?? '',
+                      pax: selection.pax,
+                      removable: true,
+                    })),
+                  ]}
+                  onSelect={activatePackage}
+                  onAdd={addAdditionalPackage}
+                  addDisabled={additionalCategorySelections.length >= 5}
+                  onRemove={(packageId) => {
+                    const selection = resolvedAdditionalPackages.find(
+                      (entry) => entry.uiId === packageId,
+                    );
+                    if (selection) removeAdditionalPackage(selection);
+                  }}
+                />
+
+                <BookingActivePackageEditor
+                  categoryId={formState.categoryId}
+                  categories={packageCategoryChoices}
+                  pax={formState.totalPerson}
+                  paxReadOnly={activePackageId === 'primary'}
+                  customPrice={formState.customPricePerPlate}
+                  customPriceLocked={isCustomPriceLocked}
+                  customPriceLockMessage={menuSelectionLockedEditMessage}
+                  startTime={formState.startTime}
+                  endTime={formState.endTime}
+                  showSchedule={activePackageId !== 'primary'}
+                  onCategoryChange={(categoryId) => {
+                    setSkippedRuleKeys([]);
+                    setExpandedRuleKeys([]);
+                    setFormState((current) => ({
+                      ...current,
+                      categoryId,
+                      selectedMenus: [],
+                    }));
+                  }}
+                  onPaxChange={(totalPerson) =>
+                    setFormState((current) => ({ ...current, totalPerson }))
                   }
-                  subtotal={packageSubtotal({
-                    pax: resolvedPrimaryPackage.totalPerson,
-                    configuredPrice:
-                      categories.find(
-                        (category) =>
-                          category.id === resolvedPrimaryPackage.categoryId,
-                      )?.pricePerPlate ?? 0,
-                    customPrice: resolvedPrimaryPackage.customPricePerPlate,
-                  })}
-                  selectedItemCount={resolvedPrimaryPackage.selectedMenus.reduce(
-                    (count, menu) =>
-                      count +
-                      (menu.directItems?.length ?? 0) +
-                      menu.sections.reduce(
-                        (sectionCount, section) =>
-                          sectionCount + section.items.length,
-                        0,
-                      ),
-                    0,
-                  )}
-                  expanded={activePackageId === 'primary'}
-                  onToggle={() => activatePackage('primary')}
-                >
-                  <p className="text-sm text-slate-600">
-                    The primary package uses the booking&apos;s pax, slot, and event time.
-                    Choose its category and menu below.
-                  </p>
-                </BookingPackageCard>
-
-                {resolvedAdditionalPackages.map((selection, index) => {
-                  const category = categories.find(
-                    (entry) => entry.id === selection.categoryId,
-                  );
-                  return (
-                    <BookingPackageCard
-                      key={selection.uiId}
-                      id={selection.uiId}
-                      label={`Additional package ${index + 1}`}
-                      categoryName={category?.name ?? ''}
-                      pax={selection.pax}
-                      serviceSlot={selection.serviceSlot}
-                      startTime={selection.startTime}
-                      endTime={selection.endTime}
-                      effectiveRate={
-                        selection.customPricePerPlate.trim() === ''
-                          ? selection.configuredPricePerPlate
-                          : Number(selection.customPricePerPlate) || 0
-                      }
-                      subtotal={packageSubtotal({
-                        pax: selection.pax,
-                        configuredPrice: selection.configuredPricePerPlate,
-                        customPrice: selection.customPricePerPlate,
-                      })}
-                      selectedItemCount={selection.selectedMenus.reduce(
-                        (count, menu) =>
-                          count +
-                          (menu.directItems?.length ?? 0) +
-                          menu.sections.reduce(
-                            (sectionCount, section) =>
-                              sectionCount + section.items.length,
-                            0,
-                          ),
-                        0,
-                      )}
-                      expanded={activePackageId === selection.uiId}
-                      onToggle={() => activatePackage(selection.uiId)}
-                      removable
-                      onRemove={() => removeAdditionalPackage(selection)}
-                    >
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <Field label="Pax">
-                          <input
-                            type="number"
-                            min="1"
-                            inputMode="numeric"
-                            value={formState.totalPerson}
-                            onChange={(event) =>
-                              setFormState((current) => ({
-                                ...current,
-                                totalPerson: event.target.value,
-                              }))
-                            }
-                            className={inputCls}
-                          />
-                        </Field>
-                        <Field label="Service Slot">
-                          <input
-                            value={formState.serviceSlot}
-                            onChange={(event) =>
-                              setFormState((current) => ({
-                                ...current,
-                                serviceSlot: event.target.value,
-                              }))
-                            }
-                            placeholder="Breakfast"
-                            className={inputCls}
-                          />
-                        </Field>
-                        <Field label="Start Time">
-                          <input
-                            type="time"
-                            value={formState.startTime}
-                            onChange={(event) =>
-                              setFormState((current) => ({
-                                ...current,
-                                startTime: event.target.value,
-                              }))
-                            }
-                            className={dateTimeInputCls}
-                          />
-                        </Field>
-                        <Field label="End Time">
-                          <input
-                            type="time"
-                            value={formState.endTime}
-                            onChange={(event) =>
-                              setFormState((current) => ({
-                                ...current,
-                                endTime: event.target.value,
-                              }))
-                            }
-                            className={dateTimeInputCls}
-                          />
-                        </Field>
-                      </div>
-                    </BookingPackageCard>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={addAdditionalPackage}
-                  disabled={additionalCategorySelections.length >= 5}
-                  className="w-full rounded-2xl border border-dashed border-amber-400 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  + Add meal package
-                </button>
+                  onCustomPriceChange={(customPricePerPlate) =>
+                    setFormState((current) => ({
+                      ...current,
+                      customPricePerPlate,
+                    }))
+                  }
+                  onStartTimeChange={(startTime) =>
+                    setFormState((current) => ({
+                      ...current,
+                      startTime,
+                      endTime: addMinutesToTime(startTime, 90),
+                    }))
+                  }
+                  onEndTimeChange={(endTime) =>
+                    setFormState((current) => ({ ...current, endTime }))
+                  }
+                />
               </div>
-              <div className="rounded-[20px] border border-slate-200 bg-[linear-gradient(145deg,#fffdf7,#ffffff)] p-3 shadow-sm sm:rounded-[24px] sm:p-4">
-                <button
-                  type="button"
-                  onClick={() => toggleWizardHeaderSection('summary')}
-                  className="flex w-full items-center justify-between gap-3 text-left"
-                >
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-600">
-                      Booking Setup
-                    </p>
-                    <p className="mt-1 truncate text-sm font-semibold text-slate-900 sm:text-base">
-                      {composeCustomerDisplayName(customerTitle, formState.customerName) || 'Customer'} · {selectedCategory?.name || 'Category'} ·{' '}
-                      {formState.customPricePerPlate
-                        ? formatCurrency(Number(formState.customPricePerPlate) || 0)
-                        : 'Default price'}
-                    </p>
-                  </div>
-                  <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition ${wizardHeaderExpanded.summary ? 'rotate-180' : ''}`}>
-                    <IconChevronDown />
-                  </span>
-                </button>
-
-                {wizardHeaderExpanded.summary ? (
-                <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_1.4fr] lg:items-start">
-                  <div className="rounded-2xl border border-slate-200 bg-white">
-                    <button
-                      type="button"
-                      onClick={() => toggleWizardHeaderSection('customer')}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:px-4 sm:py-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                          Customer
-                        </p>
-                        <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 sm:text-lg">
-                          {composeCustomerDisplayName(customerTitle, formState.customerName) || 'Customer name'}
-                        </p>
-                      </div>
-                      <span className={`shrink-0 text-slate-500 transition ${wizardHeaderExpanded.customer ? 'rotate-180' : ''}`}>
-                        <IconChevronDown />
-                      </span>
-                    </button>
-                    {wizardHeaderExpanded.customer ? (
-                      <div className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500 sm:px-4 sm:py-3">
-                        <p>{formState.mobileNumber || 'No mobile number'}</p>
-                        <p className="mt-1">{formState.functionDate || 'Function date pending'}</p>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
-                    <div className="rounded-2xl border border-slate-200 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => toggleWizardHeaderSection('category')}
-                        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:px-4 sm:py-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                            Category
-                          </p>
-                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">
-                            {selectedCategory
-                              ? `${selectedCategory.name} (${formatCurrency(selectedCategory.pricePerPlate)})`
-                              : 'Select category'}
-                          </p>
-                        </div>
-                        <span className={`shrink-0 text-slate-500 transition ${wizardHeaderExpanded.category ? 'rotate-180' : ''}`}>
-                          <IconChevronDown />
-                        </span>
-                      </button>
-                      {wizardHeaderExpanded.category ? (
-                        <div className="border-t border-slate-100 p-3 sm:p-4">
-                          <div className="hidden sm:block">
-                            <Field label="Category">
-                              <select
-                                value={formState.categoryId}
-                                onChange={(event) =>
-                                  {
-                                    setSkippedRuleKeys([]);
-                                    setExpandedRuleKeys([]);
-                                    setFormState((current) => ({
-                                      ...current,
-                                      categoryId: event.target.value,
-                                      selectedMenus: [],
-                                    }));
-                                  }
-                                }
-                                className={inputCls}
-                              >
-                                <option value="">Select category</option>
-                                {packageCategoryChoices.map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {category.name} ({formatCurrency(category.pricePerPlate)})
-                                  </option>
-                                ))}
-                              </select>
-                            </Field>
-                          </div>
-                          <div className="grid max-h-36 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:hidden">
-                            {packageCategoryChoices.map((category) => {
-                              const selected = formState.categoryId === category.id;
-                              return (
-                                <button
-                                  key={category.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSkippedRuleKeys([]);
-                                    setExpandedRuleKeys([]);
-                                    setFormState((current) => ({
-                                      ...current,
-                                      categoryId: category.id,
-                                      selectedMenus: [],
-                                    }));
-                                    setWizardHeaderExpanded((current) => ({ ...current, category: false }));
-                                  }}
-                                  className={`min-w-0 rounded-xl border px-3 py-2 text-left transition ${
-                                    selected
-                                      ? 'border-amber-300 bg-amber-50 text-slate-900'
-                                      : 'border-slate-200 bg-slate-50 text-slate-700'
-                                  }`}
-                                >
-                                  <p className="truncate text-sm font-semibold">{category.name}</p>
-                                  <p className="mt-0.5 text-xs text-slate-500">{formatCurrency(category.pricePerPlate)}</p>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => toggleWizardHeaderSection('price')}
-                        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left sm:px-4 sm:py-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                            Custom Price
-                          </p>
-                          <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">
-                            {formState.customPricePerPlate
-                              ? formatCurrency(Number(formState.customPricePerPlate) || 0)
-                              : 'Default'}
-                          </p>
-                        </div>
-                        <span className={`shrink-0 text-slate-500 transition ${wizardHeaderExpanded.price ? 'rotate-180' : ''}`}>
-                          <IconChevronDown />
-                        </span>
-                      </button>
-                      {wizardHeaderExpanded.price ? (
-                        <div className="border-t border-slate-100 p-3 sm:p-4">
-                          <Field label="Custom Price">
-                            <div className="space-y-2">
-                              <input
-                                type="number"
-                                min="0"
-                                inputMode="decimal"
-                                placeholder="Custom price"
-                                value={formState.customPricePerPlate}
-                                onChange={(event) =>
-                                  setFormState((current) => ({
-                                    ...current,
-                                    customPricePerPlate: event.target.value,
-                                  }))
-                                }
-                                disabled={isCustomPriceLocked}
-                                className={`${inputCls} ${isCustomPriceLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
-                              />
-                              {isCustomPriceLocked ? (
-                                <p className="text-xs text-slate-500">{menuSelectionLockedEditMessage}</p>
-                              ) : null}
-                            </div>
-                          </Field>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                ) : null}
-              </div>
-
               <div className="min-h-0 flex-1">
                 <div className="h-full min-h-0 overflow-y-auto overscroll-contain pr-1 pb-3 [touch-action:pan-y]">
                   {!isFlexibleCategory && orderedCategoryRules.length === 0 ? (
@@ -5449,26 +5152,12 @@ function selectionStatus(order: Order) {
                   </div>
                 </div>
               ) : null}
-              <div data-package-wizard-footer="true" className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur sm:pt-4">
-                <div className="mb-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-xs sm:rounded-2xl sm:p-3">
-                  <div>
-                    <p className="text-slate-500">Primary</p>
-                    <p className="font-bold text-slate-950">{formatCurrency(baseTotal)}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500">Additional</p>
-                    <p className="font-bold text-slate-950">{formatCurrency(additionalPackageTotal)}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500">Package total</p>
-                    <p className="font-bold text-slate-950">{formatCurrency(grandTotal)}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+              <div data-package-wizard-footer="true" className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-2 backdrop-blur">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => resetWizard()}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:rounded-2xl sm:py-3"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:py-2.5"
                   >
                     Cancel
                   </button>
@@ -5477,7 +5166,7 @@ function selectionStatus(order: Order) {
                     disabled={isSubmitting}
                     onClick={() => void handleSaveBookingSelection()}
                     isLoading={isSubmitting}
-                    className="w-full rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:rounded-2xl sm:py-3"
+                    className="w-full rounded-xl bg-amber-400 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:py-2.5"
                   >
                     Save category
                   </LoadingButton>
@@ -7046,7 +6735,15 @@ function selectionStatus(order: Order) {
                               {packageSection.categoryName}
                             </h3>
                             <p className="mt-1 text-sm text-slate-600">
-                              {packageSection.serviceSlot} · {packageSection.time} · {packageSection.pax} pax
+                              {[
+                                packageSection.kind === 'PRIMARY'
+                                  ? packageSection.serviceSlot
+                                  : '',
+                                packageSection.time,
+                                `${packageSection.pax} pax`,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
                             </p>
                           </div>
                           <div className="text-right text-sm">

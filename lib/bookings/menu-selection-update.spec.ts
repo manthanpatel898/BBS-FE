@@ -28,7 +28,6 @@ test('menu selection update contains only fields owned by the menu workflow', ()
         pax: '60',
         configuredPricePerPlate: 400,
         customPricePerPlate: '',
-        serviceSlot: 'Breakfast',
         startTime: '08:00',
         endTime: '10:00',
         selectedMenus: [
@@ -69,7 +68,6 @@ test('menu selection update contains only fields owned by the menu workflow', ()
         categoryId: 'breakfast-category',
         pax: 60,
         customPricePerPlate: null,
-        serviceSlot: 'Breakfast',
         startTime: '08:00',
         endTime: '10:00',
         selectedMenus: [

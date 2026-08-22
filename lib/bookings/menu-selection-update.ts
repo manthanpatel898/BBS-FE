@@ -61,7 +61,6 @@ export function buildMenuSelectionUpdatePayload(input: MenuSelectionUpdateInput)
                 selection.customPricePerPlate.trim() === ''
                   ? null
                   : Number(selection.customPricePerPlate),
-              serviceSlot: selection.serviceSlot,
               startTime: selection.startTime,
               endTime: selection.endTime,
               selectedMenus: normalizeSelectedMenus(selection.selectedMenus),

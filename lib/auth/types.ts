@@ -469,7 +469,7 @@ export interface OrderAdditionalCategorySelection {
   configuredPricePerPlate: number;
   customPricePerPlate: number | null;
   effectivePricePerPlate: number;
-  serviceSlot: string;
+  serviceSlot?: string | null;
   startTime: string;
   endTime: string;
   menuSelectionSnapshot: OrderMenuSelectionSnapshot[];

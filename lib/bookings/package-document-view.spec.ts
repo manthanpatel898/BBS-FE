@@ -31,6 +31,7 @@ test('document packages keep primary first and sort additional packages', () => 
 
   assert.deepEqual(sections.map((section) => section.categoryName), ['Lunch', 'Breakfast', 'Dinner']);
   assert.equal(sections[1]?.time, '8:00 AM - 10:00 AM');
+  assert.equal(sections[1]?.serviceSlot, '');
   assert.equal(sections[1]?.comment, 'Less spicy');
   assert.equal(sections[1]?.subtotal, 24000);
 });

@@ -1288,7 +1288,6 @@ export async function updateOrder(
       categoryId: string;
       pax: number;
       customPricePerPlate: number | null;
-      serviceSlot: string;
       startTime: string;
       endTime: string;
       selectedMenus: Array<{
