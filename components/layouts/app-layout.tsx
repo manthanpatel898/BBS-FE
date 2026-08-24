@@ -215,6 +215,7 @@ function buildNavItems(
   canAccessVoucherFlow?: boolean,
   canAccessOdc?: boolean,
   incomingInquiryCount = 0,
+  billingEnabled = false,
 ): NavItem[] {
   const role = user?.role ?? '';
   if (role === 'super_admin') {
@@ -301,6 +302,9 @@ function buildNavItems(
           ]
         : []),
       { type: 'link', href: '/reports', label: 'Reports', icon: <IconReport /> },
+      ...(billingEnabled
+        ? [{ type: 'link' as const, href: '/invoices', label: 'Tax Invoices', icon: <IconTicket /> }]
+        : []),
       ...(canAccessOdc
         ? [
             {
@@ -336,6 +340,9 @@ function buildNavItems(
   return [
     { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
     { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
+    ...(billingEnabled && user && hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_VIEW)
+      ? [{ type: 'link' as const, href: '/invoices', label: 'Tax Invoices', icon: <IconTicket /> }]
+      : []),
   ];
 }
 
@@ -404,8 +411,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const isAdminUser = user?.role === 'super_admin' || user?.role === 'company_admin';
 
   const navItems = useMemo(
-    () => buildNavItems(user, canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc, incomingInquiryCount),
-    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, incomingInquiryCount, user],
+    () => buildNavItems(user, canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc, incomingInquiryCount, sidebarRestaurant?.billingEnabled ?? false),
+    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, incomingInquiryCount, sidebarRestaurant?.billingEnabled, user],
   );
 
   useEffect(() => {
@@ -462,7 +469,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [sidebarOpen]);
 
   useEffect(() => {
-    if (!accessToken || user?.role !== 'company_admin' || !user.restaurantId) {
+    if (!accessToken || !user?.restaurantId) {
       setSidebarRestaurant(null);
       return;
     }

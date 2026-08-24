@@ -72,8 +72,11 @@ import {
   DecorationCustomerDocument,
   BanquetInvoice,
   BanquetInvoicePreview,
+  BanquetInvoiceSummary,
+  PaginatedBanquetInvoices,
   IssueBanquetInvoicePayload,
 } from './types';
+import { buildInvoiceWorkspaceQuery, InvoiceWorkspaceFilters } from '@/lib/banquet/invoice-workspace';
 import { isSessionInvalidatingResponse, notifySessionExpired } from './session-events';
 import { requestDecorationCustomerPdf } from '@/lib/decoration/customer-document-download';
 
@@ -329,6 +332,40 @@ export async function downloadBanquetInvoice(accessToken: string, bookingId: str
   const suffix = invoiceId ? `/download/${encodeURIComponent(invoiceId)}` : '/download';
   const response = await fetch(
     `${API_URL}/orders/${encodeURIComponent(bookingId)}/invoice${suffix}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: unknown } | null;
+    throw new Error(formatApiErrorMessage(payload, 'Unable to download invoice.'));
+  }
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'tax-invoice.pdf';
+  return { blob: await response.blob(), filename };
+}
+
+export async function fetchBanquetInvoiceWorkspace(
+  accessToken: string,
+  filters: InvoiceWorkspaceFilters,
+) {
+  return authorizedRequest<PaginatedBanquetInvoices>(
+    `/banquet-invoices?${buildInvoiceWorkspaceQuery(filters)}`,
+    accessToken,
+  );
+}
+
+export async function fetchBanquetInvoiceWorkspaceSummary(
+  accessToken: string,
+  filters: InvoiceWorkspaceFilters,
+) {
+  return authorizedRequest<BanquetInvoiceSummary>(
+    `/banquet-invoices/summary?${buildInvoiceWorkspaceQuery(filters)}`,
+    accessToken,
+  );
+}
+
+export async function downloadBanquetWorkspaceInvoice(accessToken: string, invoiceId: string) {
+  const response = await fetch(
+    `${API_URL}/banquet-invoices/${encodeURIComponent(invoiceId)}/download`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!response.ok) {
