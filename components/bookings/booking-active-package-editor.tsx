@@ -62,9 +62,9 @@ export function BookingActivePackageEditor({
   onEndTimeChange,
 }: Props) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
-      <div className={`grid gap-2 sm:grid-cols-2 ${showSchedule ? 'lg:grid-cols-6' : 'lg:grid-cols-4'}`}>
-        <div className="sm:col-span-2 lg:col-span-2">
+    <section className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm sm:p-3">
+      <div className={`grid grid-cols-2 gap-2 ${showSchedule ? 'lg:grid-cols-6' : 'lg:grid-cols-4'}`}>
+        <div className="col-span-2 lg:col-span-2">
           <Field label="Category">
             <select value={categoryId} onChange={(event) => onCategoryChange(event.target.value)} className={fieldClassName}>
               <option value="">Select category</option>
@@ -100,7 +100,7 @@ export function BookingActivePackageEditor({
           />
         </Field>
         {showSchedule ? (
-          <div className="grid grid-cols-2 gap-2 sm:col-span-2 lg:col-span-2">
+          <div className="col-span-2 grid grid-cols-2 gap-2 lg:col-span-2">
               <Field label="Start time">
                 <input type="time" value={startTime} onChange={(event) => onStartTimeChange(event.target.value)} className={fieldClassName} />
               </Field>

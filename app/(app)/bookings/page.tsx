@@ -1040,6 +1040,13 @@ export default function BookingsPage() {
     0,
   );
   const grandTotal = baseTotal + additionalPackageTotal + addonPrice;
+  const selectedPackageItemCount = formState.selectedMenus.reduce(
+    (total, menu) =>
+      total +
+      (menu.directItems?.length ?? 0) +
+      menu.sections.reduce((sectionTotal, section) => sectionTotal + section.items.length, 0),
+    0,
+  );
   const calendarSearchQuery = calendarSearchInput.trim().toLowerCase();
   const isCalendarSearchActive = calendarSearchQuery.length > 0;
   const filteredCalendarOrders = calendarOrders;
@@ -4614,10 +4621,11 @@ function selectionStatus(order: Order) {
             onClose={resetWizard}
             widthClassName="max-w-5xl"
             scrollablePanel={false}
-            panelClassName="flex h-[88vh] min-h-0 flex-col"
+            mobileFullScreen
+            panelClassName="flex min-h-0 flex-col sm:h-[88vh]"
           >
-            <div data-package-wizard-content="true" className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-24 sm:pb-0">
-              <div className="space-y-2">
+            <div data-package-wizard-content="true" className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden sm:mt-3">
+              <div data-package-wizard-header="true" className="z-20 shrink-0 space-y-2 border-b border-slate-100 bg-white pb-2">
                 <BookingPackageTabs
                   activeId={activePackageId}
                   packages={[
@@ -4694,8 +4702,7 @@ function selectionStatus(order: Order) {
                   }
                 />
               </div>
-              <div className="min-h-0 flex-1">
-                <div className="h-full min-h-0 overflow-y-auto overscroll-contain pr-1 pb-3 [touch-action:pan-y]">
+              <div data-package-wizard-scroll="true" className="app-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 pr-1 [touch-action:pan-y]">
                   {!isFlexibleCategory && orderedCategoryRules.length === 0 ? (
                     <EmptyState
                       title="No configured items for this category"
@@ -5124,7 +5131,6 @@ function selectionStatus(order: Order) {
                       </div>
                     </section>
                   ) : null}
-                </div>
               </div>
               {subitemDescriptionPopover ? (
                 <div
@@ -5153,7 +5159,7 @@ function selectionStatus(order: Order) {
                   </div>
                 </div>
               ) : null}
-              <div data-package-wizard-footer="true" className="safe-pad-bottom sticky bottom-0 border-t border-slate-200 bg-white/95 pt-2 backdrop-blur">
+              <div data-package-wizard-footer="true" className="safe-pad-bottom z-20 shrink-0 border-t border-slate-200 bg-white/95 pt-2 backdrop-blur">
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -5169,7 +5175,8 @@ function selectionStatus(order: Order) {
                     isLoading={isSubmitting}
                     className="w-full rounded-xl bg-amber-400 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:py-2.5"
                   >
-                    Save category
+                    <span className="sm:hidden">Save · {selectedPackageItemCount} items</span>
+                    <span className="hidden sm:inline">Save category</span>
                   </LoadingButton>
                 </div>
               </div>
@@ -7453,6 +7460,7 @@ function ModalShell({
   zIndexClassName = 'z-50',
   panelClassName = '',
   scrollablePanel = true,
+  mobileFullScreen = false,
 }: {
   eyebrow: string;
   title: string;
@@ -7463,13 +7471,14 @@ function ModalShell({
   zIndexClassName?: string;
   panelClassName?: string;
   scrollablePanel?: boolean;
+  mobileFullScreen?: boolean;
 }) {
   return (
     <div
-      className={`modal-viewport-pad fixed inset-0 ${zIndexClassName} bg-slate-900/50 backdrop-blur-sm ${
+      className={`${mobileFullScreen ? '' : 'modal-viewport-pad'} fixed inset-0 ${zIndexClassName} bg-slate-900/50 backdrop-blur-sm ${
         fullScreen
           ? 'flex items-center justify-center px-3 sm:px-4 sm:py-4'
-          : 'flex items-center justify-center px-3 sm:px-4 sm:py-6'
+          : `flex items-center justify-center ${mobileFullScreen ? 'p-0 sm:px-4 sm:py-6' : 'px-3 sm:px-4 sm:py-6'}`
       }`}
       >
         <div
@@ -7478,25 +7487,27 @@ function ModalShell({
         } ${
           fullScreen
             ? 'modal-panel-fullscreen-height max-w-6xl rounded-[28px] px-4 py-5 shadow-[0_28px_80px_rgba(0,0,0,0.5)] sm:max-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:min-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:px-6 sm:py-6'
-            : `modal-panel-height safe-pad-bottom rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 ${widthClassName}`
+            : mobileFullScreen
+              ? `h-[100dvh] max-h-none rounded-none px-3 pb-0 pt-[max(0.75rem,var(--zb-safe-top))] shadow-[0_28px_80px_rgba(0,0,0,0.35)] sm:modal-panel-height sm:safe-pad-bottom sm:h-auto sm:rounded-[28px] sm:p-6 ${widthClassName}`
+              : `modal-panel-height safe-pad-bottom rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 ${widthClassName}`
         } ${panelClassName}`}
       >
         <button
           type="button"
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 sm:right-6 sm:top-6"
+          className={`absolute z-30 inline-flex items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 ${mobileFullScreen ? 'right-3 top-[max(0.75rem,var(--zb-safe-top))] h-10 w-10 sm:right-6 sm:top-6 sm:h-11 sm:w-11' : 'right-4 top-4 h-11 w-11 sm:right-6 sm:top-6'}`}
         >
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
             <path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" />
           </svg>
         </button>
-        <div className="pr-12 sm:pr-14">
+        <div className={`min-w-0 shrink-0 pr-12 sm:pr-14 ${mobileFullScreen ? 'pb-1' : ''}`}>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">
               {eyebrow}
             </p>
-            <h2 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">{title}</h2>
+            <h2 className={`${mobileFullScreen ? 'mt-0.5 truncate text-xl sm:mt-2 sm:text-3xl' : 'mt-2 text-2xl sm:text-3xl'} font-bold text-slate-900`}>{title}</h2>
           </div>
         </div>
         {children}

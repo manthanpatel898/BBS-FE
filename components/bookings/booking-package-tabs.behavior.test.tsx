@@ -36,3 +36,5 @@ assert.doesNotMatch(html, /₹/);
 assert.match(html, /Breakfast/);
 assert.match(html, /aria-label="Add meal package"/);
 assert.match(html, /aria-label="Remove Breakfast package"/);
+assert.match(html, /min-w-\[104px\]/);
+assert.match(html, /min-h-\[52px\]/);

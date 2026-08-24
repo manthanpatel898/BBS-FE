@@ -31,6 +31,8 @@ assert.doesNotMatch(primaryHtml, /End time/);
 assert.match(primaryHtml, /readOnly=""/);
 assert.doesNotMatch(primaryHtml, /Primary package/);
 assert.doesNotMatch(primaryHtml, /Mr Abhinav Gothi/);
+assert.match(primaryHtml, /grid-cols-2/);
+assert.match(primaryHtml, /col-span-2/);
 
 const additionalHtml = renderToStaticMarkup(
   <BookingActivePackageEditor

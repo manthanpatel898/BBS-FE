@@ -26,7 +26,7 @@ export function BookingPackageTabs({
   addDisabled = false,
 }: Props) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Meal packages">
+    <div className="app-scrollbar flex gap-1.5 overflow-x-auto pb-1 sm:gap-2" role="tablist" aria-label="Meal packages">
       {packages.map((item) => {
         const selected = item.id === activeId;
         return (
@@ -36,7 +36,7 @@ export function BookingPackageTabs({
               role="tab"
               aria-selected={selected}
               onClick={() => onSelect(item.id)}
-              className={`min-w-[124px] rounded-xl border px-2.5 py-2 pr-7 text-left transition sm:min-w-[144px] sm:px-3 sm:pr-8 ${
+              className={`min-h-[52px] min-w-[104px] rounded-xl border px-2 py-1.5 pr-7 text-left transition sm:min-h-[64px] sm:min-w-[144px] sm:px-3 sm:py-2 sm:pr-8 ${
                 selected
                   ? 'border-slate-950 bg-slate-950 text-white shadow-sm'
                   : 'border-slate-200 bg-white text-slate-900 hover:border-amber-300 hover:bg-amber-50'
@@ -77,7 +77,7 @@ export function BookingPackageTabs({
         aria-label="Add meal package"
         onClick={onAdd}
         disabled={addDisabled}
-        className="inline-flex min-h-[60px] w-10 shrink-0 items-center justify-center rounded-xl border border-dashed border-amber-400 bg-amber-50 text-xl font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[64px] sm:w-11"
+        className="inline-flex min-h-[52px] w-10 shrink-0 items-center justify-center rounded-xl border border-dashed border-amber-400 bg-amber-50 text-xl font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[64px] sm:w-11"
       >
         +
       </button>
