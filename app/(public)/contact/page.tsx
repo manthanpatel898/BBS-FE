@@ -1,17 +1,13 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import {
+  buildContactPayload,
+  getContactErrorMessage,
+  InquiryForm,
+} from './contact-form';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-
-type InquiryForm = {
-  fullName: string;
-  email: string;
-  phone: string;
-  company: string;
-  useCase: string;
-  message: string;
-};
 
 const initialForm: InquiryForm = {
   fullName: '',
@@ -20,6 +16,7 @@ const initialForm: InquiryForm = {
   company: '',
   useCase: '',
   message: '',
+  website: '',
 };
 
 export default function ContactPage() {
@@ -41,23 +38,18 @@ export default function ContactPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          fullName: form.fullName.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim() || undefined,
-          company: form.company.trim() || undefined,
-          useCase: form.useCase.trim() || undefined,
-          message: form.message.trim(),
-        }),
+        body: JSON.stringify(buildContactPayload(form)),
       });
 
-      const payload = (await response.json()) as {
-        success: boolean;
-        message?: string;
-      };
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        message?: string | string[];
+      } | null;
 
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.message ?? 'Unable to submit inquiry.');
+      if (!response.ok || !payload?.success) {
+        throw new Error(
+          await getContactErrorMessage(payload, 'Unable to submit inquiry.'),
+        );
       }
 
       setSuccessMessage('Thanks for your interest. Our team will contact you shortly.');
@@ -97,61 +89,88 @@ export default function ContactPage() {
         </p>
 
         <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
+          <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+            <label htmlFor="contact-website">Website</label>
+            <input
+              id="contact-website"
+              name="website"
+              value={form.website}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, website: event.target.value }))
+              }
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
+          <label className="sr-only" htmlFor="contact-full-name">Full name</label>
           <input
+            id="contact-full-name"
             value={form.fullName}
             onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
             placeholder="Full name"
             required
-            className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-white outline-none"
+            className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-slate-900 placeholder:text-slate-500 outline-none focus:border-[var(--accent)]"
           />
           <div className="grid gap-4 sm:grid-cols-2">
+            <label className="sr-only" htmlFor="contact-email">Email address</label>
             <input
+              id="contact-email"
               type="email"
               value={form.email}
               onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
               placeholder="Email address"
               required
-              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-white outline-none"
+              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-slate-900 placeholder:text-slate-500 outline-none focus:border-[var(--accent)]"
             />
+            <label className="sr-only" htmlFor="contact-phone">Phone number</label>
             <input
+              id="contact-phone"
               value={form.phone}
               onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
               placeholder="Phone number"
-              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-white outline-none"
+              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-slate-900 placeholder:text-slate-500 outline-none focus:border-[var(--accent)]"
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
+            <label className="sr-only" htmlFor="contact-company">Company or brand</label>
             <input
+              id="contact-company"
               value={form.company}
               onChange={(event) => setForm((current) => ({ ...current, company: event.target.value }))}
               placeholder="Company / Brand"
-              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-white outline-none"
+              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-slate-900 placeholder:text-slate-500 outline-none focus:border-[var(--accent)]"
             />
+            <label className="sr-only" htmlFor="contact-use-case">Use case</label>
             <input
+              id="contact-use-case"
               value={form.useCase}
               onChange={(event) => setForm((current) => ({ ...current, useCase: event.target.value }))}
               placeholder="Use case (multi-location, events/month, etc.)"
-              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-white outline-none"
+              className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-slate-900 placeholder:text-slate-500 outline-none focus:border-[var(--accent)]"
             />
           </div>
+          <label className="sr-only" htmlFor="contact-message">How can we help?</label>
           <textarea
+            id="contact-message"
             value={form.message}
             onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))}
             placeholder="Tell us what you need from Banquate Booking System"
             required
-            className="min-h-36 rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-white outline-none"
+            className="min-h-36 rounded-2xl border border-[var(--line)] bg-[var(--panel)] px-4 py-3 text-slate-900 placeholder:text-slate-500 outline-none focus:border-[var(--accent)]"
           />
 
-          {successMessage ? (
-            <p className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {successMessage}
-            </p>
-          ) : null}
-          {errorMessage ? (
-            <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {errorMessage}
-            </p>
-          ) : null}
+          <div role="status" aria-live="polite" aria-atomic="true">
+            {successMessage ? (
+              <p className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {successMessage}
+              </p>
+            ) : null}
+            {errorMessage ? (
+              <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorMessage}
+              </p>
+            ) : null}
+          </div>
 
           <button
             type="submit"
