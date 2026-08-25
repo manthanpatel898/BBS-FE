@@ -3,7 +3,7 @@ const TOKEN_KEY = 'feedbackInvitationToken';
 export function captureFeedbackToken(searchParams: URLSearchParams): string | null {
   if (typeof window === 'undefined') return null;
   const queryToken = searchParams.get('token')?.trim() || null;
-  if (queryToken) sessionStorage.setItem(TOKEN_KEY, queryToken);
+  if (queryToken) window.sessionStorage.setItem(TOKEN_KEY, queryToken);
 
   if (searchParams.has('token')) {
     const clean = new URL(window.location.href);
@@ -15,10 +15,9 @@ export function captureFeedbackToken(searchParams: URLSearchParams): string | nu
 
 export function getFeedbackToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(TOKEN_KEY);
+  return window.sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function clearFeedbackToken(): void {
-  if (typeof window !== 'undefined') sessionStorage.removeItem(TOKEN_KEY);
+  if (typeof window !== 'undefined') window.sessionStorage.removeItem(TOKEN_KEY);
 }
-
