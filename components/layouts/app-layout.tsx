@@ -10,6 +10,7 @@ import { fetchActiveTerms, fetchIncomingPartnerInquiryCount, fetchMyRestaurant, 
 import { ActiveTermsAndConditions, AuthUser, Restaurant } from '@/lib/auth/types';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { EVENT_DECORATION_MODULE_ENABLED } from '@/lib/auth/business-routes';
+import { getFeedbackCounts } from '@/lib/feedback/api';
 
 type NavLinkItem = {
   type: 'link';
@@ -216,12 +217,14 @@ function buildNavItems(
   canAccessOdc?: boolean,
   incomingInquiryCount = 0,
   billingEnabled = false,
+  feedbackReviewCount = 0,
 ): NavItem[] {
   const role = user?.role ?? '';
   if (role === 'super_admin') {
     return [
       { type: 'link', href: '/dashboard', label: 'Dashboard', icon: <IconGrid /> },
       { type: 'link', href: '/restaurants', label: 'Restaurants', icon: <IconBuilding /> },
+      { type: 'link', href: '/feedback-management', label: 'Customer Feedback', icon: <IconBell />, badge: feedbackReviewCount },
       ...(canAccessOdc
         ? [
             {
@@ -398,6 +401,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [profileTermsModalOpen, setProfileTermsModalOpen] = useState(false);
   const [sidebarRestaurant, setSidebarRestaurant] = useState<Restaurant | null>(null);
   const [incomingInquiryCount, setIncomingInquiryCount] = useState(0);
+  const [feedbackReviewCount, setFeedbackReviewCount] = useState(0);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const profileRef = useRef<HTMLDivElement>(null);
@@ -411,9 +415,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const isAdminUser = user?.role === 'super_admin' || user?.role === 'company_admin';
 
   const navItems = useMemo(
-    () => buildNavItems(user, canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc, incomingInquiryCount, sidebarRestaurant?.billingEnabled ?? false),
-    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, incomingInquiryCount, sidebarRestaurant?.billingEnabled, user],
+    () => buildNavItems(user, canAccessCancelledBookings, canAccessVoucherFlow, canAccessOdc, incomingInquiryCount, sidebarRestaurant?.billingEnabled ?? false, feedbackReviewCount),
+    [canAccessCancelledBookings, canAccessOdc, canAccessVoucherFlow, feedbackReviewCount, incomingInquiryCount, sidebarRestaurant?.billingEnabled, user],
   );
+
+  useEffect(() => {
+    if (!accessToken || user?.role !== 'super_admin') {
+      setFeedbackReviewCount(0);
+      return;
+    }
+    let active = true;
+    const load = () => {
+      void getFeedbackCounts(accessToken)
+        .then((result) => active && setFeedbackReviewCount(result.awaitingReview))
+        .catch(() => active && setFeedbackReviewCount(0));
+    };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    window.addEventListener('feedback-count-changed', load);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('feedback-count-changed', load);
+    };
+  }, [accessToken, pathname, user?.role]);
 
   useEffect(() => {
     if (!accessToken || user?.businessType !== 'EVENT_DECORATION') {
