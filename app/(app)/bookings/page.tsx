@@ -4622,7 +4622,7 @@ function selectionStatus(order: Order) {
             widthClassName="max-w-5xl"
             scrollablePanel={false}
             mobileFullScreen
-            panelClassName="flex min-h-0 flex-col sm:h-[88vh]"
+            panelClassName="flex min-h-0 flex-col sm:h-[88vh] sm:max-h-[88vh]"
           >
             <div data-package-wizard-content="true" className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden sm:mt-3">
               <div data-package-wizard-header="true" className="z-20 shrink-0 space-y-2 border-b border-slate-100 bg-white pb-2">
@@ -7488,7 +7488,7 @@ function ModalShell({
           fullScreen
             ? 'modal-panel-fullscreen-height max-w-6xl rounded-[28px] px-4 py-5 shadow-[0_28px_80px_rgba(0,0,0,0.5)] sm:max-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:min-h-[calc(100vh-2rem-var(--zb-safe-top)-var(--zb-safe-bottom))] sm:px-6 sm:py-6'
             : mobileFullScreen
-              ? `h-[100dvh] max-h-none rounded-none px-3 pb-0 pt-[max(0.75rem,var(--zb-safe-top))] shadow-[0_28px_80px_rgba(0,0,0,0.35)] sm:modal-panel-height sm:safe-pad-bottom sm:h-auto sm:rounded-[28px] sm:p-6 ${widthClassName}`
+              ? `h-[100dvh] max-h-none rounded-none px-3 pb-0 pt-[max(0.75rem,var(--zb-safe-top))] shadow-[0_28px_80px_rgba(0,0,0,0.35)] sm:safe-pad-bottom sm:rounded-[28px] sm:p-6 ${widthClassName}`
               : `modal-panel-height safe-pad-bottom rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 ${widthClassName}`
         } ${panelClassName}`}
       >
