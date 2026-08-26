@@ -583,6 +583,215 @@ html {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* Public ZenBooking homepage */
+@keyframes home-hero-enter {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes home-preview-enter {
+  from { opacity: 0; transform: translateY(22px) scale(0.96) rotate(1deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+
+@keyframes home-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes home-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.42); }
+  50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+}
+
+@keyframes home-progress {
+  from { width: 12%; }
+  to { width: 82%; }
+}
+
+@keyframes home-stage {
+  0%, 70%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  8%, 28% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(251, 191, 36, 0.12); }
+}
+
+@keyframes home-journey-line {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes home-journey-line-mobile {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes home-journey-step {
+  from { opacity: 0.38; transform: translateY(10px); }
+  65% { opacity: 1; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes home-journey-icon {
+  from { border-color: #e2e8f0; background: #fff; color: #94a3b8; box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  70% { border-color: #f59e0b; background: #fffbeb; color: #0f172a; box-shadow: 0 0 0 9px rgba(245, 158, 11, 0.12); }
+  to { border-color: #f59e0b; background: #fffbeb; color: #0f172a; box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1); }
+}
+
+@keyframes home-orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(20px, -18px, 0) scale(1.08); }
+}
+
+.home-hero-copy { animation: home-hero-enter 700ms ease-out both; }
+.home-preview-wrap { position: relative; animation: home-preview-enter 800ms 100ms ease-out both; }
+.home-product-preview { position: relative; z-index: 2; animation: home-float 6s 1s ease-in-out infinite; }
+.home-preview-card { animation: home-hero-enter 500ms ease-out both; }
+.home-live-dot { animation: home-pulse 2s ease-out infinite; }
+.home-progress-bar { animation: home-progress 2.4s 600ms ease-out both; }
+.home-banquet-stage-icon { animation: home-stage 5.2s ease-in-out infinite; }
+
+.home-journey-track-wrap { position: relative; }
+.home-journey-track {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 33px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #e2e8f0;
+}
+.home-journey-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f59e0b 0%, #eab308 34%, #10b981 72%, #14b8a6 100%);
+}
+.home-journey-list {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-journey-stage {
+  --journey-delay: calc(var(--journey-index) * 520ms);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  opacity: 0.38;
+}
+.home-journey-icon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 66px;
+  height: 66px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  background: #fff;
+  color: #94a3b8;
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+.home-journey-copy h3 { margin-top: 1rem; color: #0f172a; font-size: 0.95rem; font-weight: 800; }
+.home-journey-copy p { margin-top: 0.45rem; color: #64748b; font-size: 0.78rem; line-height: 1.4; }
+.home-journey.home-revealed .home-journey-fill { animation: home-journey-line 2.25s 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.home-journey.home-revealed .home-journey-stage { animation: home-journey-step 520ms calc(260ms + var(--journey-delay)) ease-out both; }
+.home-journey.home-revealed .home-journey-icon { animation: home-journey-icon 520ms calc(260ms + var(--journey-delay)) ease-out both; }
+
+.home-gradient-text {
+  background: linear-gradient(100deg, #d97706 5%, #f59e0b 45%, #0f766e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.home-orb {
+  position: absolute;
+  width: 330px;
+  height: 330px;
+  border-radius: 9999px;
+  filter: blur(2px);
+  pointer-events: none;
+  animation: home-orb-drift 9s ease-in-out infinite;
+}
+
+.home-orb-one { left: -180px; top: -160px; background: radial-gradient(circle, rgba(251, 191, 36, 0.28), transparent 68%); }
+.home-orb-two { right: -150px; bottom: -170px; background: radial-gradient(circle, rgba(59, 130, 246, 0.18), transparent 68%); animation-delay: -3s; }
+
+.home-float-chip {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 9px 13px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(10px);
+  animation: home-float 4.5s ease-in-out infinite;
+}
+
+.home-float-chip-one { left: -20px; top: 24%; }
+.home-float-chip-two { right: -22px; top: 48%; animation-delay: -1.4s; }
+.home-float-chip-three { bottom: -15px; left: 28%; animation-delay: -2.6s; }
+
+.home-reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 650ms ease, transform 650ms ease;
+}
+
+.home-reveal.home-revealed { opacity: 1; transform: translateY(0); }
+.home-feature-card { transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease; }
+.home-feature-card:hover { transform: translateY(-4px); border-color: #fcd34d; box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08); }
+
+@media (max-width: 639px) {
+  .home-float-chip { display: none; }
+  .home-product-preview { animation-name: home-preview-enter; }
+  .home-journey-track { left: 31px; right: auto; top: 12px; bottom: 12px; width: 3px; height: auto; }
+  .home-journey-fill { width: 100%; height: 100%; transform: scaleY(0); transform-origin: center top; }
+  .home-journey-list { grid-template-columns: 1fr; gap: 1.25rem; }
+  .home-journey-stage { min-height: 70px; flex-direction: row; align-items: flex-start; gap: 1rem; text-align: left; }
+  .home-journey-icon { width: 64px; height: 64px; flex: 0 0 64px; }
+  .home-journey-copy h3 { margin-top: 0.45rem; }
+  .home-journey-copy p { margin-top: 0.35rem; }
+  .home-journey.home-revealed .home-journey-fill { animation-name: home-journey-line-mobile; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-copy,
+  .home-preview-wrap,
+  .home-product-preview,
+  .home-preview-card,
+  .home-live-dot,
+  .home-progress-bar,
+  .home-banquet-stage-icon,
+  .home-journey-fill,
+  .home-journey-stage,
+  .home-journey-icon,
+  .home-orb,
+  .home-float-chip {
+    animation: none !important;
+  }
+
+  .home-reveal { opacity: 1; transform: none; transition: none; }
+  .home-journey-fill { transform: none; }
+  .home-journey-stage { opacity: 1; transform: none; }
+  .home-feature-card { transition: none; }
+}
 .animate-slide-in {
   animation: slide-in 0.22s ease-out both;
 }
