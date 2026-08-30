@@ -21,6 +21,7 @@ import {
 import { Menu, MenuSection, Restaurant } from '@/lib/auth/types';
 import { PageLoader } from '@/components/ui/page-loader';
 import { MenuSyncPreviewPanel } from '@/components/menus/menu-sync-preview-panel';
+import { BulkSubitemPanel } from '@/components/menus/bulk-subitem-panel';
 import {
   canConfirmMenuSync,
   initialMenuSyncState,
@@ -765,6 +766,19 @@ export default function MenusPage() {
                     Add
                   </button>
                 </div>
+
+                <BulkSubitemPanel
+                  existingItems={formState.items.map((item) => item.name)}
+                  onAdd={(items) =>
+                    setFormState((current) => ({
+                      ...current,
+                      items: [
+                        ...current.items,
+                        ...items.map((name) => ({ name, description: '' })),
+                      ],
+                    }))
+                  }
+                />
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center justify-between gap-3">
