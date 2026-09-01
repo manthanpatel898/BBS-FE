@@ -343,6 +343,9 @@ function buildNavItems(
   return [
     { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
     { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
+    ...(user && hasPermission(user, PERMISSIONS.REPORTS_FEEDBACK_VIEW)
+      ? [{ type: 'link' as const, href: '/reports', label: 'Reports', icon: <IconReport /> }]
+      : []),
     ...(billingEnabled && user && hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_VIEW)
       ? [{ type: 'link' as const, href: '/invoices', label: 'Tax Invoices', icon: <IconTicket /> }]
       : []),

@@ -181,7 +181,7 @@ export async function fetchProfile(accessToken: string) {
   return parseResponse<AuthUser>(response, { notifyOnUnauthorized: true });
 }
 
-async function authorizedRequest<T>(
+export async function authorizedRequest<T>(
   path: string,
   accessToken: string,
   init?: RequestInit,

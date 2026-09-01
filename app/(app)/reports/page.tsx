@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/auth-provider';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 
 type ReportType =
   | 'booking'
@@ -14,7 +15,8 @@ type ReportType =
   | 'upcomingEvents'
   | 'hallOccupancy'
   | 'repeatCustomers'
-  | 'treasury';
+  | 'treasury'
+  | 'feedback';
 
 type ReportCard = {
   type: ReportType;
@@ -134,6 +136,12 @@ const REPORT_CATEGORIES: ReportCategory[] = [
           'Customers who have booked two or more times. Shows total bookings, lifetime revenue, and first vs last booking date.',
         badge: '2+ bookings',
       },
+      {
+        type: 'feedback',
+        title: 'Booking Feedback',
+        description: 'Review event ratings, customer comments, response rate, and question-wise performance.',
+        badge: 'Ratings · Responses',
+      },
     ],
   },
 ];
@@ -167,8 +175,9 @@ const colorMap: Record<ReportCategory['color'], { eyebrow: string; badge: string
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const canViewFeedback = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.REPORTS_FEEDBACK_VIEW);
 
-  if (user?.role !== 'company_admin') {
+  if (user?.role !== 'company_admin' && !canViewFeedback) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-sm font-medium text-slate-600">
@@ -178,7 +187,10 @@ export default function ReportsPage() {
     );
   }
 
-  const totalReports = REPORT_CATEGORIES.reduce((sum, cat) => sum + cat.reports.length, 0);
+  const visibleCategories = REPORT_CATEGORIES
+    .map((category) => ({ ...category, reports: category.reports.filter((report) => user?.role === 'company_admin' || report.type === 'feedback') }))
+    .filter((category) => category.reports.length > 0);
+  const totalReports = visibleCategories.reduce((sum, cat) => sum + cat.reports.length, 0);
 
   return (
     <div className="space-y-8">
@@ -193,12 +205,12 @@ export default function ReportsPage() {
               All Reports
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              {totalReports} reports across {REPORT_CATEGORIES.length} categories. Choose a report
+              {totalReports} reports across {visibleCategories.length} categories. Choose a report
               to apply filters, preview data, and export as CSV or XLSX.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            {REPORT_CATEGORIES.map((cat) => {
+            {visibleCategories.map((cat) => {
               const c = colorMap[cat.color];
               return (
                 <a
@@ -216,7 +228,7 @@ export default function ReportsPage() {
       </section>
 
       {/* Categories */}
-      {REPORT_CATEGORIES.map((category) => {
+      {visibleCategories.map((category) => {
         const c = colorMap[category.color];
         return (
           <section
@@ -238,7 +250,7 @@ export default function ReportsPage() {
               {category.reports.map((card) => (
                 <Link
                   key={card.type}
-                  href={`/reports/view?type=${card.type}`}
+                  href={card.type === 'feedback' ? '/reports/feedback' : `/reports/view?type=${card.type}`}
                   className={`group rounded-[28px] border border-slate-200 bg-white p-5 text-left shadow-sm transition ${c.hover} hover:shadow-md`}
                 >
                   <span
