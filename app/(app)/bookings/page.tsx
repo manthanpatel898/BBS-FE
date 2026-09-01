@@ -7407,6 +7407,8 @@ function selectionStatus(order: Order) {
             accessToken={accessToken}
             orderId={feedbackOrder.id}
             customerName={`${feedbackOrder.customer.firstName} ${feedbackOrder.customer.lastName}`.trim()}
+            eventType={feedbackOrder.eventType}
+            eventDate={feedbackOrder.eventDate}
             onClose={() => setFeedbackOrder(null)}
           />
         ) : null}
