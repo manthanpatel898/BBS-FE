@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, normalizeBookingFeedbackExpiryDays, resolveBookingFeedbackQuestions, validateStaffFeedbackCapture } from './domain';
+import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, feedbackDisplayLabel, normalizeBookingFeedbackExpiryDays, resolveBookingFeedbackQuestions, validateStaffFeedbackCapture } from './domain';
 const valid = { enabled: true, status: 'COMPLETED' as const, eventDate: '2026-08-31', today: '2026-09-01', canManage: true };
 assert.equal(canShowBookingFeedbackAction(valid), true);
 assert.equal(canShowBookingFeedbackAction({ ...valid, status: 'CONFIRMED' }), true);
@@ -21,3 +21,7 @@ assert.equal(normalizeBookingFeedbackExpiryDays(undefined), 15);
 assert.equal(normalizeBookingFeedbackExpiryDays(30), 30);
 assert.equal(normalizeBookingFeedbackExpiryDays(0), 1);
 assert.equal(normalizeBookingFeedbackExpiryDays(100), 90);
+assert.equal(feedbackDisplayLabel('NOT_REQUESTED'), 'Feedback');
+assert.equal(feedbackDisplayLabel('WAITING'), 'Feedback · Waiting');
+assert.equal(feedbackDisplayLabel('RECEIVED'), 'Feedback · Received');
+assert.equal(feedbackDisplayLabel('STAFF_RECORDED'), 'Feedback · Staff recorded');

@@ -75,7 +75,9 @@ import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
 import { BanquetInvoiceModal } from '@/components/bookings/banquet-invoice-modal';
 import { BookingFeedbackModal } from '@/components/booking-feedback/booking-feedback-modal';
-import { canShowBookingFeedbackAction } from '@/lib/booking-feedback/domain';
+import { canShowBookingFeedbackAction, feedbackDisplayLabel } from '@/lib/booking-feedback/domain';
+import { getBookingFeedbackState } from '@/lib/booking-feedback/api';
+import type { BookingFeedbackDisplayStatus } from '@/lib/booking-feedback/types';
 import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
 import { BookingPackageTabs } from '@/components/bookings/booking-package-tabs';
 import { BookingActivePackageEditor } from '@/components/bookings/booking-active-package-editor';
@@ -584,6 +586,7 @@ export default function BookingsPage() {
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
   const [feedbackOrder, setFeedbackOrder] = useState<Order | null>(null);
+  const [detailFeedbackStatus, setDetailFeedbackStatus] = useState<BookingFeedbackDisplayStatus>();
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -1135,6 +1138,16 @@ export default function BookingsPage() {
     Boolean(editingOrder) && hasSavedMenuSelection && !canEditFunctionTimeAfterMenu;
   const isCustomPriceLocked =
     Boolean(editingOrder) && hasSavedMenuSelection && !canEditCustomPriceAfterMenu;
+
+  useEffect(() => {
+    let cancelled = false;
+    const eligible = Boolean(detailOrder && canShowBookingFeedbackAction({ enabled: Boolean(settings?.enableBookingFeedback), status: detailOrder.status, eventDate: detailOrder.eventDate, today: todayKey, canManage: canManageBookingFeedback }));
+    if (!accessToken || !detailOrder || !eligible) { setDetailFeedbackStatus(undefined); return; }
+    getBookingFeedbackState(accessToken, detailOrder.id)
+      .then((feedback) => { if (!cancelled) setDetailFeedbackStatus(feedback.displayStatus); })
+      .catch(() => { if (!cancelled) setDetailFeedbackStatus(undefined); });
+    return () => { cancelled = true; };
+  }, [accessToken, canManageBookingFeedback, detailOrder, settings?.enableBookingFeedback, todayKey]);
 
   useEffect(() => {
     if (!paymentOptions.includes(paymentMode)) {
@@ -7157,7 +7170,7 @@ function selectionStatus(order: Order) {
                           onClick={() => setFeedbackOrder(detailOrder)}
                           className="inline-flex min-w-0 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:bg-violet-100"
                         >
-                          Feedback
+                          {feedbackDisplayLabel(detailFeedbackStatus)}
                         </button>
                       ) : null}
                       {detailOrder.status === 'CONFIRMED' ? (

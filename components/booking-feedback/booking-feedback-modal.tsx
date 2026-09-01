@@ -79,7 +79,7 @@ export function BookingFeedbackModal({ accessToken, orderId, customerName, event
     finally { setBusy(false); }
   }
 
-  const status = !state ? 'Loading' : state.state === 'SUBMITTED' ? 'Received' : state.state === 'PENDING' ? 'Waiting' : 'Not generated';
+  const status = !state ? 'Loading' : state.displayStatus === 'STAFF_RECORDED' ? 'Staff recorded' : state.displayStatus === 'RECEIVED' ? 'Received' : state.displayStatus === 'WAITING' ? 'Waiting' : 'Not requested';
   const formattedDate = formatEventDate(eventDate);
 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="booking-feedback-title">

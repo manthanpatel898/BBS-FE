@@ -1,5 +1,6 @@
 import { OrderStatus } from '@/lib/auth/types';
 import type { BookingFeedbackQuestion } from './types';
+import type { BookingFeedbackDisplayStatus } from './types';
 export const DEFAULT_BOOKING_FEEDBACK_QUESTIONS: BookingFeedbackQuestion[] = [
   { id: 'overall-experience', text: 'How satisfied were you with the overall event experience?', active: true, displayOrder: 0 },
   { id: 'food-quality', text: 'How would you rate the food quality and presentation?', active: true, displayOrder: 1 },
@@ -24,6 +25,12 @@ export function validateStaffFeedbackCapture(input: { captureMethod: string; cap
 export function normalizeBookingFeedbackExpiryDays(value?: number) {
   const days = Number.isFinite(value) ? Math.round(value as number) : 15;
   return Math.min(90, Math.max(1, days));
+}
+export function feedbackDisplayLabel(status?: BookingFeedbackDisplayStatus) {
+  if (status === 'WAITING') return 'Feedback · Waiting';
+  if (status === 'RECEIVED') return 'Feedback · Received';
+  if (status === 'STAFF_RECORDED') return 'Feedback · Staff recorded';
+  return 'Feedback';
 }
 export function canShowBookingFeedbackAction(input: { enabled: boolean; status: OrderStatus; eventDate: string | null; today: string; canManage: boolean }) {
   return Boolean(input.enabled && input.canManage && ['CONFIRMED', 'COMPLETED'].includes(input.status) && input.eventDate && input.eventDate.slice(0, 10) < input.today);
