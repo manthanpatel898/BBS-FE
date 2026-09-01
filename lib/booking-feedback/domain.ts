@@ -16,6 +16,11 @@ export function buildBookingFeedbackAnswers(questions: Array<{ id: string }>, ra
   if (!answers.length) throw new Error('Please answer at least one question.');
   return answers;
 }
+export function validateStaffFeedbackCapture(input: { captureMethod: string; captureMethodOther?: string; consentConfirmed: boolean }) {
+  if (!input.captureMethod) throw new Error('Please select how the feedback was captured.');
+  if (input.captureMethod === 'OTHER' && !input.captureMethodOther?.trim()) throw new Error('Please describe how the feedback was captured.');
+  if (!input.consentConfirmed) throw new Error('Please confirm that the customer supplied or approved this feedback.');
+}
 export function canShowBookingFeedbackAction(input: { enabled: boolean; status: OrderStatus; eventDate: string | null; today: string; canManage: boolean }) {
   return Boolean(input.enabled && input.canManage && ['CONFIRMED', 'COMPLETED'].includes(input.status) && input.eventDate && input.eventDate.slice(0, 10) < input.today);
 }

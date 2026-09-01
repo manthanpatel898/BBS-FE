@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, resolveBookingFeedbackQuestions } from './domain';
+import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, resolveBookingFeedbackQuestions, validateStaffFeedbackCapture } from './domain';
 const valid = { enabled: true, status: 'COMPLETED' as const, eventDate: '2026-08-31', today: '2026-09-01', canManage: true };
 assert.equal(canShowBookingFeedbackAction(valid), true);
 assert.equal(canShowBookingFeedbackAction({ ...valid, status: 'CONFIRMED' }), true);
@@ -13,3 +13,7 @@ assert.deepEqual(resolveBookingFeedbackQuestions([{ id: 'custom', text: 'Custom?
 const publicQuestions = [{ id: 'q1', text: 'One?', displayOrder: 0 }, { id: 'q2', text: 'Two?', displayOrder: 1 }];
 assert.deepEqual(buildBookingFeedbackAnswers(publicQuestions, { q2: 4 }), [{ questionId: 'q2', rating: 4 }]);
 assert.throws(() => buildBookingFeedbackAnswers(publicQuestions, {}), /at least one question/i);
+assert.doesNotThrow(() => validateStaffFeedbackCapture({ captureMethod: 'PHONE', consentConfirmed: true }));
+assert.throws(() => validateStaffFeedbackCapture({ captureMethod: '', consentConfirmed: true }), /captured/i);
+assert.throws(() => validateStaffFeedbackCapture({ captureMethod: 'OTHER', captureMethodOther: '', consentConfirmed: true }), /describe/i);
+assert.throws(() => validateStaffFeedbackCapture({ captureMethod: 'EMAIL', consentConfirmed: false }), /confirm/i);

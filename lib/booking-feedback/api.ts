@@ -1,11 +1,12 @@
 import { authorizedRequest } from '@/lib/auth/api';
 import { AppSettings } from '@/lib/auth/types';
-import { BookingFeedbackReport, BookingFeedbackResponse, BookingFeedbackState, PublicBookingFeedback } from './types';
+import { BookingFeedbackCaptureMethod, BookingFeedbackReport, BookingFeedbackResponse, BookingFeedbackState, PublicBookingFeedback } from './types';
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export const updateBookingFeedbackSettings = (token: string, input: { enableBookingFeedback: boolean; questions: Array<{ id: string; text: string; active: boolean; displayOrder: number }> }) => authorizedRequest<AppSettings>('/settings/booking-feedback', token, { method: 'PATCH', body: JSON.stringify(input) });
 export const getBookingFeedbackState = (token: string, orderId: string) => authorizedRequest<BookingFeedbackState>(`/orders/${encodeURIComponent(orderId)}/booking-feedback`, token);
 export const generateBookingFeedbackLink = (token: string, orderId: string, regenerate = false) => authorizedRequest<{ state: 'PENDING'; invitationId: string; link: string }>(`/orders/${encodeURIComponent(orderId)}/booking-feedback${regenerate ? '/regenerate' : ''}`, token, { method: 'POST' });
+export const submitStaffBookingFeedback = (token: string, orderId: string, input: { answers: Array<{ questionId: string; rating: number }>; comment?: string; captureMethod: BookingFeedbackCaptureMethod; captureMethodOther?: string; staffContext?: string; consentConfirmed: true }) => authorizedRequest<BookingFeedbackResponse>(`/orders/${encodeURIComponent(orderId)}/booking-feedback/staff-entry`, token, { method: 'POST', body: JSON.stringify(input) });
 export const updateBookingFeedbackNote = (token: string, orderId: string, internalNote: string) => authorizedRequest<BookingFeedbackResponse>(`/orders/${encodeURIComponent(orderId)}/booking-feedback/internal-note`, token, { method: 'PATCH', body: JSON.stringify({ internalNote }) });
 export const getBookingFeedbackReport = (token: string, params: Record<string, string | number | undefined>) => { const query = new URLSearchParams(); Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); }); return authorizedRequest<BookingFeedbackReport>(`/reports/booking-feedback?${query}`, token); };
 
