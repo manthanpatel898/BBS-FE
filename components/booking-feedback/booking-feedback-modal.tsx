@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { generateBookingFeedbackLink, getBookingFeedbackState, submitStaffBookingFeedback, updateBookingFeedbackNote } from '@/lib/booking-feedback/api';
-import { buildBookingFeedbackAnswers, validateStaffFeedbackCapture } from '@/lib/booking-feedback/domain';
+import { createBookingFeedbackFollowUp, generateBookingFeedbackLink, getBookingFeedbackState, resolveBookingFeedbackFollowUp, submitStaffBookingFeedback, updateBookingFeedbackNote } from '@/lib/booking-feedback/api';
+import { buildBookingFeedbackAnswers, validateFollowUpInput, validateStaffFeedbackCapture } from '@/lib/booking-feedback/domain';
 import type { BookingFeedbackCaptureMethod, BookingFeedbackQuestionSnapshot, BookingFeedbackState } from '@/lib/booking-feedback/types';
 
 type Props = { accessToken: string; orderId: string; customerName: string; eventType?: string | null; eventDate?: string | null; onClose: () => void };
@@ -43,6 +43,9 @@ export function BookingFeedbackModal({ accessToken, orderId, customerName, event
   const [confirmReplacement, setConfirmReplacement] = useState(false);
   const [copied, setCopied] = useState(false);
   const [staffEntry, setStaffEntry] = useState(false);
+  const [followUpMode, setFollowUpMode] = useState<'create' | 'resolve' | null>(null);
+  const [followUpNote, setFollowUpNote] = useState('');
+  const [followUpDueDate, setFollowUpDueDate] = useState('');
 
   useEffect(() => {
     getBookingFeedbackState(accessToken, orderId).then((value) => {
@@ -79,6 +82,18 @@ export function BookingFeedbackModal({ accessToken, orderId, customerName, event
     finally { setBusy(false); }
   }
 
+  async function saveFollowUp() {
+    try {
+      validateFollowUpInput(followUpNote);
+      setBusy(true); setNotice(null);
+      if (followUpMode === 'resolve') await resolveBookingFeedbackFollowUp(accessToken, orderId, followUpNote.trim());
+      else await createBookingFeedbackFollowUp(accessToken, orderId, { note: followUpNote.trim(), dueDate: followUpDueDate || undefined });
+      setState(await getBookingFeedbackState(accessToken, orderId)); setFollowUpMode(null); setFollowUpNote(''); setFollowUpDueDate('');
+      setNotice({ tone: 'success', text: followUpMode === 'resolve' ? 'Follow-up resolved.' : 'Follow-up created.' });
+    } catch (reason) { setNotice({ tone: 'error', text: reason instanceof Error ? reason.message : 'Unable to update follow-up.' }); }
+    finally { setBusy(false); }
+  }
+
   const status = !state ? 'Loading' : state.displayStatus === 'STAFF_RECORDED' ? 'Staff recorded' : state.displayStatus === 'RECEIVED' ? 'Received' : state.displayStatus === 'WAITING' ? 'Waiting' : 'Not requested';
   const formattedDate = formatEventDate(eventDate);
 
@@ -93,6 +108,7 @@ export function BookingFeedbackModal({ accessToken, orderId, customerName, event
           {state.response.captureMethod ? <p className="mt-3 text-sm font-semibold text-slate-600">Captured via {state.response.captureMethod.replaceAll('_', ' ').toLowerCase()}{state.response.captureMethodOther ? ` · ${state.response.captureMethodOther}` : ''}</p> : null}
           {state.response.comment ? <section className="mt-4 rounded-xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer comment</p><p className="mt-2 text-sm leading-6 text-slate-800">{state.response.comment}</p></section> : null}
           {state.response.staffContext ? <section className="mt-4 rounded-xl border border-violet-100 bg-violet-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Private staff context</p><p className="mt-2 text-sm leading-6 text-violet-950">{state.response.staffContext}</p></section> : null}
+          {state.response.lowRatingFlag ? <section className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-wider text-red-700">Low-rating follow-up</p><p className="mt-1 text-sm font-semibold text-red-950">{state.response.followUp.status === 'OPEN' ? 'Open follow-up' : state.response.followUp.status === 'RESOLVED' ? 'Resolved follow-up' : 'No follow-up created'}</p>{state.response.followUp.creationNote ? <p className="mt-2 text-sm text-red-900">{state.response.followUp.creationNote}</p> : null}{state.response.followUp.dueDate ? <p className="mt-1 text-xs font-bold text-red-700">Due {new Date(state.response.followUp.dueDate).toLocaleDateString('en-IN')}</p> : null}{state.response.followUp.resolutionNote ? <p className="mt-2 rounded-lg bg-white/70 p-2 text-sm text-emerald-900">Resolution: {state.response.followUp.resolutionNote}</p> : null}</div><button type="button" onClick={() => { setFollowUpMode(state.response?.followUp.status === 'OPEN' ? 'resolve' : 'create'); setFollowUpNote(''); setNotice(null); }} className="rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white">{state.response.followUp.status === 'OPEN' ? 'Resolve' : state.response.followUp.status === 'RESOLVED' ? 'Reopen' : 'Create follow-up'}</button></div>{followUpMode ? <div className="mt-4 rounded-xl bg-white p-4"><label className="block text-sm font-bold text-slate-800">{followUpMode === 'resolve' ? 'Resolution note' : 'Follow-up note'}<textarea value={followUpNote} maxLength={followUpMode === 'resolve' ? 2000 : 1000} onChange={(event) => setFollowUpNote(event.target.value)} className="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 font-normal"/></label>{followUpMode === 'create' ? <label className="mt-3 block text-sm font-bold text-slate-800">Due date <span className="font-normal text-slate-500">(optional)</span><input type="date" value={followUpDueDate} onChange={(event) => setFollowUpDueDate(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 p-3 font-normal sm:w-auto"/></label> : null}<div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={busy} onClick={() => { setFollowUpMode(null); setFollowUpNote(''); }} className="rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-700">Cancel</button><button type="button" disabled={busy} onClick={() => void saveFollowUp()} className="rounded-xl bg-slate-950 px-4 py-2.5 font-bold text-white disabled:opacity-50">{busy ? 'Saving…' : followUpMode === 'resolve' ? 'Mark resolved' : 'Save follow-up'}</button></div></div> : null}</section> : null}
           <section className="mt-5 border-t border-slate-200 pt-5"><label className="block text-sm font-bold text-slate-800">Internal note <span className="font-normal text-slate-500">· visible only to your team</span><textarea value={note} onChange={(event) => setNote(event.target.value)} className="mt-2 min-h-24 w-full rounded-xl border border-slate-200 p-3 font-normal outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"/></label><button type="button" disabled={busy} onClick={() => void saveNote()} className="mt-3 w-full rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50 sm:w-auto">{busy ? 'Saving…' : 'Save internal note'}</button></section>
         </> : <>
           <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-5"><p className="font-bold text-slate-950">{state.state === 'PENDING' ? 'Waiting for customer response' : 'No feedback link generated yet'}</p><p className="mt-2 text-sm leading-6 text-slate-600">{state.state === 'PENDING' ? 'The secure link has been generated. For security, it cannot be displayed again.' : 'Generate a secure, single-use link and share it with the customer.'}</p></div>

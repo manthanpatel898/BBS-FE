@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, feedbackDisplayLabel, normalizeBookingFeedbackExpiryDays, resolveBookingFeedbackQuestions, validateStaffFeedbackCapture } from './domain';
+import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, feedbackDisplayLabel, isLowBookingFeedback, normalizeBookingFeedbackExpiryDays, resolveBookingFeedbackQuestions, validateFollowUpInput, validateStaffFeedbackCapture } from './domain';
 const valid = { enabled: true, status: 'COMPLETED' as const, eventDate: '2026-08-31', today: '2026-09-01', canManage: true };
 assert.equal(canShowBookingFeedbackAction(valid), true);
 assert.equal(canShowBookingFeedbackAction({ ...valid, status: 'CONFIRMED' }), true);
@@ -25,3 +25,7 @@ assert.equal(feedbackDisplayLabel('NOT_REQUESTED'), 'Feedback');
 assert.equal(feedbackDisplayLabel('WAITING'), 'Feedback · Waiting');
 assert.equal(feedbackDisplayLabel('RECEIVED'), 'Feedback · Received');
 assert.equal(feedbackDisplayLabel('STAFF_RECORDED'), 'Feedback · Staff recorded');
+assert.equal(isLowBookingFeedback(2), true);
+assert.equal(isLowBookingFeedback(2.01), false);
+assert.doesNotThrow(() => validateFollowUpInput('Customer requested a callback'));
+assert.throws(() => validateFollowUpInput('  '), /note/i);

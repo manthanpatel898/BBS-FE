@@ -36,3 +36,7 @@ export function canShowBookingFeedbackAction(input: { enabled: boolean; status: 
   return Boolean(input.enabled && input.canManage && ['CONFIRMED', 'COMPLETED'].includes(input.status) && input.eventDate && input.eventDate.slice(0, 10) < input.today);
 }
 export function bookingFeedbackAverage(ratings: number[]) { return ratings.length ? Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 100) / 100 : 0; }
+export function isLowBookingFeedback(averageRating: number) { return averageRating <= 2; }
+export function validateFollowUpInput(note: string) {
+  if (!note.trim()) throw new Error('Please enter a follow-up note.');
+}
