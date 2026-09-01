@@ -1,8 +1,14 @@
 import { strict as assert } from 'node:assert';
-import { bookingFeedbackAverage, canShowBookingFeedbackAction } from './domain';
+import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, resolveBookingFeedbackQuestions } from './domain';
 const valid = { enabled: true, status: 'COMPLETED' as const, eventDate: '2026-08-31', today: '2026-09-01', canManage: true };
 assert.equal(canShowBookingFeedbackAction(valid), true);
 assert.equal(canShowBookingFeedbackAction({ ...valid, eventDate: '2026-09-01' }), false);
 assert.equal(canShowBookingFeedbackAction({ ...valid, status: 'CANCELLED' }), false);
 assert.equal(canShowBookingFeedbackAction({ ...valid, enabled: false }), false);
 assert.equal(bookingFeedbackAverage([5, 4, 4]), 4.33);
+assert.equal(resolveBookingFeedbackQuestions([]).length, 5);
+assert.equal(resolveBookingFeedbackQuestions(undefined)[0].id, 'overall-experience');
+assert.deepEqual(resolveBookingFeedbackQuestions([{ id: 'custom', text: 'Custom?', active: true, displayOrder: 0 }]), [{ id: 'custom', text: 'Custom?', active: true, displayOrder: 0 }]);
+const publicQuestions = [{ id: 'q1', text: 'One?', displayOrder: 0 }, { id: 'q2', text: 'Two?', displayOrder: 1 }];
+assert.deepEqual(buildBookingFeedbackAnswers(publicQuestions, { q2: 4 }), [{ questionId: 'q2', rating: 4 }]);
+assert.throws(() => buildBookingFeedbackAnswers(publicQuestions, {}), /at least one question/i);
