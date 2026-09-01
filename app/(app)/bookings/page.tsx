@@ -75,6 +75,7 @@ import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
 import { BanquetInvoiceModal } from '@/components/bookings/banquet-invoice-modal';
 import { BookingFeedbackModal } from '@/components/booking-feedback/booking-feedback-modal';
+import { canShowBookingFeedbackAction } from '@/lib/booking-feedback/domain';
 import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
 import { BookingPackageTabs } from '@/components/bookings/booking-package-tabs';
 import { BookingActivePackageEditor } from '@/components/bookings/booking-active-package-editor';
@@ -7144,11 +7145,13 @@ function selectionStatus(order: Order) {
                     'DOCUMENTS_ONLY';
                   const renderDetailActionButtons = () => (
                     <>
-                      {settings?.enableBookingFeedback &&
-                      canManageBookingFeedback &&
-                      detailOrder.status === 'COMPLETED' &&
-                      detailOrder.eventDate &&
-                      detailOrder.eventDate < todayKey ? (
+                      {canShowBookingFeedbackAction({
+                        enabled: Boolean(settings?.enableBookingFeedback),
+                        status: detailOrder.status,
+                        eventDate: detailOrder.eventDate,
+                        today: todayKey,
+                        canManage: canManageBookingFeedback,
+                      }) ? (
                         <button
                           type="button"
                           onClick={() => setFeedbackOrder(detailOrder)}
