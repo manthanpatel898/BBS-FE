@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, resolveBookingFeedbackQuestions, validateStaffFeedbackCapture } from './domain';
+import { bookingFeedbackAverage, buildBookingFeedbackAnswers, canShowBookingFeedbackAction, normalizeBookingFeedbackExpiryDays, resolveBookingFeedbackQuestions, validateStaffFeedbackCapture } from './domain';
 const valid = { enabled: true, status: 'COMPLETED' as const, eventDate: '2026-08-31', today: '2026-09-01', canManage: true };
 assert.equal(canShowBookingFeedbackAction(valid), true);
 assert.equal(canShowBookingFeedbackAction({ ...valid, status: 'CONFIRMED' }), true);
@@ -17,3 +17,7 @@ assert.doesNotThrow(() => validateStaffFeedbackCapture({ captureMethod: 'PHONE',
 assert.throws(() => validateStaffFeedbackCapture({ captureMethod: '', consentConfirmed: true }), /captured/i);
 assert.throws(() => validateStaffFeedbackCapture({ captureMethod: 'OTHER', captureMethodOther: '', consentConfirmed: true }), /describe/i);
 assert.throws(() => validateStaffFeedbackCapture({ captureMethod: 'EMAIL', consentConfirmed: false }), /confirm/i);
+assert.equal(normalizeBookingFeedbackExpiryDays(undefined), 15);
+assert.equal(normalizeBookingFeedbackExpiryDays(30), 30);
+assert.equal(normalizeBookingFeedbackExpiryDays(0), 1);
+assert.equal(normalizeBookingFeedbackExpiryDays(100), 90);

@@ -21,6 +21,10 @@ export function validateStaffFeedbackCapture(input: { captureMethod: string; cap
   if (input.captureMethod === 'OTHER' && !input.captureMethodOther?.trim()) throw new Error('Please describe how the feedback was captured.');
   if (!input.consentConfirmed) throw new Error('Please confirm that the customer supplied or approved this feedback.');
 }
+export function normalizeBookingFeedbackExpiryDays(value?: number) {
+  const days = Number.isFinite(value) ? Math.round(value as number) : 15;
+  return Math.min(90, Math.max(1, days));
+}
 export function canShowBookingFeedbackAction(input: { enabled: boolean; status: OrderStatus; eventDate: string | null; today: string; canManage: boolean }) {
   return Boolean(input.enabled && input.canManage && ['CONFIRMED', 'COMPLETED'].includes(input.status) && input.eventDate && input.eventDate.slice(0, 10) < input.today);
 }
