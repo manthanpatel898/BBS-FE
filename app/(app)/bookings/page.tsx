@@ -74,6 +74,7 @@ import {
 import { getDaySidebarOrders } from '@/lib/bookings/day-sidebar-orders';
 import { FoodServiceTimeSelect } from '@/components/bookings/food-service-time-select';
 import { BanquetInvoiceModal } from '@/components/bookings/banquet-invoice-modal';
+import { BookingFeedbackModal } from '@/components/booking-feedback/booking-feedback-modal';
 import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
 import { BookingPackageTabs } from '@/components/bookings/booking-package-tabs';
 import { BookingActivePackageEditor } from '@/components/bookings/booking-active-package-editor';
@@ -581,6 +582,7 @@ export default function BookingsPage() {
   const [deletePopup, setDeletePopup] = useState<Order | null>(null);
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [feedbackOrder, setFeedbackOrder] = useState<Order | null>(null);
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -1095,6 +1097,8 @@ export default function BookingsPage() {
     isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FIELD_STATUS_UPDATE);
   const canDeleteBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_DELETE);
   const canPrintBooking = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_PRINT);
+  const canManageBookingFeedback =
+    isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_FEEDBACK_MANAGE);
   const canViewInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_VIEW);
   const canIssueInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_ISSUE);
   const canDownloadInvoice = isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_DOWNLOAD);
@@ -7140,6 +7144,19 @@ function selectionStatus(order: Order) {
                     'DOCUMENTS_ONLY';
                   const renderDetailActionButtons = () => (
                     <>
+                      {settings?.enableBookingFeedback &&
+                      canManageBookingFeedback &&
+                      detailOrder.status === 'COMPLETED' &&
+                      detailOrder.eventDate &&
+                      detailOrder.eventDate < todayKey ? (
+                        <button
+                          type="button"
+                          onClick={() => setFeedbackOrder(detailOrder)}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:bg-violet-100"
+                        >
+                          Feedback
+                        </button>
+                      ) : null}
                       {detailOrder.status === 'CONFIRMED' ? (
                         <>
                           {restaurant?.billingEnabled && canViewInvoice ? (
@@ -7380,6 +7397,14 @@ function selectionStatus(order: Order) {
             canDownload={canDownloadInvoice}
             canReissue={canReissueInvoice}
             onClose={() => setInvoiceOrder(null)}
+          />
+        ) : null}
+        {feedbackOrder && accessToken ? (
+          <BookingFeedbackModal
+            accessToken={accessToken}
+            orderId={feedbackOrder.id}
+            customerName={`${feedbackOrder.customer.firstName} ${feedbackOrder.customer.lastName}`.trim()}
+            onClose={() => setFeedbackOrder(null)}
           />
         ) : null}
       </section>

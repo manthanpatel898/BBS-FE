@@ -38,6 +38,8 @@ export const PERMISSIONS = {
   BOOKINGS_FIELD_ADVANCE_AMOUNT_UPDATE: 'bookings.fields.advance_amount.update',
   BOOKINGS_FIELD_PAYMENT_MODE_UPDATE: 'bookings.fields.payment_mode.update',
   BOOKINGS_FIELD_STATUS_UPDATE: 'bookings.fields.status.update',
+  BOOKINGS_FEEDBACK_MANAGE: 'bookings.feedback.manage',
+  REPORTS_FEEDBACK_VIEW: 'reports.view.feedback',
   EMPLOYEES_PERMISSIONS_VIEW: 'employees.permissions.view',
   EMPLOYEES_PERMISSIONS_MANAGE: 'employees.permissions.manage',
   DECORATION_VIEW: 'decoration.view',

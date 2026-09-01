@@ -439,6 +439,8 @@ export interface AppSettings {
   showHallBookingInformation?: boolean;
   enableWelcomeDrinkStartTime?: boolean;
   enableMainCourseStartTime?: boolean;
+  enableBookingFeedback?: boolean;
+  bookingFeedbackQuestions?: Array<{ id: string; text: string; active: boolean; displayOrder: number }>;
   enablePrintTag?: boolean;
   printTagLogoUrl?: string | null;
   banquetRules: SettingOption[];

@@ -45,6 +45,7 @@ import { AppSettings, Restaurant, SettingOption, UserSignature } from '@/lib/aut
 import { buildHallDetailChoices } from '@/lib/hall-detail-combinations';
 import { DecorationPartnersSection } from '@/components/settings/decoration-partners-section';
 import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
+import { BookingFeedbackSettings } from '@/components/settings/booking-feedback-settings';
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
@@ -59,6 +60,7 @@ type SettingsTabKey =
   | 'printTag'
   | 'hotDates'
   | 'foodSchedule'
+  | 'bookingFeedback'
   | 'mySignature'
   | 'decorationPartners';
 
@@ -475,6 +477,7 @@ function SettingsTabs({
     { key: 'printTag', label: 'Print Tag' },
     { key: 'hotDates', label: 'Hot Dates' },
     { key: 'foodSchedule', label: 'Food Schedule' },
+    { key: 'bookingFeedback', label: 'Booking Feedback' },
     { key: 'decorationPartners', label: 'Decoration Partners' },
     { key: 'mySignature', label: 'My Signature' },
   ];
@@ -590,6 +593,8 @@ function getTabMeta(tab: SettingsTabKey) {
         addButtonLabel: '',
         emptyMessage: '',
       };
+    case 'bookingFeedback':
+      return { title: 'Booking Feedback', description: 'Configure post-event customer feedback.', addPlaceholder: '', addButtonLabel: '', emptyMessage: '' };
   }
 }
 
@@ -653,6 +658,7 @@ export default function SettingsPage() {
       'printTag',
       'hotDates',
       'foodSchedule',
+      'bookingFeedback',
       'decorationPartners',
       'mySignature',
         ]
@@ -1413,6 +1419,8 @@ export default function SettingsPage() {
                   />
                 </div>
               </section>
+            ) : activeTab === 'bookingFeedback' && accessToken ? (
+              <BookingFeedbackSettings accessToken={accessToken} settings={settings} onSaved={setSettings} />
             ) : activeTab === 'mySignature' ? (
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
