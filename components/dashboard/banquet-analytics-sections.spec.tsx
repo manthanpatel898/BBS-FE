@@ -1,7 +1,7 @@
 import { strict as assert } from 'assert';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { HorizontalCategoryPerformance } from './banquet-analytics-sections';
+import { FeedbackSummaryCard, HorizontalCategoryPerformance } from './banquet-analytics-sections';
 
 const categories = renderToStaticMarkup(
   createElement(HorizontalCategoryPerformance, {
@@ -14,3 +14,8 @@ const categories = renderToStaticMarkup(
 assert.match(categories, /Premium Events/);
 assert.match(categories, /12 bookings/);
 assert.match(categories, /₹12,34,567/);
+const feedback = renderToStaticMarkup(createElement(FeedbackSummaryCard, { summary: { averageRating: 4.2, customerResponses: 8, staffResponses: 2, lowRatingCount: 1, openFollowUpCount: 1 } }));
+assert.match(feedback, /4.2/);
+assert.match(feedback, /8 customer/);
+assert.match(feedback, /2 staff/);
+assert.match(feedback, /1 low rating/);

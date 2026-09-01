@@ -31,7 +31,10 @@ import { getAdvancePaymentSplit } from '@/lib/advance-payment-split';
 import { InquiryActivityJourney } from '@/components/dashboard/inquiry-activity-journey';
 import { MonthlySalesBoard } from '@/components/dashboard/monthly-sales-board';
 import { MenuCategoryTrends } from '@/components/dashboard/menu-category-trends';
-import { HorizontalCategoryPerformance } from '@/components/dashboard/banquet-analytics-sections';
+import { FeedbackSummaryCard, HorizontalCategoryPerformance } from '@/components/dashboard/banquet-analytics-sections';
+import { getBookingFeedbackReport } from '@/lib/booking-feedback/api';
+import type { BookingFeedbackReport } from '@/lib/booking-feedback/types';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { banquetBusinessDate } from '@/lib/banquet/booking-edit-window';
 import {
   getRenderableMenus,
@@ -1965,6 +1968,7 @@ export default function DashboardPage() {
     useState<CancelledAdvanceDashboard | null>(null);
   const [inquiryActivity, setInquiryActivity] = useState<InquiryActivity | null>(null);
   const [monthlySales, setMonthlySales] = useState<MonthlySales | null>(null);
+  const [feedbackSummary, setFeedbackSummary] = useState<BookingFeedbackReport['summary'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRecordType, setSelectedRecordType] = useState<DashboardRecordType | null>(null);
   const [dashboardRecordsPage, setDashboardRecordsPage] = useState(1);
@@ -1978,6 +1982,16 @@ export default function DashboardPage() {
   const isRecentActivityPopup =
     selectedRecordType === 'recent_inquiries' ||
     selectedRecordType === 'recent_confirmed';
+  const canViewFeedbackReport = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.REPORTS_FEEDBACK_VIEW);
+
+  useEffect(() => {
+    if (!accessToken || !canViewFeedbackReport) { setFeedbackSummary(null); return; }
+    let cancelled = false;
+    getBookingFeedbackReport(accessToken, { page: 1, limit: 1 })
+      .then((report) => { if (!cancelled) setFeedbackSummary(report.summary); })
+      .catch(() => { if (!cancelled) setFeedbackSummary(null); });
+    return () => { cancelled = true; };
+  }, [accessToken, canViewFeedbackReport]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -2221,6 +2235,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {feedbackSummary && canViewFeedbackReport ? <FeedbackSummaryCard summary={feedbackSummary}/> : null}
       {isDetailOpen ? (
         <DashboardBookingDetailModal
           order={detailOrder}
