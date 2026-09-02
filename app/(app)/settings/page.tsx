@@ -46,6 +46,7 @@ import { buildHallDetailChoices } from '@/lib/hall-detail-combinations';
 import { DecorationPartnersSection } from '@/components/settings/decoration-partners-section';
 import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 import { BookingFeedbackSettings } from '@/components/settings/booking-feedback-settings';
+import { QuotationSettingsCard } from '@/components/booking-quotations/quotation-settings-card';
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
@@ -61,6 +62,7 @@ type SettingsTabKey =
   | 'hotDates'
   | 'foodSchedule'
   | 'bookingFeedback'
+  | 'inquiryQuotations'
   | 'mySignature'
   | 'decorationPartners';
 
@@ -478,6 +480,7 @@ function SettingsTabs({
     { key: 'hotDates', label: 'Hot Dates' },
     { key: 'foodSchedule', label: 'Food Schedule' },
     { key: 'bookingFeedback', label: 'Booking Feedback' },
+    { key: 'inquiryQuotations', label: 'Inquiry Quotations' },
     { key: 'decorationPartners', label: 'Decoration Partners' },
     { key: 'mySignature', label: 'My Signature' },
   ];
@@ -595,6 +598,8 @@ function getTabMeta(tab: SettingsTabKey) {
       };
     case 'bookingFeedback':
       return { title: 'Booking Feedback', description: 'Configure post-event customer feedback.', addPlaceholder: '', addButtonLabel: '', emptyMessage: '' };
+    case 'inquiryQuotations':
+      return { title: 'Inquiry Quotations', description: 'Configure inquiry-stage quotation generation.', addPlaceholder: '', addButtonLabel: '', emptyMessage: '' };
   }
 }
 
@@ -659,6 +664,7 @@ export default function SettingsPage() {
       'hotDates',
       'foodSchedule',
       'bookingFeedback',
+      'inquiryQuotations',
       'decorationPartners',
       'mySignature',
         ]
@@ -1421,6 +1427,8 @@ export default function SettingsPage() {
               </section>
             ) : activeTab === 'bookingFeedback' && accessToken ? (
               <BookingFeedbackSettings accessToken={accessToken} settings={settings} onSaved={setSettings} />
+            ) : activeTab === 'inquiryQuotations' && accessToken ? (
+              <QuotationSettingsCard accessToken={accessToken} settings={settings} onSaved={setSettings} />
             ) : activeTab === 'mySignature' ? (
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
