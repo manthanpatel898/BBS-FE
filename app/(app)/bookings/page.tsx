@@ -98,10 +98,18 @@ import {
   packageSubtotal,
   type AdditionalCategoryFormState,
 } from '@/lib/bookings/additional-category-selection';
-import { generateOrderQuotation } from '@/lib/quotations/api';
+import {
+  downloadOrderQuotationPdf,
+  fetchOrderQuotations,
+  generateOrderQuotation,
+} from '@/lib/quotations/api';
 import { buildQuotationDraftPayload } from '@/lib/quotations/draft';
 import { canShowInquiryQuotationAction } from '@/lib/quotations/eligibility';
-import type { InquiryQuotationSettings } from '@/lib/quotations/types';
+import {
+  getLatestReusableQuotation,
+  quotationToSelectionSnapshot,
+} from '@/lib/quotations/snapshot';
+import type { BanquetQuotation, InquiryQuotationSettings } from '@/lib/quotations/types';
 
 type ViewMode = 'list' | 'calendar';
 type CategoryWizardMode = 'booking' | 'quotation';
@@ -561,6 +569,9 @@ export default function BookingsPage() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [categoryWizardMode, setCategoryWizardMode] =
     useState<CategoryWizardMode>('booking');
+  const [latestWizardQuotation, setLatestWizardQuotation] =
+    useState<BanquetQuotation | null>(null);
+  const [isQuotationPdfBusy, setIsQuotationPdfBusy] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
   const [primaryPackageDraft, setPrimaryPackageDraft] =
@@ -1333,6 +1344,7 @@ export default function BookingsPage() {
     setAdditionalCategorySelections([]);
     setActivePackageId('primary');
     setCategoryWizardMode('booking');
+    setLatestWizardQuotation(null);
     setCustomerTitle('None');
     setCustomEventName('');
     setIsWizardOpen(false);
@@ -1364,6 +1376,31 @@ export default function BookingsPage() {
           : selection,
       ),
     );
+  }
+
+  function applyQuotationToWizard(quotation: BanquetQuotation | null) {
+    const snapshot = quotationToSelectionSnapshot(quotation);
+    if (!snapshot.primary) return;
+
+    setFormState((current) => ({
+      ...current,
+      categoryId: snapshot.primary!.categoryId,
+      totalPerson: snapshot.primary!.totalPerson,
+      customPricePerPlate: snapshot.primary!.customPricePerPlate,
+      selectedMenus: snapshot.primary!.selectedMenus,
+      menuComment: snapshot.primary!.menuComment,
+      addonEntries: snapshot.addonEntries.length ? snapshot.addonEntries : current.addonEntries,
+    }));
+    setPrimaryPackageDraft((current) => ({
+      ...current,
+      categoryId: snapshot.primary!.categoryId,
+      totalPerson: snapshot.primary!.totalPerson,
+      customPricePerPlate: snapshot.primary!.customPricePerPlate,
+      selectedMenus: snapshot.primary!.selectedMenus,
+      menuComment: snapshot.primary!.menuComment,
+    }));
+    setAdditionalCategorySelections(snapshot.additional);
+    setActivePackageId('primary');
   }
 
   function activatePackage(packageId: string) {
@@ -1607,17 +1644,44 @@ export default function BookingsPage() {
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setCategoryWizardMode('booking');
+    setLatestWizardQuotation(null);
     setIsWizardOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
         setToast({ type: 'error', message: 'Unable to load categories.' });
       });
+      if (!order.categorySnapshot && order.status === 'INQUIRY') {
+        void fetchOrderQuotations(accessToken, order.id)
+          .then((quotations) => {
+            const latest = getLatestReusableQuotation(quotations);
+            setLatestWizardQuotation(latest);
+            if (latest) applyQuotationToWizard(latest);
+          })
+          .catch(() => undefined);
+      }
     }
   }
 
   function openQuotationChooser(order: Order) {
     openCategoryChooser(order);
     setCategoryWizardMode('quotation');
+    if (accessToken) {
+      void fetchOrderQuotations(accessToken, order.id)
+        .then((quotations) => {
+          const latest = getLatestReusableQuotation(quotations);
+          setLatestWizardQuotation(latest);
+          if (latest) applyQuotationToWizard(latest);
+        })
+        .catch((error) => {
+          setToast({
+            type: 'error',
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Unable to load existing quotation.',
+          });
+        });
+    }
   }
 
   async function handleAssignEventPlanner() {
@@ -2332,8 +2396,7 @@ export default function BookingsPage() {
           settings: inquiryQuotationSettings ?? buildDefaultInquiryQuotationSettings(),
         }),
       );
-      resetWizard(false);
-      restoreBookingOverlayParent(editingOrder);
+      setLatestWizardQuotation(quotation);
       setToast({
         type: 'success',
         message: `Quotation ${quotation.quotationNumber} generated successfully.`,
@@ -2352,6 +2415,45 @@ export default function BookingsPage() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleQuotationPdf(action: 'download' | 'print') {
+    if (!accessToken || !editingOrder || !latestWizardQuotation) return;
+    try {
+      setIsQuotationPdfBusy(true);
+      const result = await downloadOrderQuotationPdf(
+        accessToken,
+        editingOrder.id,
+        latestWizardQuotation.id,
+      );
+      const url = URL.createObjectURL(result.blob);
+      if (action === 'download') {
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = result.filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        const printWindow = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!printWindow) {
+          URL.revokeObjectURL(url);
+          throw new Error('Popup blocked. Allow popups to print the quotation.');
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to open quotation PDF.',
+      });
+    } finally {
+      setIsQuotationPdfBusy(false);
     }
   }
 
@@ -4839,6 +4941,46 @@ function selectionStatus(order: Order) {
                     setFormState((current) => ({ ...current, endTime }))
                   }
                 />
+                {categoryWizardMode === 'quotation' ? (
+                  <div className="flex flex-col gap-3 rounded-2xl border border-violet-100 bg-violet-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-600">
+                        Quotation snapshot
+                      </p>
+                      {latestWizardQuotation ? (
+                        <p className="mt-1 text-sm font-semibold text-slate-800">
+                          {latestWizardQuotation.quotationNumber} · Version {latestWizardQuotation.version} · {latestWizardQuotation.status}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-sm font-semibold text-slate-600">
+                          Select category and menu, then generate the first quotation.
+                        </p>
+                      )}
+                    </div>
+                    {latestWizardQuotation ? (
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                        <LoadingButton
+                          type="button"
+                          isLoading={isQuotationPdfBusy}
+                          disabled={isQuotationPdfBusy}
+                          onClick={() => void handleQuotationPdf('download')}
+                          className="min-h-10 rounded-xl border border-violet-200 bg-white px-4 text-sm font-bold text-violet-700 shadow-sm transition hover:bg-violet-50"
+                        >
+                          Download PDF
+                        </LoadingButton>
+                        <LoadingButton
+                          type="button"
+                          isLoading={isQuotationPdfBusy}
+                          disabled={isQuotationPdfBusy}
+                          onClick={() => void handleQuotationPdf('print')}
+                          className="min-h-10 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700"
+                        >
+                          Print PDF
+                        </LoadingButton>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div data-package-wizard-scroll="true" className="app-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 pr-1 [touch-action:pan-y]">
                   {!isFlexibleCategory && orderedCategoryRules.length === 0 ? (

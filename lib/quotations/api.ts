@@ -83,5 +83,10 @@ export async function downloadOrderQuotationPdf(
     const payload = await response.json().catch(() => null) as { message?: string | string[] } | null;
     throw new Error(Array.isArray(payload?.message) ? payload.message.join(', ') : payload?.message ?? 'Unable to download quotation.');
   }
-  return response.blob();
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+  return {
+    blob: await response.blob(),
+    filename: filenameMatch?.[1] ?? 'quotation.pdf',
+  };
 }
