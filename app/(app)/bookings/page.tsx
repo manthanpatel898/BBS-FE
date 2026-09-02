@@ -98,8 +98,13 @@ import {
   packageSubtotal,
   type AdditionalCategoryFormState,
 } from '@/lib/bookings/additional-category-selection';
+import { generateOrderQuotation } from '@/lib/quotations/api';
+import { buildQuotationDraftPayload } from '@/lib/quotations/draft';
+import { canShowInquiryQuotationAction } from '@/lib/quotations/eligibility';
+import type { InquiryQuotationSettings } from '@/lib/quotations/types';
 
 type ViewMode = 'list' | 'calendar';
+type CategoryWizardMode = 'booking' | 'quotation';
 
 type SelectedMenuSection = {
   sectionTitle: string;
@@ -112,6 +117,19 @@ type SelectedMenu = {
   directItems?: string[];
   sections: SelectedMenuSection[];
 };
+
+function buildDefaultInquiryQuotationSettings(): InquiryQuotationSettings {
+  return {
+    enableInquiryQuotations: false,
+    validityDays: 15,
+    taxTreatment: 'ADD_CONFIGURED_GST',
+    gstPercentage: 5,
+    terms: 'This quotation is valid only for the selected event date and subject to hall availability.',
+    paymentTerms: 'Booking confirmation requires advance payment as agreed with the venue.',
+    cancellationPolicy: 'Cancellation and refund are subject to the venue policy.',
+    footer: 'This is a quotation and not a tax invoice.',
+  };
+}
 
 type CustomMenuPopupState = {
   sectionTitle: string;
@@ -541,6 +559,8 @@ export default function BookingsPage() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [isInquiryOpen, setIsInquiryOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [categoryWizardMode, setCategoryWizardMode] =
+    useState<CategoryWizardMode>('booking');
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
   const [primaryPackageDraft, setPrimaryPackageDraft] =
@@ -1126,6 +1146,11 @@ export default function BookingsPage() {
   const canUseAdvancedCancelManagement = hasLegacyCancelAdvanceManagement;
   const canTransferBooking =
     canEditFunctionDate || canEditServiceSlot || canEditFunctionTimeAfterMenu;
+  const inquiryQuotationSettings =
+    settings?.inquiryQuotationSettings ?? null;
+  const canGenerateInquiryQuotation =
+    Boolean(inquiryQuotationSettings?.enableInquiryQuotations) &&
+    (isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_UPDATE));
   const hasSavedMenuSelection = (editingOrder?.menuSelectionSnapshot.length ?? 0) > 0;
   const permissionRequiredEditMessage = 'You do not have permission to update this detail.';
   const menuSelectionLockedEditMessage =
@@ -1307,6 +1332,7 @@ export default function BookingsPage() {
     setPrimaryPackageDraft(packageDraftFromForm(initialFormState));
     setAdditionalCategorySelections([]);
     setActivePackageId('primary');
+    setCategoryWizardMode('booking');
     setCustomerTitle('None');
     setCustomEventName('');
     setIsWizardOpen(false);
@@ -1580,12 +1606,18 @@ export default function BookingsPage() {
     setRuleSearches({});
     setAddonPopup(null);
     setCustomMenuPopup(null);
+    setCategoryWizardMode('booking');
     setIsWizardOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
         setToast({ type: 'error', message: 'Unable to load categories.' });
       });
     }
+  }
+
+  function openQuotationChooser(order: Order) {
+    openCategoryChooser(order);
+    setCategoryWizardMode('quotation');
   }
 
   async function handleAssignEventPlanner() {
@@ -2229,6 +2261,94 @@ export default function BookingsPage() {
           requestError instanceof Error
             ? requestError.message
             : 'Unable to save booking details.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleGenerateQuotationFromSelection() {
+    if (!accessToken || !editingOrder) {
+      setToast({ type: 'error', message: 'Select an inquiry first.' });
+      return;
+    }
+    if (!canGenerateInquiryQuotation || editingOrder.status !== 'INQUIRY') {
+      setToast({ type: 'error', message: 'Inquiry quotation is not available for this booking.' });
+      return;
+    }
+
+    const primaryPackage = resolvedPrimaryPackage;
+    const additionalPackages = resolvedAdditionalPackages;
+    if (!primaryPackage.categoryId) {
+      setToast({ type: 'error', message: 'Select a category before generating quotation.' });
+      return;
+    }
+    if (!Number.isFinite(Number(primaryPackage.totalPerson)) || Number(primaryPackage.totalPerson) < 1) {
+      setToast({ type: 'error', message: 'Enter valid pax before generating quotation.' });
+      return;
+    }
+    if (
+      primaryPackage.customPricePerPlate.trim() &&
+      (!Number.isFinite(Number(primaryPackage.customPricePerPlate)) ||
+        Number(primaryPackage.customPricePerPlate) < 0)
+    ) {
+      setToast({ type: 'error', message: 'Enter a valid custom price.' });
+      return;
+    }
+
+    for (let index = 0; index < additionalPackages.length; index += 1) {
+      const selection = additionalPackages[index];
+      const label = `Additional package ${index + 1}`;
+      if (!selection.categoryId) {
+        setToast({ type: 'error', message: `${label} requires category.` });
+        activatePackage(selection.uiId);
+        return;
+      }
+      if (!Number.isFinite(Number(selection.pax)) || Number(selection.pax) < 1) {
+        setToast({ type: 'error', message: `${label} requires valid pax.` });
+        activatePackage(selection.uiId);
+        return;
+      }
+      if (!isValidTimeRange(selection.startTime, selection.endTime)) {
+        setToast({ type: 'error', message: `${label} end time must be later than start time.` });
+        activatePackage(selection.uiId);
+        return;
+      }
+    }
+
+    try {
+      setIsSubmitting(true);
+      const quotation = await generateOrderQuotation(
+        accessToken,
+        editingOrder.id,
+        buildQuotationDraftPayload({
+          categoryId: primaryPackage.categoryId,
+          pax: primaryPackage.totalPerson,
+          customPricePerPlate: primaryPackage.customPricePerPlate,
+          selectedMenus: primaryPackage.selectedMenus,
+          menuComment: primaryPackage.menuComment,
+          addonEntries: formState.addonEntries,
+          additionalCategorySelections: additionalPackages,
+          settings: inquiryQuotationSettings ?? buildDefaultInquiryQuotationSettings(),
+        }),
+      );
+      resetWizard(false);
+      restoreBookingOverlayParent(editingOrder);
+      setToast({
+        type: 'success',
+        message: `Quotation ${quotation.quotationNumber} generated successfully.`,
+      });
+      await refreshBookingViews(accessToken);
+      if (isDetailOpen) {
+        await openOrderDetail(editingOrder.id);
+      }
+    } catch (requestError) {
+      setToast({
+        type: 'error',
+        message:
+          requestError instanceof Error
+            ? requestError.message
+            : 'Unable to generate quotation.',
       });
     } finally {
       setIsSubmitting(false);
@@ -4634,8 +4754,8 @@ function selectionStatus(order: Order) {
 
         {isWizardOpen ? (
           <ModalShell
-            title={`Choose category (${composeCustomerDisplayName(customerTitle, formState.customerName) || 'Customer'})`}
-            eyebrow="Booking Category"
+            title={`${categoryWizardMode === 'quotation' ? 'Create quotation' : 'Choose category'} (${composeCustomerDisplayName(customerTitle, formState.customerName) || 'Customer'})`}
+            eyebrow={categoryWizardMode === 'quotation' ? 'Inquiry Quotation' : 'Booking Category'}
             onClose={resetWizard}
             widthClassName="max-w-5xl"
             scrollablePanel={false}
@@ -5189,12 +5309,20 @@ function selectionStatus(order: Order) {
                   <LoadingButton
                     type="button"
                     disabled={isSubmitting}
-                    onClick={() => void handleSaveBookingSelection()}
+                    onClick={() =>
+                      categoryWizardMode === 'quotation'
+                        ? void handleGenerateQuotationFromSelection()
+                        : void handleSaveBookingSelection()
+                    }
                     isLoading={isSubmitting}
                     className="w-full rounded-xl bg-amber-400 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:opacity-60 sm:py-2.5"
                   >
-                    <span className="sm:hidden">Save · {selectedPackageItemCount} items</span>
-                    <span className="hidden sm:inline">Save category</span>
+                    <span className="sm:hidden">
+                      {categoryWizardMode === 'quotation' ? 'Quote' : 'Save'} · {selectedPackageItemCount} items
+                    </span>
+                    <span className="hidden sm:inline">
+                      {categoryWizardMode === 'quotation' ? 'Generate quotation' : 'Save category'}
+                    </span>
                   </LoadingButton>
                 </div>
               </div>
@@ -7268,6 +7396,29 @@ function selectionStatus(order: Order) {
                           className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
                         >
                           Confirm Inquiry
+                        </button>
+                      ) : null}
+                      {canShowInquiryQuotationAction({
+                        enabled: Boolean(inquiryQuotationSettings?.enableInquiryQuotations),
+                        canManage: canGenerateInquiryQuotation,
+                        status: detailOrder.status,
+                        inquiryClosed: detailOrder.inquiryClosed,
+                        isPastEvent,
+                      }) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookingOverlayParent({
+                              type: 'event-detail',
+                              value: { order: detailOrder, parent: bookingOverlayParent },
+                            });
+                            setIsDetailOpen(false);
+                            setIsMobileDetailActionsOpen(false);
+                            openQuotationChooser(detailOrder);
+                          }}
+                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:bg-violet-100"
+                        >
+                          Quotation
                         </button>
                       ) : null}
                       {!isPastEvent &&
