@@ -442,6 +442,7 @@ export interface AppSettings {
   enableBookingFeedback?: boolean;
   bookingFeedbackLinkExpiryDays?: number;
   bookingFeedbackQuestions?: Array<{ id: string; text: string; active: boolean; displayOrder: number }>;
+  inquiryQuotationSettings?: import('@/lib/quotations/types').InquiryQuotationSettings;
   enablePrintTag?: boolean;
   printTagLogoUrl?: string | null;
   banquetRules: SettingOption[];
