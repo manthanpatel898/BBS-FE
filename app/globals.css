@@ -101,6 +101,34 @@ html {
   }
 }
 
+/* Feedback screens sit on light surfaces while the legacy body text is light. */
+[data-feedback-surface="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+[data-feedback-surface="true"] select,
+[data-feedback-surface="true"] textarea,
+.feedback-surface input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.feedback-surface select,
+.feedback-surface textarea {
+  color: #0f172a;
+  caret-color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  color-scheme: light;
+}
+
+[data-feedback-surface="true"] input::placeholder,
+[data-feedback-surface="true"] textarea::placeholder,
+.feedback-surface input::placeholder,
+.feedback-surface textarea::placeholder {
+  color: #94a3b8;
+  -webkit-text-fill-color: #94a3b8;
+  opacity: 1;
+}
+
+[data-feedback-surface="true"] option,
+.feedback-surface option {
+  background: #fff;
+  color: #0f172a;
+}
+
 @supports (min-height: 100dvh) {
   body {
     min-height: 100dvh;
