@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import {
@@ -23,7 +23,7 @@ import {
 } from '@/lib/bookings/menu-snapshot';
 import { buildPackageDocumentSections } from '@/lib/bookings/package-document-view';
 
-type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
+export type CopyType = 'company' | 'manager' | 'customer' | 'kitchen';
 
 type MenuRow = {
   key: string;
@@ -215,16 +215,20 @@ export function PrintOrderView({
   );
 }
 
-function PrintDocument({
+export function PrintDocument({
   order,
   restaurant,
   settings,
   copyType,
+  documentTitle,
+  beforeContent,
 }: {
   order: Order;
   restaurant: Restaurant | null;
   settings: AppSettings | null;
   copyType: CopyType;
+  documentTitle?: string;
+  beforeContent?: ReactNode;
 }) {
   const menuRows = buildMenuRows(order);
   const menuSectionRows = buildMenuSectionRows(order, 3);
@@ -303,11 +307,13 @@ function PrintDocument({
           </div>
           <div className={`${isKitchenCopy ? 'pt-1' : 'pt-3'} text-right`}>
             <p className={`font-bold uppercase text-stone-950 ${isKitchenCopy ? 'text-[18px] print:text-[17px]' : 'text-base tracking-[0.14em] print:text-[15px]'}`}>
-              {isKitchenCopy ? 'Kitchen Print' : 'Booking Summary'}
+              {documentTitle ?? (isKitchenCopy ? 'Kitchen Print' : 'Booking Summary')}
             </p>
           </div>
         </div>
       </header>
+
+      {beforeContent}
 
       <section className={`${isKitchenCopy ? 'mt-2 grid gap-1.5 md:grid-cols-2 print:grid-cols-2 print:gap-1.5' : 'mt-3 grid gap-3 md:grid-cols-2 print:grid-cols-2 print:gap-2'}`}>
         <CompactTable

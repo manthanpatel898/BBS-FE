@@ -10,6 +10,7 @@ import { fetchOrderQuotation } from '@/lib/quotations/api';
 import type { BanquetQuotation } from '@/lib/quotations/types';
 import { quotationToPrintableOrder } from '@/lib/quotations/print-adapter';
 import { QuotationPrintDocument } from './quotation-print-document';
+import type { CopyType } from '@/app/print/order/print-order-view';
 
 function sanitizeTitle(value: string) {
   return value.replace(/[^\w\s.-]/g, '').replace(/\s+/g, ' ').trim();
@@ -20,6 +21,13 @@ function QuotationPrintContent() {
   const orderId = params.get('orderId') ?? '';
   const quotationId = params.get('quotationId') ?? '';
   const autoPrint = params.get('print') === '1';
+  const copyTypeParam = params.get('copyType');
+  const copyType: CopyType =
+    copyTypeParam === 'manager' ||
+    copyTypeParam === 'customer' ||
+    copyTypeParam === 'kitchen'
+      ? copyTypeParam
+      : 'company';
   const { accessToken } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [quotation, setQuotation] = useState<BanquetQuotation | null>(null);
@@ -85,13 +93,15 @@ function QuotationPrintContent() {
               <h1 className="mt-2 text-3xl font-semibold">Quotation Print</h1>
               {quotation ? (
                 <p className="mt-1 text-sm font-semibold text-stone-500">
-                  {quotation.quotationNumber} · Version {quotation.version}
+                  {quotation.quotationNumber} · Version {quotation.version} · {copyType === 'kitchen' ? 'Kitchen copy' : 'Booking copy'}
                 </p>
               ) : null}
             </div>
-            <button type="button" onClick={() => window.print()} className="rounded-2xl bg-stone-900 px-5 py-3 font-semibold text-white">
-              Print / Save PDF
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => window.print()} className="rounded-2xl bg-stone-900 px-5 py-3 font-semibold text-white">
+                Print / Save PDF
+              </button>
+            </div>
           </div>
           {loading ? (
             <div className="rounded-[28px] bg-white p-10 text-center text-stone-500 shadow-sm">Loading printable quotation...</div>
@@ -103,6 +113,7 @@ function QuotationPrintContent() {
               quotation={quotation}
               restaurant={restaurant}
               settings={settings}
+              copyType={copyType}
             />
           ) : null}
         </div>

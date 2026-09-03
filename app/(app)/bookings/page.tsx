@@ -118,6 +118,7 @@ import {
   quotationToSelectionSnapshot,
 } from '@/lib/quotations/snapshot';
 import type { BanquetQuotation, InquiryQuotationSettings } from '@/lib/quotations/types';
+import { buildQuotationPrintUrl, type QuotationPrintCopyType } from '@/lib/quotations/print-url';
 
 type ViewMode = 'list' | 'calendar';
 type CategoryWizardMode = 'booking' | 'quotation';
@@ -2441,11 +2442,16 @@ export default function BookingsPage() {
 
   function handleQuotationPdf(action: 'download' | 'print') {
     if (!editingOrder || !latestWizardQuotation) return;
-    openQuotationPrint(editingOrder.id, latestWizardQuotation.id, action === 'print');
+    openQuotationPrint(editingOrder.id, latestWizardQuotation.id, 'company', action === 'print');
   }
 
-  function openQuotationPrint(orderId: string, quotationId: string, autoPrint = false) {
-    const url = `/print/quotation?orderId=${encodeURIComponent(orderId)}&quotationId=${encodeURIComponent(quotationId)}${autoPrint ? '&print=1' : ''}`;
+  function openQuotationPrint(
+    orderId: string,
+    quotationId: string,
+    copyType: QuotationPrintCopyType = 'company',
+    autoPrint = false,
+  ) {
+    const url = buildQuotationPrintUrl({ orderId, quotationId, copyType, autoPrint });
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
@@ -5114,17 +5120,33 @@ function selectionStatus(order: Order) {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => editingOrder && openQuotationPrint(editingOrder.id, quotation.id)}
+                                  onClick={() =>
+                                    editingOrder &&
+                                    openQuotationPrint(editingOrder.id, quotation.id, 'company')
+                                  }
                                   className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50"
                                 >
                                   PDF
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => editingOrder && openQuotationPrint(editingOrder.id, quotation.id, true)}
+                                  onClick={() =>
+                                    editingOrder &&
+                                    openQuotationPrint(editingOrder.id, quotation.id, 'company', true)
+                                  }
                                   className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700"
                                 >
                                   Print
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    editingOrder &&
+                                    openQuotationPrint(editingOrder.id, quotation.id, 'kitchen', true)
+                                  }
+                                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                >
+                                  Kitchen
                                 </button>
                                 {canAcceptQuotation(quotation) ? (
                                   <button
