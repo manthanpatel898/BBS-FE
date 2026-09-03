@@ -62,6 +62,10 @@ export interface BanquetQuotation {
   addOns: QuotationAddonSnapshot[];
   tax: Record<string, unknown>;
   totals: Record<string, unknown>;
+  terms?: string;
+  paymentTerms?: string;
+  cancellationPolicy?: string;
+  footer?: string;
 }
 
 export interface QuotationPackageSnapshot {

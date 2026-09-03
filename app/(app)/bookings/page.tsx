@@ -99,7 +99,6 @@ import {
   type AdditionalCategoryFormState,
 } from '@/lib/bookings/additional-category-selection';
 import {
-  downloadOrderQuotationPdf,
   fetchOrderQuotations,
   generateOrderQuotation,
 } from '@/lib/quotations/api';
@@ -571,7 +570,7 @@ export default function BookingsPage() {
     useState<CategoryWizardMode>('booking');
   const [latestWizardQuotation, setLatestWizardQuotation] =
     useState<BanquetQuotation | null>(null);
-  const [isQuotationPdfBusy, setIsQuotationPdfBusy] = useState(false);
+  const [wizardQuotations, setWizardQuotations] = useState<BanquetQuotation[]>([]);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
   const [primaryPackageDraft, setPrimaryPackageDraft] =
@@ -1345,6 +1344,7 @@ export default function BookingsPage() {
     setActivePackageId('primary');
     setCategoryWizardMode('booking');
     setLatestWizardQuotation(null);
+    setWizardQuotations([]);
     setCustomerTitle('None');
     setCustomEventName('');
     setIsWizardOpen(false);
@@ -1645,6 +1645,7 @@ export default function BookingsPage() {
     setCustomMenuPopup(null);
     setCategoryWizardMode('booking');
     setLatestWizardQuotation(null);
+    setWizardQuotations([]);
     setIsWizardOpen(true);
     if (accessToken) {
       void loadCategories(accessToken).catch(() => {
@@ -1654,6 +1655,7 @@ export default function BookingsPage() {
         void fetchOrderQuotations(accessToken, order.id)
           .then((quotations) => {
             const latest = getLatestReusableQuotation(quotations);
+            setWizardQuotations(quotations);
             setLatestWizardQuotation(latest);
             if (latest) applyQuotationToWizard(latest);
           })
@@ -1669,6 +1671,7 @@ export default function BookingsPage() {
       void fetchOrderQuotations(accessToken, order.id)
         .then((quotations) => {
           const latest = getLatestReusableQuotation(quotations);
+          setWizardQuotations(quotations);
           setLatestWizardQuotation(latest);
           if (latest) applyQuotationToWizard(latest);
         })
@@ -2397,6 +2400,10 @@ export default function BookingsPage() {
         }),
       );
       setLatestWizardQuotation(quotation);
+      setWizardQuotations((current) => [
+        quotation,
+        ...current.filter((item) => item.id !== quotation.id),
+      ].sort((left, right) => right.version - left.version));
       setToast({
         type: 'success',
         message: `Quotation ${quotation.quotationNumber} generated successfully.`,
@@ -2418,43 +2425,14 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleQuotationPdf(action: 'download' | 'print') {
-    if (!accessToken || !editingOrder || !latestWizardQuotation) return;
-    try {
-      setIsQuotationPdfBusy(true);
-      const result = await downloadOrderQuotationPdf(
-        accessToken,
-        editingOrder.id,
-        latestWizardQuotation.id,
-      );
-      const url = URL.createObjectURL(result.blob);
-      if (action === 'download') {
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = result.filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
-      } else {
-        const printWindow = window.open(url, '_blank', 'noopener,noreferrer');
-        if (!printWindow) {
-          URL.revokeObjectURL(url);
-          throw new Error('Popup blocked. Allow popups to print the quotation.');
-        }
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      }
-    } catch (requestError) {
-      setToast({
-        type: 'error',
-        message:
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unable to open quotation PDF.',
-      });
-    } finally {
-      setIsQuotationPdfBusy(false);
-    }
+  function handleQuotationPdf(action: 'download' | 'print') {
+    if (!editingOrder || !latestWizardQuotation) return;
+    openQuotationPrint(editingOrder.id, latestWizardQuotation.id, action === 'print');
+  }
+
+  function openQuotationPrint(orderId: string, quotationId: string, autoPrint = false) {
+    const url = `/print/quotation?orderId=${encodeURIComponent(orderId)}&quotationId=${encodeURIComponent(quotationId)}${autoPrint ? '&print=1' : ''}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   async function handleConvertInquiry() {
@@ -4959,26 +4937,90 @@ function selectionStatus(order: Order) {
                     </div>
                     {latestWizardQuotation ? (
                       <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                        <LoadingButton
+                        <button
                           type="button"
-                          isLoading={isQuotationPdfBusy}
-                          disabled={isQuotationPdfBusy}
-                          onClick={() => void handleQuotationPdf('download')}
+                          onClick={() => handleQuotationPdf('download')}
                           className="min-h-10 rounded-xl border border-violet-200 bg-white px-4 text-sm font-bold text-violet-700 shadow-sm transition hover:bg-violet-50"
                         >
                           Download PDF
-                        </LoadingButton>
-                        <LoadingButton
+                        </button>
+                        <button
                           type="button"
-                          isLoading={isQuotationPdfBusy}
-                          disabled={isQuotationPdfBusy}
-                          onClick={() => void handleQuotationPdf('print')}
+                          onClick={() => handleQuotationPdf('print')}
                           className="min-h-10 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700"
                         >
                           Print PDF
-                        </LoadingButton>
+                        </button>
                       </div>
                     ) : null}
+                  </div>
+                ) : null}
+                {categoryWizardMode === 'quotation' && wizardQuotations.length > 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Quotation history
+                      </p>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+                        {wizardQuotations.length} version{wizardQuotations.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-2">
+                      {wizardQuotations
+                        .slice()
+                        .sort((left, right) => right.version - left.version)
+                        .map((quotation) => {
+                          const total =
+                            typeof quotation.totals.grandTotalPaise === 'number'
+                              ? quotation.totals.grandTotalPaise / 100
+                              : 0;
+                          return (
+                            <div
+                              key={quotation.id}
+                              className={`flex flex-col gap-2 rounded-xl border px-3 py-2 sm:flex-row sm:items-center sm:justify-between ${
+                                latestWizardQuotation?.id === quotation.id
+                                  ? 'border-violet-200 bg-violet-50/60'
+                                  : 'border-slate-200 bg-slate-50'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black text-slate-950">
+                                  {quotation.quotationNumber} · V{quotation.version}
+                                </p>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                                  {quotation.status} · Valid until {formatDisplayDate(quotation.validUntil)} · {formatCurrency(total)}
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 sm:flex">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLatestWizardQuotation(quotation);
+                                    applyQuotationToWizard(quotation);
+                                  }}
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                                >
+                                  Load
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => editingOrder && openQuotationPrint(editingOrder.id, quotation.id)}
+                                  className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50"
+                                >
+                                  PDF
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => editingOrder && openQuotationPrint(editingOrder.id, quotation.id, true)}
+                                  className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700"
+                                >
+                                  Print
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
                 ) : null}
               </div>

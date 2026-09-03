@@ -25,6 +25,17 @@ export function fetchOrderQuotations(token: string, orderId: string) {
   );
 }
 
+export function fetchOrderQuotation(
+  token: string,
+  orderId: string,
+  quotationId: string,
+) {
+  return authorizedRequest<BanquetQuotation>(
+    `/orders/${encodeURIComponent(orderId)}/quotations/${encodeURIComponent(quotationId)}`,
+    token,
+  );
+}
+
 export function generateOrderQuotation(
   token: string,
   orderId: string,
