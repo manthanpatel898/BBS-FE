@@ -99,9 +99,18 @@ import {
   type AdditionalCategoryFormState,
 } from '@/lib/bookings/additional-category-selection';
 import {
+  acceptOrderQuotation,
+  cancelOrderQuotation,
+  confirmOrderFromQuotation,
   fetchOrderQuotations,
   generateOrderQuotation,
 } from '@/lib/quotations/api';
+import {
+  canAcceptQuotation,
+  canCancelQuotation,
+  canConfirmFromQuotation,
+  nextQuotationSelection,
+} from '@/lib/quotations/actions';
 import { buildQuotationDraftPayload } from '@/lib/quotations/draft';
 import { canShowInquiryQuotationAction } from '@/lib/quotations/eligibility';
 import {
@@ -571,6 +580,11 @@ export default function BookingsPage() {
   const [latestWizardQuotation, setLatestWizardQuotation] =
     useState<BanquetQuotation | null>(null);
   const [wizardQuotations, setWizardQuotations] = useState<BanquetQuotation[]>([]);
+  const [quotationCancelPopup, setQuotationCancelPopup] = useState<{
+    quotation: BanquetQuotation;
+    reason: string;
+  } | null>(null);
+  const [quotationActionBusyId, setQuotationActionBusyId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
   const [primaryPackageDraft, setPrimaryPackageDraft] =
@@ -2433,6 +2447,102 @@ export default function BookingsPage() {
   function openQuotationPrint(orderId: string, quotationId: string, autoPrint = false) {
     const url = `/print/quotation?orderId=${encodeURIComponent(orderId)}&quotationId=${encodeURIComponent(quotationId)}${autoPrint ? '&print=1' : ''}`;
     window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  async function reloadWizardQuotationHistory(
+    orderId: string,
+    preferredQuotationId?: string | null,
+  ) {
+    if (!accessToken) return null;
+    const quotations = await fetchOrderQuotations(accessToken, orderId);
+    const selected = nextQuotationSelection(quotations, preferredQuotationId);
+    setWizardQuotations(quotations);
+    setLatestWizardQuotation(selected);
+    if (selected) applyQuotationToWizard(selected);
+    return selected;
+  }
+
+  async function handleAcceptQuotation(quotation: BanquetQuotation) {
+    if (!accessToken || !editingOrder || !canAcceptQuotation(quotation)) return;
+
+    try {
+      setQuotationActionBusyId(quotation.id);
+      const accepted = await acceptOrderQuotation(accessToken, editingOrder.id, quotation.id);
+      await reloadWizardQuotationHistory(editingOrder.id, accepted.id);
+      setToast({
+        type: 'success',
+        message: `Quotation ${accepted.quotationNumber} accepted.`,
+      });
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Unable to accept quotation.',
+      });
+    } finally {
+      setQuotationActionBusyId(null);
+    }
+  }
+
+  async function handleCancelQuotation() {
+    if (!accessToken || !editingOrder || !quotationCancelPopup) return;
+
+    const reason = quotationCancelPopup.reason.trim();
+    if (!reason) {
+      setToast({ type: 'error', message: 'Enter cancellation reason.' });
+      return;
+    }
+
+    try {
+      setQuotationActionBusyId(quotationCancelPopup.quotation.id);
+      const cancelled = await cancelOrderQuotation(
+        accessToken,
+        editingOrder.id,
+        quotationCancelPopup.quotation.id,
+        reason,
+      );
+      setQuotationCancelPopup(null);
+      await reloadWizardQuotationHistory(editingOrder.id, null);
+      setToast({
+        type: 'success',
+        message: `Quotation ${cancelled.quotationNumber} cancelled.`,
+      });
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Unable to cancel quotation.',
+      });
+    } finally {
+      setQuotationActionBusyId(null);
+    }
+  }
+
+  async function handleConfirmFromQuotation(quotation: BanquetQuotation) {
+    if (!accessToken || !editingOrder || !canConfirmFromQuotation(quotation)) return;
+
+    try {
+      setQuotationActionBusyId(quotation.id);
+      await confirmOrderFromQuotation(accessToken, editingOrder.id, quotation.id);
+      const updatedOrder = await fetchOrderById(accessToken, editingOrder.id);
+      await refreshBookingViews(accessToken);
+      resetWizard(false);
+      restoreBookingOverlayParent(updatedOrder);
+      setToast({
+        type: 'success',
+        message: `Booking confirmed from quotation ${quotation.quotationNumber}.`,
+      });
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to confirm booking from quotation.',
+      });
+    } finally {
+      setQuotationActionBusyId(null);
+    }
   }
 
   async function handleConvertInquiry() {
@@ -4991,7 +5101,7 @@ function selectionStatus(order: Order) {
                                   {quotation.status} · Valid until {formatDisplayDate(quotation.validUntil)} · {formatCurrency(total)}
                                 </p>
                               </div>
-                              <div className="grid grid-cols-3 gap-2 sm:flex">
+                              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -5016,6 +5126,38 @@ function selectionStatus(order: Order) {
                                 >
                                   Print
                                 </button>
+                                {canAcceptQuotation(quotation) ? (
+                                  <button
+                                    type="button"
+                                    disabled={quotationActionBusyId === quotation.id}
+                                    onClick={() => void handleAcceptQuotation(quotation)}
+                                    className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {quotationActionBusyId === quotation.id ? 'Accepting...' : 'Accept'}
+                                  </button>
+                                ) : null}
+                                {canConfirmFromQuotation(quotation) ? (
+                                  <button
+                                    type="button"
+                                    disabled={quotationActionBusyId === quotation.id}
+                                    onClick={() => void handleConfirmFromQuotation(quotation)}
+                                    className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {quotationActionBusyId === quotation.id ? 'Confirming...' : 'Confirm booking'}
+                                  </button>
+                                ) : null}
+                                {canCancelQuotation(quotation) ? (
+                                  <button
+                                    type="button"
+                                    disabled={quotationActionBusyId === quotation.id}
+                                    onClick={() =>
+                                      setQuotationCancelPopup({ quotation, reason: '' })
+                                    }
+                                    className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    Cancel quote
+                                  </button>
+                                ) : null}
                               </div>
                             </div>
                           );
@@ -5511,6 +5653,61 @@ function selectionStatus(order: Order) {
                 </div>
               </div>
             </div>
+          </ModalShell>
+        ) : null}
+
+        {quotationCancelPopup ? (
+          <ModalShell
+            title={`Cancel ${quotationCancelPopup.quotation.quotationNumber}`}
+            eyebrow="Quotation"
+            onClose={() => {
+              if (!quotationActionBusyId) setQuotationCancelPopup(null);
+            }}
+            widthClassName="max-w-lg"
+            zIndexClassName="z-[75]"
+          >
+            <form
+              className="mt-5 space-y-4"
+              onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                void handleCancelQuotation();
+              }}
+            >
+              <p className="text-sm leading-6 text-slate-600">
+                This will mark the quotation as cancelled. Add a short reason so the history remains clear.
+              </p>
+              <Field label="Cancellation reason">
+                <textarea
+                  rows={4}
+                  value={quotationCancelPopup.reason}
+                  onChange={(event) =>
+                    setQuotationCancelPopup((current) =>
+                      current ? { ...current, reason: event.target.value } : current,
+                    )
+                  }
+                  placeholder="Example: Customer requested revised package"
+                  className={`${inputCls} min-h-[120px] resize-y`}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  disabled={Boolean(quotationActionBusyId)}
+                  onClick={() => setQuotationCancelPopup(null)}
+                  className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Keep quotation
+                </button>
+                <LoadingButton
+                  type="submit"
+                  disabled={Boolean(quotationActionBusyId)}
+                  isLoading={Boolean(quotationActionBusyId)}
+                  className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-60"
+                >
+                  Cancel quotation
+                </LoadingButton>
+              </div>
+            </form>
           </ModalShell>
         ) : null}
 
