@@ -8,6 +8,7 @@ import { FEEDBACK_CONTROL_CLASS } from '@/lib/booking-feedback/ui';
 
 const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'];
 const formatDate = (value?: string) => value ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(value)) : null;
+const TOKEN_STORAGE_KEY = 'booking_feedback_token';
 
 export default function BookingFeedbackPage() {
   const [token, setToken] = useState('');
@@ -21,9 +22,14 @@ export default function BookingFeedbackPage() {
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    const value = url.searchParams.get('token') || sessionStorage.getItem('booking_feedback_token') || '';
+    const value =
+      url.searchParams.get('token') ||
+      sessionStorage.getItem(TOKEN_STORAGE_KEY) ||
+      localStorage.getItem(TOKEN_STORAGE_KEY) ||
+      '';
     if (value) {
-      sessionStorage.setItem('booking_feedback_token', value);
+      sessionStorage.setItem(TOKEN_STORAGE_KEY, value);
+      localStorage.setItem(TOKEN_STORAGE_KEY, value);
       url.searchParams.delete('token');
       window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
     }
@@ -46,7 +52,7 @@ export default function BookingFeedbackPage() {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Please answer at least one question.'); return; }
     if (!confirmed) { setError('Please confirm that this feedback is based on your event experience.'); return; }
     setBusy(true); setError('');
-    try { await submitPublicBookingFeedback(token, { answers, comment: comment.trim() || undefined, confirmed: true }); sessionStorage.removeItem('booking_feedback_token'); setData({ status: 'SUBMITTED' }); }
+    try { await submitPublicBookingFeedback(token, { answers, comment: comment.trim() || undefined, confirmed: true }); sessionStorage.removeItem(TOKEN_STORAGE_KEY); localStorage.removeItem(TOKEN_STORAGE_KEY); setData({ status: 'SUBMITTED' }); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to submit feedback.'); }
     finally { setBusy(false); }
   }
