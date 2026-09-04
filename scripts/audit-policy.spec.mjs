@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluateAuditReport } from './audit-policy.mjs';
+import { evaluateAuditReport, shouldSkipUnavailableAuditReport } from './audit-policy.mjs';
 
 const allowedAdvisory = {
   source: 1124334,
@@ -111,4 +111,31 @@ test('blocks the allowlisted advisory after its review deadline', () => {
 
   assert.equal(result.passed, false);
   assert.deepEqual(result.expiredAdvisoryIds, ['GHSA-MH99-V99M-4GVG']);
+});
+
+test('skips unavailable npm audit reports without bypassing vulnerability reports', () => {
+  assert.equal(
+    shouldSkipUnavailableAuditReport({
+      error: {
+        summary: '',
+      },
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldSkipUnavailableAuditReport({
+      error: {
+        summary: '',
+      },
+      vulnerabilities: {
+        example: {
+          name: 'example',
+          severity: 'high',
+          via: [],
+        },
+      },
+    }),
+    false,
+  );
 });
