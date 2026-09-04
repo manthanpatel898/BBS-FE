@@ -2524,6 +2524,12 @@ export default function BookingsPage() {
       setQuotationActionBusyId(quotation.id);
       const accepted = await acceptOrderQuotation(accessToken, editingOrder.id, quotation.id);
       await reloadWizardQuotationHistory(editingOrder.id, accepted.id);
+      if (editingOrder.status === 'INQUIRY') {
+        const orderForAdvance = editingOrder;
+        setIsQuotationHistoryOpen(false);
+        resetWizard(false);
+        openAdvancePopup('convert', orderForAdvance);
+      }
       setToast({
         type: 'success',
         message: `Quotation ${accepted.quotationNumber} accepted.`,
@@ -5774,7 +5780,7 @@ function selectionStatus(order: Order) {
                                 }}
                                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
                               >
-                                Load
+                                Use in form
                               </button>
                               <button
                                 type="button"
@@ -5795,16 +5801,6 @@ function selectionStatus(order: Order) {
                                 className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white hover:bg-violet-700"
                               >
                                 Print
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  editingOrder &&
-                                  openQuotationPrint(editingOrder.id, quotation.id, 'kitchen', true)
-                                }
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-                              >
-                                Kitchen
                               </button>
                               {canAcceptQuotation(quotation) ? (
                                 <button
