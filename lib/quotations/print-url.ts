@@ -11,9 +11,13 @@ export function buildQuotationPrintUrl({
   copyType?: QuotationPrintCopyType;
   autoPrint?: boolean;
 }) {
+  if (!orderId.trim() || !quotationId.trim()) {
+    throw new Error('Missing quotation details.');
+  }
+
   const params = new URLSearchParams({
-    orderId,
-    quotationId,
+    orderId: orderId.trim(),
+    quotationId: quotationId.trim(),
     copyType,
   });
   if (autoPrint) params.set('print', '1');

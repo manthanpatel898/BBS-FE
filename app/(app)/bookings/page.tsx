@@ -585,6 +585,7 @@ export default function BookingsPage() {
     quotation: BanquetQuotation;
     reason: string;
   } | null>(null);
+  const [isQuotationHistoryOpen, setIsQuotationHistoryOpen] = useState(false);
   const [quotationActionBusyId, setQuotationActionBusyId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [formState, setFormState] = useState<BookingFormState>(initialFormState);
@@ -1353,6 +1354,9 @@ export default function BookingsPage() {
     setAddonPopup(null);
     setCustomMenuPopup(null);
     setSubitemDescriptionPopover(null);
+    setIsQuotationHistoryOpen(false);
+    setQuotationCancelPopup(null);
+    setQuotationActionBusyId(null);
     setFormState(initialFormState);
     setPrimaryPackageDraft(packageDraftFromForm(initialFormState));
     setAdditionalCategorySelections([]);
@@ -2441,7 +2445,13 @@ export default function BookingsPage() {
   }
 
   function handleQuotationPdf(action: 'download' | 'print') {
-    if (!editingOrder || !latestWizardQuotation) return;
+    if (!editingOrder || !latestWizardQuotation) {
+      setToast({
+        type: 'error',
+        message: 'Generate or load a quotation before printing.',
+      });
+      return;
+    }
     openQuotationPrint(editingOrder.id, latestWizardQuotation.id, 'company', action === 'print');
   }
 
@@ -2451,8 +2461,16 @@ export default function BookingsPage() {
     copyType: QuotationPrintCopyType = 'company',
     autoPrint = false,
   ) {
-    const url = buildQuotationPrintUrl({ orderId, quotationId, copyType, autoPrint });
-    window.open(url, '_blank', 'noopener,noreferrer');
+    try {
+      const url = buildQuotationPrintUrl({ orderId, quotationId, copyType, autoPrint });
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Missing quotation details.',
+      });
+    }
   }
 
   async function reloadWizardQuotationHistory(
@@ -5036,154 +5054,47 @@ function selectionStatus(order: Order) {
                   }
                 />
                 {categoryWizardMode === 'quotation' ? (
-                  <div className="flex flex-col gap-3 rounded-2xl border border-violet-100 bg-violet-50/70 p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-600">
-                        Quotation snapshot
-                      </p>
+                  <div className="flex flex-col gap-2 rounded-2xl border border-violet-100 bg-violet-50/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
                       {latestWizardQuotation ? (
-                        <p className="mt-1 text-sm font-semibold text-slate-800">
-                          {latestWizardQuotation.quotationNumber} · Version {latestWizardQuotation.version} · {latestWizardQuotation.status}
-                        </p>
+                        <>
+                          <p className="truncate text-xs font-black text-slate-950 sm:text-sm">
+                            {latestWizardQuotation.quotationNumber} · V{latestWizardQuotation.version}
+                          </p>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-violet-600">
+                            {latestWizardQuotation.status}
+                          </p>
+                        </>
                       ) : (
-                        <p className="mt-1 text-sm font-semibold text-slate-600">
-                          Select category and menu, then generate the first quotation.
+                        <p className="text-xs font-bold text-slate-600 sm:text-sm">
+                          Generate quotation first, then print/download.
                         </p>
                       )}
                     </div>
-                    {latestWizardQuotation ? (
-                      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                        <button
-                          type="button"
-                          onClick={() => handleQuotationPdf('download')}
-                          className="min-h-10 rounded-xl border border-violet-200 bg-white px-4 text-sm font-bold text-violet-700 shadow-sm transition hover:bg-violet-50"
-                        >
-                          Download PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleQuotationPdf('print')}
-                          className="min-h-10 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700"
-                        >
-                          Print PDF
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {categoryWizardMode === 'quotation' && wizardQuotations.length > 0 ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                        Quotation history
-                      </p>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
-                        {wizardQuotations.length} version{wizardQuotations.length === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid gap-2">
-                      {wizardQuotations
-                        .slice()
-                        .sort((left, right) => right.version - left.version)
-                        .map((quotation) => {
-                          const total =
-                            typeof quotation.totals.grandTotalPaise === 'number'
-                              ? quotation.totals.grandTotalPaise / 100
-                              : 0;
-                          return (
-                            <div
-                              key={quotation.id}
-                              className={`flex flex-col gap-2 rounded-xl border px-3 py-2 sm:flex-row sm:items-center sm:justify-between ${
-                                latestWizardQuotation?.id === quotation.id
-                                  ? 'border-violet-200 bg-violet-50/60'
-                                  : 'border-slate-200 bg-slate-50'
-                              }`}
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-black text-slate-950">
-                                  {quotation.quotationNumber} · V{quotation.version}
-                                </p>
-                                <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                                  {quotation.status} · Valid until {formatDisplayDate(quotation.validUntil)} · {formatCurrency(total)}
-                                </p>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setLatestWizardQuotation(quotation);
-                                    applyQuotationToWizard(quotation);
-                                  }}
-                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                                >
-                                  Load
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    editingOrder &&
-                                    openQuotationPrint(editingOrder.id, quotation.id, 'company')
-                                  }
-                                  className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50"
-                                >
-                                  PDF
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    editingOrder &&
-                                    openQuotationPrint(editingOrder.id, quotation.id, 'company', true)
-                                  }
-                                  className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700"
-                                >
-                                  Print
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    editingOrder &&
-                                    openQuotationPrint(editingOrder.id, quotation.id, 'kitchen', true)
-                                  }
-                                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                                >
-                                  Kitchen
-                                </button>
-                                {canAcceptQuotation(quotation) ? (
-                                  <button
-                                    type="button"
-                                    disabled={quotationActionBusyId === quotation.id}
-                                    onClick={() => void handleAcceptQuotation(quotation)}
-                                    className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    {quotationActionBusyId === quotation.id ? 'Accepting...' : 'Accept'}
-                                  </button>
-                                ) : null}
-                                {canConfirmFromQuotation(quotation) ? (
-                                  <button
-                                    type="button"
-                                    disabled={quotationActionBusyId === quotation.id}
-                                    onClick={() => void handleConfirmFromQuotation(quotation)}
-                                    className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    {quotationActionBusyId === quotation.id ? 'Confirming...' : 'Confirm booking'}
-                                  </button>
-                                ) : null}
-                                {canCancelQuotation(quotation) ? (
-                                  <button
-                                    type="button"
-                                    disabled={quotationActionBusyId === quotation.id}
-                                    onClick={() =>
-                                      setQuotationCancelPopup({ quotation, reason: '' })
-                                    }
-                                    className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    Cancel quote
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
+                    <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setIsQuotationHistoryOpen(true)}
+                        className="min-h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        History {wizardQuotations.length ? `(${wizardQuotations.length})` : ''}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!latestWizardQuotation}
+                        onClick={() => handleQuotationPdf('download')}
+                        className="min-h-9 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-700 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        PDF
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!latestWizardQuotation}
+                        onClick={() => handleQuotationPdf('print')}
+                        className="min-h-9 rounded-xl bg-violet-600 px-3 text-xs font-black text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Print
+                      </button>
                     </div>
                   </div>
                 ) : null}
@@ -5673,6 +5584,160 @@ function selectionStatus(order: Order) {
                     </span>
                   </LoadingButton>
                 </div>
+              </div>
+            </div>
+          </ModalShell>
+        ) : null}
+
+        {isQuotationHistoryOpen ? (
+          <ModalShell
+            title="Quotation history"
+            eyebrow="Inquiry Quotation"
+            onClose={() => setIsQuotationHistoryOpen(false)}
+            widthClassName="max-w-3xl"
+            zIndexClassName="z-[70]"
+            mobileFullScreen
+            panelClassName="flex min-h-0 flex-col sm:max-h-[82vh]"
+            scrollablePanel={false}
+          >
+            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+              <div className="shrink-0 rounded-2xl border border-violet-100 bg-violet-50/70 p-3">
+                {latestWizardQuotation ? (
+                  <>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-600">
+                      Active quotation
+                    </p>
+                    <p className="mt-1 text-sm font-black text-slate-950">
+                      {latestWizardQuotation.quotationNumber} · V{latestWizardQuotation.version} · {latestWizardQuotation.status}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm font-bold text-slate-600">
+                    No quotation generated yet. Close this panel and generate the first quotation.
+                  </p>
+                )}
+              </div>
+              <div className="app-scrollbar mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+                {wizardQuotations.length > 0 ? (
+                  <div className="grid gap-3">
+                    {wizardQuotations
+                      .slice()
+                      .sort((left, right) => right.version - left.version)
+                      .map((quotation) => {
+                        const total =
+                          typeof quotation.totals.grandTotalPaise === 'number'
+                            ? quotation.totals.grandTotalPaise / 100
+                            : 0;
+                        const isActive = latestWizardQuotation?.id === quotation.id;
+                        return (
+                          <div
+                            key={quotation.id}
+                            className={`rounded-2xl border p-3 ${
+                              isActive
+                                ? 'border-violet-200 bg-violet-50/70'
+                                : 'border-slate-200 bg-white'
+                            }`}
+                          >
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <p className="truncate text-base font-black text-slate-950">
+                                  {quotation.quotationNumber} · V{quotation.version}
+                                </p>
+                                <p className="mt-1 text-xs font-bold text-slate-500">
+                                  {quotation.status} · Valid until {formatDisplayDate(quotation.validUntil)} · {formatCurrency(total)}
+                                </p>
+                              </div>
+                              {isActive ? (
+                                <span className="w-fit rounded-full bg-violet-600 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white">
+                                  Active
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLatestWizardQuotation(quotation);
+                                  applyQuotationToWizard(quotation);
+                                  setIsQuotationHistoryOpen(false);
+                                }}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                              >
+                                Load
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  editingOrder &&
+                                  openQuotationPrint(editingOrder.id, quotation.id, 'company')
+                                }
+                                className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-700 hover:bg-violet-50"
+                              >
+                                PDF
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  editingOrder &&
+                                  openQuotationPrint(editingOrder.id, quotation.id, 'company', true)
+                                }
+                                className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white hover:bg-violet-700"
+                              >
+                                Print
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  editingOrder &&
+                                  openQuotationPrint(editingOrder.id, quotation.id, 'kitchen', true)
+                                }
+                                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                              >
+                                Kitchen
+                              </button>
+                              {canAcceptQuotation(quotation) ? (
+                                <button
+                                  type="button"
+                                  disabled={quotationActionBusyId === quotation.id}
+                                  onClick={() => void handleAcceptQuotation(quotation)}
+                                  className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {quotationActionBusyId === quotation.id ? 'Accepting...' : 'Accept'}
+                                </button>
+                              ) : null}
+                              {canConfirmFromQuotation(quotation) ? (
+                                <button
+                                  type="button"
+                                  disabled={quotationActionBusyId === quotation.id}
+                                  onClick={() => void handleConfirmFromQuotation(quotation)}
+                                  className="rounded-xl bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {quotationActionBusyId === quotation.id ? 'Confirming...' : 'Confirm booking'}
+                                </button>
+                              ) : null}
+                              {canCancelQuotation(quotation) ? (
+                                <button
+                                  type="button"
+                                  disabled={quotationActionBusyId === quotation.id}
+                                  onClick={() => {
+                                    setIsQuotationHistoryOpen(false);
+                                    setQuotationCancelPopup({ quotation, reason: '' });
+                                  }}
+                                  className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Cancel quote
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-slate-500">
+                    No quotation history yet.
+                  </div>
+                )}
               </div>
             </div>
           </ModalShell>

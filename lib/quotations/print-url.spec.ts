@@ -20,3 +20,14 @@ test('defaults quotation print url to company copy without auto print', () => {
     '/print/quotation?orderId=order-1&quotationId=quote-1&copyType=company',
   );
 });
+
+test('rejects missing quotation print identifiers', () => {
+  assert.throws(
+    () => buildQuotationPrintUrl({ orderId: '', quotationId: 'quote-1' }),
+    /Missing quotation details/,
+  );
+  assert.throws(
+    () => buildQuotationPrintUrl({ orderId: 'order-1', quotationId: '' }),
+    /Missing quotation details/,
+  );
+});
