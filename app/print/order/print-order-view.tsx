@@ -20,6 +20,7 @@ import { formatFoodServiceTime } from '@/lib/bookings/food-service-schedule';
 import {
   getRenderableMenus,
   getRenderableMenuSections,
+  getRenderableMenuTitle,
 } from '@/lib/bookings/menu-snapshot';
 import { buildPackageDocumentSections } from '@/lib/bookings/package-document-view';
 
@@ -1026,7 +1027,7 @@ function buildMenuSectionRows(
   const sections: MenuSectionBox[] = getRenderableMenus(order.menuSelectionSnapshot).flatMap((menu) =>
     getRenderableMenuSections(menu).map((section) => ({
       key: `${menu.menuId}-${section.sectionTitle}`,
-      section: printMenuSectionTitle(menu.title, section.sectionTitle),
+      section: printMenuSectionTitle(getRenderableMenuTitle(menu), section.sectionTitle),
       items: section.items,
     })),
   );

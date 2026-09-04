@@ -14,6 +14,21 @@ function cleanItems(items: string[] | undefined) {
   return (items ?? []).map((item) => item.trim()).filter(Boolean);
 }
 
+function looksLikeMongoId(value: string) {
+  return /^[a-f\d]{24}$/i.test(value.trim());
+}
+
+export function getRenderableMenuTitle(menu: MenuSnapshotEntry) {
+  const title = menu.title.trim();
+  if (title && !looksLikeMongoId(title)) return title;
+
+  const firstSectionTitle = getRenderableMenuSections(menu).find(
+    (section) => section.sectionTitle.trim() && !looksLikeMongoId(section.sectionTitle),
+  )?.sectionTitle;
+
+  return firstSectionTitle?.trim() || 'Menu';
+}
+
 export function getRenderableMenuSections(
   menu: MenuSnapshotEntry,
 ): MenuSnapshotSection[] {

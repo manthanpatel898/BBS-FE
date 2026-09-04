@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getRenderableMenuSections, getRenderableMenus } from './menu-snapshot';
+import {
+  getRenderableMenuSections,
+  getRenderableMenus,
+  getRenderableMenuTitle,
+} from './menu-snapshot';
 
 test('renders flexible direct items under a stable Menu Items section', () => {
   const menu = {
@@ -49,4 +53,14 @@ test('filters menus that have no selected direct or structured items', () => {
   ];
 
   assert.deepEqual(getRenderableMenus(menus).map((menu) => menu.menuId), ['filled']);
+});
+
+test('does not expose mongodb ids as menu snapshot titles', () => {
+  const menu = {
+    menuId: '69d7e93288b48537416cda78',
+    title: '69d7e93288b48537416cda78',
+    sections: [{ sectionTitle: 'Mocktail', items: ['Assorted Soft Drinks'] }],
+  };
+
+  assert.equal(getRenderableMenuTitle(menu), 'Mocktail');
 });

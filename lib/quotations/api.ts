@@ -73,11 +73,17 @@ export function confirmOrderFromQuotation(
   token: string,
   orderId: string,
   quotationId: string,
+  payload?: {
+    advanceAmount?: number;
+    paymentMode?: string;
+    advanceDate?: string;
+    remark?: string;
+  },
 ) {
   return authorizedRequest<{ id: string; status: string }>(
     `/orders/${encodeURIComponent(orderId)}/quotations/${encodeURIComponent(quotationId)}/confirm`,
     token,
-    { method: 'POST' },
+    { method: 'POST', body: JSON.stringify(payload ?? {}) },
   );
 }
 

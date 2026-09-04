@@ -84,6 +84,7 @@ import { BookingActivePackageEditor } from '@/components/bookings/booking-active
 import {
   getRenderableMenus,
   getRenderableMenuSections,
+  getRenderableMenuTitle,
 } from '@/lib/bookings/menu-snapshot';
 import {
   formatFoodServiceTime,
@@ -608,6 +609,18 @@ export default function BookingsPage() {
   const [advancePopup, setAdvancePopup] = useState<{
     mode: 'new' | 'convert';
     order: Order | null;
+  } | null>(null);
+  const [quotationConfirmPopup, setQuotationConfirmPopup] = useState<{
+    order: Order;
+    quotations: BanquetQuotation[];
+    payload: {
+      advanceAmount: number;
+      extrasTotal: number;
+      discountAmount: number;
+      paymentMode: PaymentMode;
+      advanceDate: string;
+      remark?: string;
+    };
   } | null>(null);
   const pendingCreatePayload = useRef<Parameters<typeof createOrder>[1] | null>(null);
   const editInquirySnapshotRef = useRef<EditInquirySnapshot | null>(null);
@@ -1359,6 +1372,7 @@ export default function BookingsPage() {
     setCustomMenuPopup(null);
     setSubitemDescriptionPopover(null);
     setIsQuotationHistoryOpen(false);
+    setQuotationConfirmPopup(null);
     setQuotationCancelPopup(null);
     setQuotationActionBusyId(null);
     setFormState(initialFormState);
@@ -1674,13 +1688,22 @@ export default function BookingsPage() {
       void loadCategories(accessToken).catch(() => {
         setToast({ type: 'error', message: 'Unable to load categories.' });
       });
-      if (!order.categorySnapshot && order.status === 'INQUIRY') {
+      if (
+        Boolean(inquiryQuotationSettings?.enableInquiryQuotations) &&
+        (order.status === 'INQUIRY' || order.status === 'CONFIRMED')
+      ) {
         void fetchOrderQuotations(accessToken, order.id)
           .then((quotations) => {
             const latest = getLatestReusableQuotation(quotations);
             setWizardQuotations(quotations);
             setLatestWizardQuotation(latest);
-            if (latest) applyQuotationToWizard(latest);
+            if (
+              latest &&
+              !order.categorySnapshot &&
+              order.menuSelectionSnapshot.length === 0
+            ) {
+              applyQuotationToWizard(latest);
+            }
           })
           .catch(() => undefined);
       }
@@ -2577,6 +2600,52 @@ export default function BookingsPage() {
     }
   }
 
+  async function confirmInquiryUsingQuotation(
+    order: Order,
+    quotation: BanquetQuotation,
+    payload: {
+      advanceAmount: number;
+      paymentMode: PaymentMode;
+      advanceDate: string;
+      remark?: string;
+    },
+  ) {
+    if (!accessToken) return;
+
+    try {
+      setQuotationActionBusyId(quotation.id);
+      const confirmedQuotation =
+        quotation.status === 'GENERATED'
+          ? await acceptOrderQuotation(accessToken, order.id, quotation.id)
+          : quotation;
+      await confirmOrderFromQuotation(
+        accessToken,
+        order.id,
+        confirmedQuotation.id,
+        payload,
+      );
+      setQuotationConfirmPopup(null);
+      setAdvancePopup(null);
+      setToast({
+        type: 'success',
+        message: `Booking confirmed from quotation ${confirmedQuotation.quotationNumber}.`,
+      });
+      await refreshBookingViews(accessToken);
+      await openOrderDetail(order.id);
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to confirm booking from quotation.',
+      });
+    } finally {
+      setQuotationActionBusyId(null);
+      setIsAdvanceSubmitting(false);
+    }
+  }
+
   async function handleConvertInquiry() {
     if (!accessToken) return;
 
@@ -2609,13 +2678,45 @@ export default function BookingsPage() {
         await openOrderDetail(createdOrder.id, createdOrder);
       } else if (advancePopup?.order) {
         // Convert an existing inquiry to confirmed
-        await confirmInquiry(accessToken, advancePopup.order.id, {
+        const conversionPayload = {
           advanceAmount: Number(advanceAmount) || 0,
           extrasTotal: Number(confirmExtrasTotal) || 0,
           discountAmount: Number(confirmDiscount) || 0,
           paymentMode,
           advanceDate,
           remark: advanceRemark.trim() || undefined,
+        };
+        if (Boolean(inquiryQuotationSettings?.enableInquiryQuotations)) {
+          const quotations = await fetchOrderQuotations(accessToken, advancePopup.order.id);
+          const reusableQuotations = quotations.filter(
+            (quotation) =>
+              quotation.status === 'GENERATED' || quotation.status === 'ACCEPTED',
+          );
+          if (reusableQuotations.length > 0) {
+            setQuotationConfirmPopup({
+              order: advancePopup.order,
+              quotations: reusableQuotations,
+              payload: {
+                advanceAmount: conversionPayload.advanceAmount,
+                extrasTotal: conversionPayload.extrasTotal,
+                discountAmount: conversionPayload.discountAmount,
+                paymentMode,
+                advanceDate,
+                remark: conversionPayload.remark,
+              },
+            });
+            setAdvancePopup(null);
+            setIsAdvanceSubmitting(false);
+            return;
+          }
+        }
+        await confirmInquiry(accessToken, advancePopup.order.id, {
+          advanceAmount: conversionPayload.advanceAmount,
+          extrasTotal: conversionPayload.extrasTotal,
+          discountAmount: conversionPayload.discountAmount,
+          paymentMode: conversionPayload.paymentMode,
+          advanceDate: conversionPayload.advanceDate,
+          remark: conversionPayload.remark,
         });
         setAdvancePopup(null);
         setToast({ type: 'success', message: 'Inquiry converted to booking successfully.' });
@@ -5061,7 +5162,7 @@ function selectionStatus(order: Order) {
                     setFormState((current) => ({ ...current, endTime }))
                   }
                 />
-                {categoryWizardMode === 'quotation' ? (
+                {categoryWizardMode === 'quotation' || wizardQuotations.length > 0 ? (
                   <div className="flex flex-col gap-2 rounded-2xl border border-violet-100 bg-violet-50/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       {latestWizardQuotation ? (
@@ -5075,7 +5176,9 @@ function selectionStatus(order: Order) {
                         </>
                       ) : (
                         <p className="text-xs font-bold text-slate-600 sm:text-sm">
-                          Generate quotation first, then print/download.
+                          {categoryWizardMode === 'quotation'
+                            ? 'Generate quotation first, then print/download.'
+                            : 'Quotation history is available for this booking.'}
                         </p>
                       )}
                     </div>
@@ -5091,7 +5194,7 @@ function selectionStatus(order: Order) {
                         type="button"
                         disabled={!latestWizardQuotation}
                         onClick={() => handleQuotationPdf('download')}
-                        className="min-h-9 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-700 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className={`${categoryWizardMode === 'quotation' ? '' : 'hidden'} min-h-9 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-700 shadow-sm transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50`}
                       >
                         PDF
                       </button>
@@ -5099,7 +5202,7 @@ function selectionStatus(order: Order) {
                         type="button"
                         disabled={!latestWizardQuotation}
                         onClick={() => handleQuotationPdf('print')}
-                        className="min-h-9 rounded-xl bg-violet-600 px-3 text-xs font-black text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className={`${categoryWizardMode === 'quotation' ? '' : 'hidden'} min-h-9 rounded-xl bg-violet-600 px-3 text-xs font-black text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50`}
                       >
                         Print
                       </button>
@@ -5902,6 +6005,120 @@ function selectionStatus(order: Order) {
                 </LoadingButton>
               </div>
             </form>
+          </ModalShell>
+        ) : null}
+
+        {quotationConfirmPopup ? (
+          <ModalShell
+            title={`Use quotation for ${quotationConfirmPopup.order.orderId}?`}
+            eyebrow="Confirm Booking"
+            onClose={() => {
+              if (!quotationActionBusyId) setQuotationConfirmPopup(null);
+            }}
+            widthClassName="max-w-3xl"
+            zIndexClassName="z-[70]"
+            mobileFullScreen
+            panelClassName="flex min-h-0 flex-col sm:max-h-[82vh]"
+            scrollablePanel={false}
+          >
+            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+              <div className="shrink-0 rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-3">
+                <p className="text-sm font-semibold leading-6 text-slate-700">
+                  This inquiry has generated quotation history. Select a quotation to make its package,
+                  selected menu, add-ons, and pricing the source of truth for the confirmed booking.
+                </p>
+              </div>
+              <div className="app-scrollbar mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
+                <div className="grid gap-3">
+                  {quotationConfirmPopup.quotations
+                    .slice()
+                    .sort((left, right) => right.version - left.version)
+                    .map((quotation) => {
+                      const total =
+                        typeof quotation.totals.grandTotalPaise === 'number'
+                          ? quotation.totals.grandTotalPaise / 100
+                          : 0;
+                      const packageSummary = quotation.packages
+                        .map((item) => `${item.categoryName} · ${item.pax} pax`)
+                        .join(' + ');
+                      return (
+                        <div
+                          key={quotation.id}
+                          className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <p className="truncate text-base font-black text-slate-950">
+                                {quotation.quotationNumber} · V{quotation.version}
+                              </p>
+                              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-violet-600">
+                                {quotation.status} · {formatCurrency(total)}
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-slate-500">
+                                {packageSummary || 'Package details pending'}
+                              </p>
+                            </div>
+                            <LoadingButton
+                              type="button"
+                              disabled={Boolean(quotationActionBusyId)}
+                              isLoading={quotationActionBusyId === quotation.id}
+                              onClick={() =>
+                                void confirmInquiryUsingQuotation(
+                                  quotationConfirmPopup.order,
+                                  quotation,
+                                  quotationConfirmPopup.payload,
+                                )
+                              }
+                              className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-black text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Use this quotation
+                            </LoadingButton>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+              <div className="mt-3 shrink-0 border-t border-slate-100 pt-3">
+                <LoadingButton
+                  type="button"
+                  disabled={Boolean(quotationActionBusyId)}
+                  isLoading={quotationActionBusyId === 'direct-confirm'}
+                  onClick={async () => {
+                    if (!accessToken) return;
+                    try {
+                      setQuotationActionBusyId('direct-confirm');
+                      await confirmInquiry(accessToken, quotationConfirmPopup.order.id, {
+                        advanceAmount: quotationConfirmPopup.payload.advanceAmount,
+                        extrasTotal: quotationConfirmPopup.payload.extrasTotal,
+                        discountAmount: quotationConfirmPopup.payload.discountAmount,
+                        paymentMode: quotationConfirmPopup.payload.paymentMode,
+                        advanceDate: quotationConfirmPopup.payload.advanceDate,
+                        remark: quotationConfirmPopup.payload.remark,
+                      });
+                      const orderId = quotationConfirmPopup.order.id;
+                      setQuotationConfirmPopup(null);
+                      setToast({ type: 'success', message: 'Inquiry converted to booking successfully.' });
+                      await refreshBookingViews(accessToken);
+                      await openOrderDetail(orderId);
+                    } catch (error) {
+                      setToast({
+                        type: 'error',
+                        message:
+                          error instanceof Error
+                            ? error.message
+                            : 'Unable to confirm booking.',
+                      });
+                    } finally {
+                      setQuotationActionBusyId(null);
+                    }
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Confirm without quotation
+                </LoadingButton>
+              </div>
+            </div>
           </ModalShell>
         ) : null}
 
@@ -7389,11 +7606,11 @@ function selectionStatus(order: Order) {
                           ) : (
                             getRenderableMenus(packageSection.menus).map((menu) => (
                               <div key={menu.menuId} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <h4 className="text-sm font-semibold text-slate-900">{menu.title}</h4>
+                                <h4 className="text-sm font-semibold text-slate-900">{getRenderableMenuTitle(menu)}</h4>
                                 <div className="mt-2 grid gap-x-4 gap-y-2 text-sm text-slate-700 xl:grid-cols-2">
                                   {getRenderableMenuSections(menu).map((section) => (
                                     <div key={`${menu.menuId}-${section.sectionTitle}`} className="min-w-0">
-                                      {section.sectionTitle.trim().toLowerCase() !== menu.title.trim().toLowerCase() ? (
+                                      {section.sectionTitle.trim().toLowerCase() !== getRenderableMenuTitle(menu).toLowerCase() ? (
                                         <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{section.sectionTitle}</p>
                                       ) : null}
                                       <p className="mt-0.5 leading-5">{section.items.join(', ')}</p>
@@ -8474,7 +8691,7 @@ function buildPrintTagItems(order: Order): PrintTagItem[] {
         splitPrintTagItemName(itemName).map((splitItemName, splitIndex) => ({
           id: `${menuIndex}:${sectionIndex}:${itemIndex}:${splitIndex}`,
           groupId: `${menuIndex}:${sectionIndex}`,
-          menuTitle: menu.title,
+          menuTitle: getRenderableMenuTitle(menu),
           sectionTitle: section.sectionTitle,
           itemName: splitItemName,
         })),
