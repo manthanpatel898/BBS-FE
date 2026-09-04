@@ -12,6 +12,7 @@ import { quotationToPrintableOrder } from '@/lib/quotations/print-adapter';
 import { QuotationPrintDocument } from './quotation-print-document';
 import type { CopyType } from '@/app/print/order/print-order-view';
 import { getLatestReusableQuotation } from '@/lib/quotations/snapshot';
+import { resolveQuotationPrintContext } from '@/lib/quotations/print-context';
 
 function sanitizeTitle(value: string) {
   return value.replace(/[^\w\s.-]/g, '').replace(/\s+/g, ' ').trim();
@@ -19,16 +20,17 @@ function sanitizeTitle(value: string) {
 
 function QuotationPrintContent() {
   const params = useSearchParams();
-  const orderId = params.get('orderId') ?? '';
-  const requestedQuotationId = params.get('qid') ?? params.get('quotationId') ?? '';
-  const autoPrint = params.get('print') === '1';
-  const copyTypeParam = params.get('copyType');
-  const copyType: CopyType =
-    copyTypeParam === 'manager' ||
-    copyTypeParam === 'customer' ||
-    copyTypeParam === 'kitchen'
-      ? copyTypeParam
-      : 'company';
+  const printContext = useMemo(
+    () => resolveQuotationPrintContext(
+      params,
+      typeof window === 'undefined' ? null : window.localStorage,
+    ),
+    [params],
+  );
+  const orderId = printContext.orderId;
+  const requestedQuotationId = printContext.quotationId;
+  const autoPrint = printContext.autoPrint;
+  const copyType: CopyType = printContext.copyType;
   const { accessToken } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [quotation, setQuotation] = useState<BanquetQuotation | null>(null);

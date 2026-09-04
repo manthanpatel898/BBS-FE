@@ -118,7 +118,11 @@ import {
   quotationToSelectionSnapshot,
 } from '@/lib/quotations/snapshot';
 import type { BanquetQuotation, InquiryQuotationSettings } from '@/lib/quotations/types';
-import { buildQuotationPrintUrl, type QuotationPrintCopyType } from '@/lib/quotations/print-url';
+import {
+  buildQuotationPrintUrl,
+  rememberQuotationPrintContext,
+  type QuotationPrintCopyType,
+} from '@/lib/quotations/print-url';
 
 type ViewMode = 'list' | 'calendar';
 type CategoryWizardMode = 'booking' | 'quotation';
@@ -2462,6 +2466,10 @@ export default function BookingsPage() {
     autoPrint = false,
   ) {
     try {
+      rememberQuotationPrintContext(
+        { orderId, quotationId, copyType, autoPrint },
+        typeof window === 'undefined' ? null : window.localStorage,
+      );
       const url = buildQuotationPrintUrl({ orderId, quotationId, copyType, autoPrint });
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (error) {
