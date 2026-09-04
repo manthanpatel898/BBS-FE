@@ -6,11 +6,12 @@ import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
 import { fetchMyRestaurant, fetchOrderPrint, fetchSettings } from '@/lib/auth/api';
 import type { AppSettings, Order, Restaurant } from '@/lib/auth/types';
-import { fetchOrderQuotation } from '@/lib/quotations/api';
+import { fetchOrderQuotation, fetchOrderQuotations } from '@/lib/quotations/api';
 import type { BanquetQuotation } from '@/lib/quotations/types';
 import { quotationToPrintableOrder } from '@/lib/quotations/print-adapter';
 import { QuotationPrintDocument } from './quotation-print-document';
 import type { CopyType } from '@/app/print/order/print-order-view';
+import { getLatestReusableQuotation } from '@/lib/quotations/snapshot';
 
 function sanitizeTitle(value: string) {
   return value.replace(/[^\w\s.-]/g, '').replace(/\s+/g, ' ').trim();
@@ -19,7 +20,7 @@ function sanitizeTitle(value: string) {
 function QuotationPrintContent() {
   const params = useSearchParams();
   const orderId = params.get('orderId') ?? '';
-  const quotationId = params.get('quotationId') ?? '';
+  const requestedQuotationId = params.get('qid') ?? params.get('quotationId') ?? '';
   const autoPrint = params.get('print') === '1';
   const copyTypeParam = params.get('copyType');
   const copyType: CopyType =
@@ -42,7 +43,7 @@ function QuotationPrintContent() {
   );
 
   useEffect(() => {
-    if (!accessToken || !orderId || !quotationId) {
+    if (!accessToken || !orderId) {
       setError(!accessToken ? 'Missing session token.' : 'Missing quotation details.');
       setLoading(false);
       return;
@@ -51,10 +52,17 @@ function QuotationPrintContent() {
     async function load() {
       try {
         setLoading(true);
+        const quotationPromise = requestedQuotationId
+          ? fetchOrderQuotation(accessToken!, orderId, requestedQuotationId)
+          : fetchOrderQuotations(accessToken!, orderId).then((items) => {
+              const latest = getLatestReusableQuotation(items);
+              if (!latest) throw new Error('No generated quotation found for this booking.');
+              return latest;
+            });
         const [orderResponse, quotationResponse, settingsResponse, restaurantResponse] =
           await Promise.all([
             fetchOrderPrint(accessToken!, orderId),
-            fetchOrderQuotation(accessToken!, orderId, quotationId),
+            quotationPromise,
             fetchSettings(accessToken!).catch(() => null),
             fetchMyRestaurant(accessToken!).catch(() => null),
           ]);
@@ -73,7 +81,7 @@ function QuotationPrintContent() {
     }
     void load();
     return () => { active = false; };
-  }, [accessToken, orderId, quotationId]);
+  }, [accessToken, orderId, requestedQuotationId]);
 
   useEffect(() => {
     if (!quotation || !printableOrder) return;

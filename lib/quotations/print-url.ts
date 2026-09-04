@@ -17,7 +17,7 @@ export function buildQuotationPrintUrl({
 
   const params = new URLSearchParams({
     orderId: orderId.trim(),
-    quotationId: quotationId.trim(),
+    qid: quotationId.trim(),
     copyType,
   });
   if (autoPrint) params.set('print', '1');
