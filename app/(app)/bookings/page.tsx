@@ -4338,7 +4338,7 @@ function selectionStatus(order: Order) {
                         hotDateKeys,
                       });
                       const statusRows = [
-                        { key: 'full day', count: fullDayCount, markerClassName: 'bg-purple-400', textClassName: 'text-purple-900' },
+                        { key: 'full day', count: fullDayCount, markerClassName: 'bg-purple-400', textClassName: 'text-slate-800' },
                         { key: 'booked', count: Math.max(0, statusCounts.booked - fullDayCount), markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
                         { key: 'inquiry', count: statusCounts.inquiry, markerClassName: 'bg-amber-300', textClassName: 'text-slate-800' },
                         { key: 'closed', count: statusCounts.closed, markerClassName: 'bg-slate-950', textClassName: 'text-slate-800' },
@@ -4386,7 +4386,7 @@ function selectionStatus(order: Order) {
                           >
                             <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isToday ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
                           </div>
-                          <div style={{ gridTemplateRows: `repeat(${compactStatusRows.length}, minmax(0, 1fr))` }} className={`absolute inset-x-0 bottom-0 top-[42px] grid px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px] ${fullDayCount ? 'bg-purple-50' : ''}`}>
+                          <div style={{ gridTemplateRows: `repeat(${compactStatusRows.length}, minmax(0, 1fr))` }} className="absolute inset-x-0 bottom-0 top-[42px] grid px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
                             {compactStatusRows.map((statusRow, index) => (
                               <div
                                 key={statusRow?.key ?? `status-empty-${index}`}
