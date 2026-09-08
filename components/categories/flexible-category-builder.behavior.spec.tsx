@@ -46,6 +46,18 @@ async function main() {
   assert.match(editHtml, /Welcome Drink/);
   assert.match(editHtml, /Menu name/);
   assert.match(editHtml, /Bulk Delete Items/);
+
+  const reorderDraft = createFlexibleCategoryDraft();
+  reorderDraft.groups = [
+    { ...reorderDraft.groups[0]!, menuTitle: 'Starter' },
+    { ...createFlexibleCategoryDraft().groups[0]!, menuTitle: 'Soup' },
+  ];
+  const reorderHtml = renderToStaticMarkup(
+    <FlexibleCategoryBuilder draft={reorderDraft} menus={[]} errors={{}} onChange={() => undefined} />,
+  );
+  assert.match(reorderHtml, /Move choice group 1 down/);
+  assert.match(reorderHtml, /Move choice group 2 up/);
+  assert.match(reorderHtml, /disabled=""/);
 }
 
 void main();

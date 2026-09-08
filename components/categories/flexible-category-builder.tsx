@@ -45,6 +45,17 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
     onChange({ ...draft, groups: draft.groups.map((group) => group.id === groupId ? updater(group) : group) });
   }
 
+  function moveGroup(groupIndex: number, direction: -1 | 1) {
+    const targetIndex = groupIndex + direction;
+    if (targetIndex < 0 || targetIndex >= draft.groups.length) return;
+    const groups = [...draft.groups];
+    const [group] = groups.splice(groupIndex, 1);
+    if (!group) return;
+    groups.splice(targetIndex, 0, group);
+    onChange({ ...draft, groups });
+    setOpenGroupId(group.id);
+  }
+
   return (
     <div data-mobile-layout="flexible-category-builder" className="space-y-4 sm:space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
@@ -84,6 +95,28 @@ export function FlexibleCategoryBuilder({ draft, menus, errors, onChange }: Prop
               </div>
             </button>
             <div className="flex shrink-0 items-center gap-1">
+              {draft.groups.length > 1 ? (
+                <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <button
+                    type="button"
+                    aria-label={`Move choice group ${groupIndex + 1} up`}
+                    disabled={groupIndex === 0}
+                    className="flex h-11 w-10 items-center justify-center text-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
+                    onClick={() => moveGroup(groupIndex, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move choice group ${groupIndex + 1} down`}
+                    disabled={groupIndex === draft.groups.length - 1}
+                    className="flex h-11 w-10 items-center justify-center border-l border-slate-200 text-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
+                    onClick={() => moveGroup(groupIndex, 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
+              ) : null}
               {draft.groups.length > 1 ? (
                 <button type="button" aria-label={`Remove choice group ${groupIndex + 1}`} className="flex h-11 w-11 items-center justify-center rounded-xl border border-red-200 text-xl text-red-600" onClick={() => onChange({ ...draft, groups: draft.groups.filter((item) => item.id !== group.id) })}>×</button>
               ) : null}

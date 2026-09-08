@@ -23,6 +23,14 @@ async function main() {
           { id: 'submenu-2', title: 'Farsan', items: ['Khaman'] },
         ],
       },
+      {
+        ...builder.createFlexibleChoiceGroup(),
+        menuMode: 'CREATE' as const,
+        menuTitle: 'Soup',
+        includedChoices: '1',
+        directItems: ['Tomato Soup'],
+        submenus: [],
+      },
     ],
   };
 
@@ -33,6 +41,8 @@ async function main() {
   assert.deepEqual(payload.menus[0]?.directItems?.items, ['Welcome Drink']);
   assert.deepEqual(payload.menus[0]?.sections?.[1]?.items, ['Khaman']);
   assert.equal(payload.groups[0]?.clientKey, configured.groups[0]?.id);
+  assert.equal(payload.groups[1]?.clientKey, configured.groups[1]?.id);
+  assert.equal(payload.menus[1]?.title, 'Soup');
 
   const revisionDraft = builder.createFlexibleCategoryEditDraft({
     id: 'category-1',
