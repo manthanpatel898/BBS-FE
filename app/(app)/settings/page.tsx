@@ -34,6 +34,7 @@ import {
   updateEventOption,
   updateEventPlanner,
   updateFoodServiceScheduleSettings,
+  updateFullDayBookingSettings,
   updateHallDetail,
   updateHallBookingInformationVisibility,
   updateMyRestaurantBranding,
@@ -61,6 +62,7 @@ type SettingsTabKey =
   | 'printTag'
   | 'hotDates'
   | 'foodSchedule'
+  | 'fullDayBooking'
   | 'bookingFeedback'
   | 'inquiryQuotations'
   | 'mySignature'
@@ -479,6 +481,7 @@ function SettingsTabs({
     { key: 'printTag', label: 'Print Tag' },
     { key: 'hotDates', label: 'Hot Dates' },
     { key: 'foodSchedule', label: 'Food Schedule' },
+    { key: 'fullDayBooking', label: 'Full Day Booking' },
     { key: 'bookingFeedback', label: 'Booking Feedback' },
     { key: 'inquiryQuotations', label: 'Inquiry Quotations' },
     { key: 'decorationPartners', label: 'Decoration Partners' },
@@ -588,6 +591,8 @@ function getTabMeta(tab: SettingsTabKey) {
         addButtonLabel: '',
         emptyMessage: '',
       };
+    case 'fullDayBooking':
+      return { title: 'Full Day Booking', description: 'Reserve halls across all meal slots.', addPlaceholder: '', addButtonLabel: '', emptyMessage: '' };
     case 'foodSchedule':
       return {
         title: 'Food Schedule',
@@ -663,6 +668,7 @@ export default function SettingsPage() {
       'printTag',
       'hotDates',
       'foodSchedule',
+      'fullDayBooking',
       'bookingFeedback',
       'inquiryQuotations',
       'decorationPartners',
@@ -1387,6 +1393,20 @@ export default function SettingsPage() {
               <DecorationPartnersSection />
             ) : activeTab === 'hotDates' ? (
               <HotDatesManager />
+            ) : activeTab === 'fullDayBooking' ? (
+              <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                <h2 className="mb-4 text-xl font-semibold text-slate-900">Full Day Booking</h2>
+                <ToggleSettingCard
+                  title="Enable Full Day Booking"
+                  description="Allow full-day bookings that reserve the selected hall across all meal slots. Existing bookings remain available when disabled."
+                  checked={Boolean(settings.enableFullDayBooking)}
+                  isSaving={isSaving}
+                  onChange={(enabled) => {
+                    const token = requireToken();
+                    if (token) void mutateSettings(() => updateFullDayBookingSettings(token, enabled), 'Full day booking settings updated successfully.');
+                  }}
+                />
+              </section>
             ) : activeTab === 'foodSchedule' ? (
               <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
                 <div>

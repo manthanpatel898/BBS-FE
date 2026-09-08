@@ -1,4 +1,5 @@
 'use client';
+import { getBookingServiceSlotOptions, buildDayHallSlotMatrix, FULL_DAY_HELP, FULL_DAY_CARD_CLASS } from '@/lib/bookings/service-slots';
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -3653,7 +3654,7 @@ function selectionStatus(order: Order) {
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {calendarSearchResults.map((order) => {
                   const cardCls =
-                    order.status === 'INQUIRY' && order.inquiryClosed
+                    order.serviceSlot === 'Full Day' ? FULL_DAY_CARD_CLASS : order.status === 'INQUIRY' && order.inquiryClosed
                       ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
                       : order.status === 'CONFIRMED'
                         ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
@@ -4172,7 +4173,7 @@ function selectionStatus(order: Order) {
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {calendarSearchResults.map((order) => {
                       const cardCls =
-                        order.status === 'INQUIRY' && order.inquiryClosed
+                        order.serviceSlot === 'Full Day' ? FULL_DAY_CARD_CLASS : order.status === 'INQUIRY' && order.inquiryClosed
                           ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
                           : order.status === 'CONFIRMED'
                             ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
@@ -4247,7 +4248,7 @@ function selectionStatus(order: Order) {
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                           {calendarSearchResults.map((calendarOrder) => {
                             const cardCls =
-                              calendarOrder.status === 'INQUIRY' && calendarOrder.inquiryClosed
+                              calendarOrder.serviceSlot === 'Full Day' ? FULL_DAY_CARD_CLASS : calendarOrder.status === 'INQUIRY' && calendarOrder.inquiryClosed
                                 ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
                                 : calendarOrder.status === 'CONFIRMED'
                                   ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
@@ -4315,6 +4316,7 @@ function selectionStatus(order: Order) {
                       </div>
                     ))}
                   </div>
+                  {settings?.enableFullDayBooking || calendarOrders.some((order) => order.serviceSlot === 'Full Day') ? <p className="flex items-center gap-2 text-xs font-medium text-purple-900"><span className="h-3 w-3 rounded-full bg-purple-400" />Full Day</p> : null}
                   <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
                     {monthGrid.map((day, index) => {
                       if (!day) {
@@ -4324,6 +4326,7 @@ function selectionStatus(order: Order) {
                       const dayKey = formatDateKey(day);
                       const dayOrders = ordersByDate.get(dayKey) ?? [];
                       const statusCounts = getMonthTileStatusCounts(dayOrders);
+                      const fullDayCount = dayOrders.filter((order) => order.serviceSlot === 'Full Day' && ['CONFIRMED', 'COMPLETED'].includes(order.status)).length;
                       const {
                         isSelected: isSelectedDay,
                         isToday,
@@ -4335,14 +4338,15 @@ function selectionStatus(order: Order) {
                         hotDateKeys,
                       });
                       const statusRows = [
-                        { key: 'booked', count: statusCounts.booked, markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
+                        { key: 'full day', count: fullDayCount, markerClassName: 'bg-purple-400', textClassName: 'text-purple-900' },
+                        { key: 'booked', count: Math.max(0, statusCounts.booked - fullDayCount), markerClassName: 'bg-emerald-400', textClassName: 'text-slate-800' },
                         { key: 'inquiry', count: statusCounts.inquiry, markerClassName: 'bg-amber-300', textClassName: 'text-slate-800' },
                         { key: 'closed', count: statusCounts.closed, markerClassName: 'bg-slate-950', textClassName: 'text-slate-800' },
                         { key: 'cancelled', count: statusCounts.cancelled, markerClassName: 'bg-red-300', textClassName: 'text-slate-800' },
                       ];
                       const compactStatusRows = [
                         ...statusRows.filter((statusRow) => statusRow.count > 0),
-                        ...Array.from({ length: 4 - statusRows.filter((statusRow) => statusRow.count > 0).length }, () => null),
+                        ...Array.from({ length: Math.max(0, 4 - statusRows.filter((statusRow) => statusRow.count > 0).length) }, () => null),
                       ];
 
                       return (
@@ -4382,10 +4386,11 @@ function selectionStatus(order: Order) {
                           >
                             <p className={`text-2xl font-medium leading-none sm:text-3xl ${isHotDate ? 'text-red-500' : isToday ? 'text-amber-700' : 'text-slate-500'}`}>{day.getDate()}</p>
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 top-[42px] grid grid-rows-4 px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px]">
+                          <div style={{ gridTemplateRows: `repeat(${compactStatusRows.length}, minmax(0, 1fr))` }} className={`absolute inset-x-0 bottom-0 top-[42px] grid px-2 text-[9px] sm:top-[48px] sm:px-3 sm:text-[10px] ${fullDayCount ? 'bg-purple-50' : ''}`}>
                             {compactStatusRows.map((statusRow, index) => (
                               <div
                                 key={statusRow?.key ?? `status-empty-${index}`}
+                                title={statusRow ? `${statusRow.count} ${statusRow.key}` : undefined}
                                 className={`flex h-full items-center gap-1.5 ${
                                   index > 0 && compactStatusRows.slice(0, index).some(Boolean) && statusRow
                                     ? `border-t ${isHotDate ? 'border-red-200' : 'border-slate-200'}`
@@ -4566,10 +4571,9 @@ function selectionStatus(order: Order) {
                       className={`${inputCls} min-h-12 ${isServiceSlotLocked ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                     >
                       <option value="">Select service slot</option>
-                      <option value="Breakfast">Breakfast</option>
-                      <option value="Lunch">Lunch</option>
-                      <option value="Dinner">Dinner</option>
+                      {getBookingServiceSlotOptions(Boolean(settings?.enableFullDayBooking), editingOrder?.serviceSlot).map((slot) => <option key={slot} value={slot}>{slot}</option>)}
                     </select>
+                    {formState.serviceSlot === 'Full Day' ? <p className="text-xs text-purple-900">{FULL_DAY_HELP}</p> : null}
                     {isServiceSlotLocked ? (
                       <p className="text-xs text-slate-500">
                         {permissionRequiredEditMessage}
@@ -6668,9 +6672,7 @@ function selectionStatus(order: Order) {
                     className={`${inputCls} min-h-12`}
                   >
                     <option value="">Select service slot</option>
-                    <option value="Breakfast">Breakfast</option>
-                    <option value="Lunch">Lunch</option>
-                    <option value="Dinner">Dinner</option>
+                    {getBookingServiceSlotOptions(Boolean(settings?.enableFullDayBooking), transferPopup.serviceSlot).map((slot) => <option key={slot} value={slot}>{slot}</option>)}
                   </select>
                 </Field>
               </div>
@@ -7027,6 +7029,7 @@ function selectionStatus(order: Order) {
                                           className="border border-slate-200 bg-white px-3 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-500"
                                         >
                                           {hall}
+                                          {hallSlotMatrix.fullDayHalls.has(hall) ? <span className="mt-1 block text-[10px] text-purple-900">Full Day Booked</span> : null}
                                         </th>
                                       ))}
                                     </tr>
@@ -7041,7 +7044,7 @@ function selectionStatus(order: Order) {
                                           const status = hallSlotMatrix.cellMap.get(`${hall}::${slot}`);
                                           return (
                                             <td key={`${slot}-${hall}`} className="border border-slate-200 bg-white px-3 py-3 text-center">
-                                              {status ? (
+                                              {status === 'full-day' ? <span className="inline-flex rounded-lg bg-purple-100 px-2 py-1 text-xs font-medium text-purple-900">Blocked by Full Day</span> : status ? (
                                                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                                                   ✓
                                                 </span>
@@ -7066,7 +7069,7 @@ function selectionStatus(order: Order) {
                             <div className="grid gap-3 lg:grid-cols-2">
                               {sortedOrders.map((calendarOrder) => {
                         const cardCls =
-                          calendarOrder.status === 'INQUIRY' && calendarOrder.inquiryClosed
+                          calendarOrder.serviceSlot === 'Full Day' ? FULL_DAY_CARD_CLASS : calendarOrder.status === 'INQUIRY' && calendarOrder.inquiryClosed
                             ? 'border-slate-400 bg-slate-100 shadow-[0_0_0_1px_rgba(15,23,42,0.16),0_4px_16px_rgba(15,23,42,0.12)]'
                             : calendarOrder.status === 'CONFIRMED'
                             ? 'border-emerald-300 bg-emerald-50/60 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.12)]'
@@ -8293,27 +8296,6 @@ function getHallParts(hallDetails: string | null | undefined) {
     .split('+')
     .map((part) => part.trim())
     .filter(Boolean);
-}
-
-function buildDayHallSlotMatrix(orders: CalendarOrder[], hallLabels: string[]) {
-  const slotPriority = ['Breakfast', 'Lunch', 'Dinner'];
-  const slots = slotPriority;
-  const halls = Array.from(new Set(hallLabels.map((hall) => hall.trim()).filter(Boolean)));
-  const cellMap = new Map<string, 'confirmed'>();
-
-  for (const order of orders) {
-    const slot = order.serviceSlot?.trim();
-    if (!slot) continue;
-
-    for (const hall of getHallParts(order.hallDetails)) {
-      const key = `${hall}::${slot}`;
-      if (order.status === 'CONFIRMED' || order.status === 'COMPLETED') {
-        cellMap.set(key, 'confirmed');
-      }
-    }
-  }
-
-  return { halls, slots, cellMap };
 }
 
 function BookingDetailOpeningOverlay() {

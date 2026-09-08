@@ -1921,6 +1921,12 @@ export async function fetchRepeatCustomersReport(
   );
 }
 
+export function updateFullDayBookingSettings(accessToken: string, enabled: boolean) {
+  return authorizedRequest<AppSettings>('/settings/full-day-booking', accessToken, {
+    method: 'PATCH', body: JSON.stringify({ enableFullDayBooking: enabled }),
+  });
+}
+
 export async function fetchSettings(accessToken: string) {
   return authorizedRequest<AppSettings>('/settings', accessToken);
 }

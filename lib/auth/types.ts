@@ -429,6 +429,7 @@ export interface SettingOption {
 }
 
 export interface AppSettings {
+  enableFullDayBooking?: boolean;
   id: string;
   restaurantId: string;
   paymentOptions: SettingOption[];
