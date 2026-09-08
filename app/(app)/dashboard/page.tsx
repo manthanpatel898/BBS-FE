@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import './dashboard.css';
+import { DashboardViewSwitch } from '@/components/dashboard/dashboard-view-switch';
+import { SinglePageDashboard } from '@/components/dashboard/single-page-dashboard';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { CommonModal } from '@/components/ui/common-modal';
@@ -1498,6 +1501,7 @@ function DashboardRecordsPanel({
 }
 
 function CompanyAdminDashboard({
+  modern = false,
   stats,
   reports,
   restaurant,
@@ -1519,6 +1523,7 @@ function CompanyAdminDashboard({
   onDashboardRecordsPageChange,
   onOpenDashboardOrder,
 }: {
+  modern?: boolean;
   stats: OrderStats | null;
   reports: OrderReports | null;
   restaurant: Restaurant | null;
@@ -1663,6 +1668,16 @@ function CompanyAdminDashboard({
           />
         </CommonModal>
       ) : null}
+      {modern ? <SinglePageDashboard
+        stats={stats} reports={reports} inquiryActivity={inquiryActivity} monthlySales={monthlySales}
+        selectedYear={selectedYear} selectedActivityMonth={selectedActivityMonth}
+        onActivityMonthChange={onActivityMonthChange} onMonthlySalesOpen={onMonthlySalesOpen}
+        onSelectRecordType={onSelectRecordType}
+        advances={<AdvanceBreakdownCard total={upcomingConfirmedAdvance} items={upcomingConfirmedAdvanceByPaymentMethod.filter((item) => item.amount > 0 || item.count > 0)} title="Upcoming Confirmed Advance" subtitle="Future confirmed bookings by payment mode" />}
+        cancelledAdvances={<CancelledAdvanceDashboardSection data={cancelledAdvanceDashboard} />}
+        comparison={reports ? <div className="zb-next-stack"><ComparisonChart title="Year on Year" subtitle={`${selectedYear} compared with ${selectedYear - 1}.`} current={reports.yearComparison.current} previous={reports.yearComparison.previous} /><ComparisonChart title="Month on Month" subtitle="Current and previous reporting month." current={reports.monthComparison.current} previous={reports.monthComparison.previous} /></div> : null}
+        subscription={subDaysLeft !== null ? <StatCard label="Subscription Days Left" value={subDaysLeft > 0 ? subDaysLeft : 'Expired'} icon={<CalendarIcon />} iconBg={subDaysLeft <= 7 ? 'bg-red-50' : 'bg-amber-50'} iconColor={subDaysLeft <= 7 ? 'text-red-500' : 'text-amber-700'} sub={restaurant?.endDate ? `Expires ${new Date(restaurant.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''} /> : null}
+      /> : <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Inquiries · Last 7 Days"
@@ -1859,6 +1874,7 @@ function CompanyAdminDashboard({
           <MenuCategoryTrends groups={reports.menuItemTrendsByCategory} />
         </>
       ) : null}
+        </>}
         </>
       )}
     </div>
@@ -1996,10 +2012,13 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!accessToken) return;
 
+    let cancelled = false;
+    setLoading(true);
     const load = async () => {
       try {
         if (user?.role === 'super_admin') {
           const stats = await fetchRestaurantStats(accessToken);
+          if (cancelled) return;
           setRestaurantStats(stats);
         } else if (user?.role === 'company_admin') {
           const now = new Date();
@@ -2019,6 +2038,7 @@ export default function DashboardPage() {
             }).catch(() => null),
             fetchDashboardMonthlySales(accessToken, selectedYear).catch(() => null),
           ]);
+          if (cancelled) return;
           setOrderStats(stats);
           setOrderReports(reports);
           setMyRestaurant(restaurant);
@@ -2027,17 +2047,27 @@ export default function DashboardPage() {
           setMonthlySales(sales);
         } else if (user?.role === 'employee') {
           const restaurant = await fetchMyRestaurant(accessToken).catch(() => null);
+          if (cancelled) return;
           setMyRestaurant(restaurant);
         }
       } catch {
-        // show null state in each dashboard
+        if (!cancelled) {
+          setOrderStats(null);
+          setRestaurantStats(null);
+          setOrderReports(null);
+          setMonthlySales(null);
+          setInquiryActivity(null);
+          setCancelledAdvanceDashboard(null);
+          setMyRestaurant(null);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     load();
-  }, [accessToken, user?.role, selectedYear, selectedActivityMonth, currentYear]);
+    return () => { cancelled = true; };
+  }, [accessToken, user?.id, user?.restaurantId, user?.role, selectedYear, selectedActivityMonth, currentYear]);
 
   useEffect(() => {
     if (!accessToken || user?.role !== 'company_admin' || !selectedRecordType) {
@@ -2146,7 +2176,10 @@ export default function DashboardPage() {
         <SuperAdminDashboard stats={restaurantStats} loading={loading} />
       )}
       {user?.role === 'company_admin' && (
+        <DashboardViewSwitch key={`${user.id}:${user.restaurantId}`} userId={user.id} restaurantId={user.restaurantId ?? ''}>
+        {(view) => (
         <CompanyAdminDashboard
+          modern={view === 'new'}
           stats={orderStats}
           reports={orderReports}
           restaurant={myRestaurant}
@@ -2168,6 +2201,8 @@ export default function DashboardPage() {
           onDashboardRecordsPageChange={setDashboardRecordsPage}
           onOpenDashboardOrder={openDashboardOrder}
         />
+        )}
+        </DashboardViewSwitch>
       )}
       {user?.role === 'employee' && (
         <div className="space-y-6">
