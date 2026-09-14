@@ -32,9 +32,9 @@ test('captures the query token in session storage and removes it from the URL', 
 });
 
 test('sends the invitation token in a header and never in the URL', async () => {
-  let request: Request | null = null;
+  const requests: Request[] = [];
   globalThis.fetch = async (input, init) => {
-    request = new Request(input, init);
+    requests.push(new Request(input, init));
     return new Response(
       JSON.stringify({ success: true, data: { status: 'READY', prefill: {} } }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -42,8 +42,9 @@ test('sends the invitation token in a header and never in the URL', async () => 
   };
 
   await validateFeedbackInvitation('secret');
-  assert.equal(request?.headers.get('X-Feedback-Token'), 'secret');
-  assert.equal(request?.url.includes('secret'), false);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].headers.get('X-Feedback-Token'), 'secret');
+  assert.equal(requests[0].url.includes('secret'), false);
 });
 
 test('normalizes array validation errors', async () => {
@@ -58,4 +59,3 @@ test('normalizes array validation errors', async () => {
     /Name is required\. Image is invalid/,
   );
 });
-

@@ -39,7 +39,7 @@ test('renders accessible required feedback controls and keeps submit disabled in
 });
 
 test('submits the selected full image mode', async () => {
-  let submitted: Record<string, unknown> | null = null;
+  const submissions: Record<string, unknown>[] = [];
   render(
     <PublicFeedbackForm
       initialToken="test-token"
@@ -48,7 +48,7 @@ test('submits the selected full image mode', async () => {
         prefill: { fullName: 'Aarav', designation: 'Director', company: 'Mehta Events' },
       })}
       submitFeedback={async (_token, input) => {
-        submitted = input as unknown as Record<string, unknown>;
+        submissions.push(input as unknown as Record<string, unknown>);
         return {};
       }}
     />,
@@ -67,5 +67,6 @@ test('submits the selected full image mode', async () => {
   fireEvent.click(screen.getByRole('button', { name: /submit feedback/i }));
 
   await waitFor(() => screen.getByText(/thank you for sharing/i));
-  assert.equal(submitted?.displayMode, 'FULL');
+  assert.equal(submissions.length, 1);
+  assert.equal(submissions[0].displayMode, 'FULL');
 });
