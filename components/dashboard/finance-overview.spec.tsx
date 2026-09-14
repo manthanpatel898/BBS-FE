@@ -1,0 +1,18 @@
+import { strict as assert } from 'node:assert';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { CollectionsOverview, SalesOverview } from './finance-overview';
+const collection = renderToStaticMarkup(createElement(CollectionsOverview, { total: 12500, methods: [{ label: 'Cash', amount: 2500, count: 1 }, { label: 'UPI', amount: 10000, count: 4 }], cancelled: null }));
+assert.match(collection, /₹12,500/);
+assert.match(collection, /₹2,500/);
+assert.match(collection, /₹10,000/);
+assert.match(collection, /Cancellation data is unavailable/);
+const empty = renderToStaticMarkup(createElement(CollectionsOverview, { total: 0, methods: [], cancelled: null }));
+assert.doesNotMatch(empty, /NaN|Infinity/);
+assert.match(empty, /No advance payments/);
+const sales = renderToStaticMarkup(createElement(SalesOverview, { reports: null, data: { year: 2026, averagePlatePrice: 500, totals: { bookings: 2, actualRevenue: 10000, estimatedRevenue: 5000, effectiveRevenue: 15000, estimatedBookings: 1, revenue: 15000 }, months: [{ month: 2, label: 'Feb', bookings: 2, actualRevenue: 10000, estimatedRevenue: 5000, effectiveRevenue: 15000, estimatedBookings: 1, revenue: 15000 }] }, onMonthOpen: () => {} }));
+assert.match(sales, /₹15,000/);
+assert.match(sales, /Feb/);
+assert.match(sales, /Actual/);
+assert.match(sales, /Estimated/);
+console.log('Finance values and empty states passed');

@@ -1673,9 +1673,7 @@ function CompanyAdminDashboard({
         selectedYear={selectedYear} selectedActivityMonth={selectedActivityMonth}
         onActivityMonthChange={onActivityMonthChange} onMonthlySalesOpen={onMonthlySalesOpen}
         onSelectRecordType={onSelectRecordType}
-        advances={<AdvanceBreakdownCard total={upcomingConfirmedAdvance} items={upcomingConfirmedAdvanceByPaymentMethod.filter((item) => item.amount > 0 || item.count > 0)} title="Upcoming Confirmed Advance" subtitle="Future confirmed bookings by payment mode" />}
-        cancelledAdvances={<CancelledAdvanceDashboardSection data={cancelledAdvanceDashboard} />}
-        comparison={reports ? <div className="zb-next-stack"><ComparisonChart title="Year on Year" subtitle={`${selectedYear} compared with ${selectedYear - 1}.`} current={reports.yearComparison.current} previous={reports.yearComparison.previous} /><ComparisonChart title="Month on Month" subtitle="Current and previous reporting month." current={reports.monthComparison.current} previous={reports.monthComparison.previous} /></div> : null}
+        cancelledAdvanceDashboard={cancelledAdvanceDashboard}
         subscription={subDaysLeft !== null ? <StatCard label="Subscription Days Left" value={subDaysLeft > 0 ? subDaysLeft : 'Expired'} icon={<CalendarIcon />} iconBg={subDaysLeft <= 7 ? 'bg-red-50' : 'bg-amber-50'} iconColor={subDaysLeft <= 7 ? 'text-red-500' : 'text-amber-700'} sub={restaurant?.endDate ? `Expires ${new Date(restaurant.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''} /> : null}
       /> : <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

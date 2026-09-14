@@ -5,7 +5,7 @@ import { SinglePageDashboard } from './single-page-dashboard';
 import type { OrderStats, OrderReports } from '../../lib/auth/types';
 
 const stats: OrderStats = { total: 137, inquiries: 90, confirmed: 30, cancelled: 4, completed: 13, followUps: 8, followUpsTakenToday: 3, followUpsDueTotalToday: 8, monthRevenue: 1234567, monthAdvance: 25000, monthAdvanceByPaymentMethod: [], avgMenuSelectionDurationSeconds: 120, avgInitialMenuSelectionDurationSeconds: 180, avgCategoryChangeDurationSeconds: 60, menuSelectionSampleCount: 9, avgInquiryToConfirmationDays: 2.5, inquiryToConfirmationSampleCount: 6, confirmationConversionRate: 31.4, dashboardRecords: { recent_inquiries: 19, recent_confirmed: 7 } };
-export const props = { stats, reports: null, inquiryActivity: null, monthlySales: null, selectedYear: 2026, selectedActivityMonth: 9, onActivityMonthChange: () => {}, onMonthlySalesOpen: () => {}, onSelectRecordType: () => {}, advances: null, cancelledAdvances: null, comparison: null, subscription: null };
+export const props = { stats, reports: null, inquiryActivity: null, monthlySales: null, selectedYear: 2026, selectedActivityMonth: 9, onActivityMonthChange: () => {}, onMonthlySalesOpen: () => {}, onSelectRecordType: () => {}, cancelledAdvanceDashboard: null, subscription: null };
 const html = renderToStaticMarkup(createElement(SinglePageDashboard, props));
 assert.match(html, /₹12,34,567/);
 assert.match(html, /137/);
@@ -28,6 +28,5 @@ const populated = renderToStaticMarkup(createElement(SinglePageDashboard, { ...p
 assert.match(populated, /February/);
 assert.match(populated, /₹3,45,600/);
 assert.match(populated, /₹78,900/);
-assert.match(populated, /23 selections/);
-assert.match(populated, /17 selections/);
+assert.doesNotMatch(populated, /Best-selling menu items|Menu Category Trends|Menu performance|Avg Menu Selection/);
 console.log('Single-page dashboard real-value and empty-data tests passed');

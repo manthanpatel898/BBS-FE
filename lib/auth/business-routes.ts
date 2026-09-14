@@ -23,6 +23,7 @@ const BANQUET_PREFIXES = [
   '/reports',
   '/customer-wallet',
   '/vouchers',
+  '/invoices',
   '/menu-selection',
   '/odc',
 ];

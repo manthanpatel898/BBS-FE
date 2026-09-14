@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DashboardViewSwitch } from './dashboard-view-switch.tsx';
 import { SinglePageDashboard } from './single-page-dashboard.tsx';
+import { SalesOverview } from './finance-overview.tsx';
 import { props } from './single-page-dashboard.spec.tsx';
 
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://local.test' });
@@ -28,6 +29,14 @@ for (const label of ['Inquiries · Last 7 Days', 'Confirmed · Last 7 Days', 'Fo
   await act(() => button.click());
 }
 assert.deepEqual(opened, ['recent_inquiries', 'recent_confirmed', 'followups', 'completed', 'cancelled']);
+const monthsOpened = [];
+const february = { month: 2, label: 'Feb', bookings: 2, actualRevenue: 10000, estimatedRevenue: 5000, effectiveRevenue: 15000, estimatedBookings: 1, revenue: 15000 };
+await act(() => root.render(React.createElement(SalesOverview, { reports: null, data: { year: 2026, averagePlatePrice: 500, totals: february, months: [february] }, onMonthOpen: (month) => monthsOpened.push(month) })));
+const monthButton = document.querySelector('button[aria-label^="Feb:"]');
+assert.ok(monthButton);
+await act(() => monthButton.click());
+assert.deepEqual(monthsOpened, [2]);
+assert.match(document.querySelector('table').textContent, /₹10,000/);
 await act(() => root.unmount());
 dom.window.close();
 console.log('Dashboard switch interaction and account change passed');
