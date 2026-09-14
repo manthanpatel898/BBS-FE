@@ -1,5 +1,7 @@
 'use client';
 
+import '@/components/invoices/invoice-surface.css';
+
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   downloadBanquetInvoice,
@@ -172,10 +174,10 @@ export function BanquetInvoiceModal({
 
   return (
     <div className="modal-viewport-pad fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 px-3 backdrop-blur-sm sm:px-5">
-      <section className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
+      <section data-invoice-surface="true" role="dialog" aria-modal="true" aria-labelledby="invoice-dialog-title" className="invoice-dialog flex max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-2xl sm:max-h-[calc(100dvh-3rem)]">
         <header className="flex shrink-0 items-start justify-between border-b border-slate-200 px-4 py-4 sm:px-6">
-          <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">Banquet Tax Invoice</p><h2 className="mt-1 text-xl font-bold">{activeInvoice?.invoiceNumber ?? order.orderId}</h2><p className="mt-1 text-sm text-slate-600">Billing details are saved as a permanent invoice snapshot.</p></div>
-          <button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-xl text-slate-600">×</button>
+          <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">Banquet Tax Invoice</p><h2 id="invoice-dialog-title" className="mt-1 break-words text-xl font-bold">{activeInvoice?.invoiceNumber ?? order.orderId}</h2><p className="mt-1 text-sm text-slate-600">Billing details are saved as a permanent invoice snapshot.</p></div>
+          <button type="button" aria-label="Close tax invoice" onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-xl text-slate-600">×</button>
         </header>
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="app-scrollbar min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">

@@ -1,0 +1,77 @@
+/* Keep the invoice workflow isolated from legacy dark-page form defaults. */
+[data-invoice-surface="true"] {
+  color: #0f172a;
+  color-scheme: light;
+  min-width: 0;
+}
+[data-invoice-surface="true"] :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  background: #fff;
+  color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  caret-color: #0f172a;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+  letter-spacing: normal;
+}
+[data-invoice-surface="true"] :is(input, textarea)::placeholder {
+  color: #64748b;
+  -webkit-text-fill-color: #64748b;
+  opacity: 1;
+}
+[data-invoice-surface="true"] :is(input, select, textarea):focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px #fef3c7;
+  outline: none;
+}
+[data-invoice-surface="true"] :is(input, select, textarea):disabled {
+  background: #f1f5f9;
+  color: #475569;
+  -webkit-text-fill-color: #475569;
+  opacity: 1;
+  cursor: not-allowed;
+}
+[data-invoice-surface="true"] input::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+[data-invoice-surface="true"] button {
+  min-height: 44px;
+  white-space: normal;
+}
+[data-invoice-surface="true"] button:disabled {
+  opacity: 1;
+  color: #64748b;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+[data-invoice-surface="true"] :is(button, summary):focus-visible {
+  outline: 3px solid #d97706;
+  outline-offset: 3px;
+}
+.invoice-workspace table :is(th, td):nth-child(n+6):nth-child(-n+8) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.invoice-workspace tbody tr:hover { background: #fffbeb; }
+.invoice-dialog header { gap: 16px; }
+.invoice-dialog :is(p, dd, label) { overflow-wrap: anywhere; }
+.invoice-dialog .overflow-y-auto { overscroll-behavior: contain; }
+.invoice-dialog footer { flex-wrap: wrap; }
+.invoice-dialog .grid > * { min-width: 0; }
+/* A nine-column table is too dense on tablet; use the existing invoice cards. */
+@media (max-width: 1199px) {
+  .invoice-workspace .md\:hidden { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .invoice-workspace .md\:block { display: none; }
+}
+@media (max-width: 639px) {
+  .invoice-workspace .md\:hidden { grid-template-columns: minmax(0, 1fr); }
+  .invoice-workspace > section:first-of-type > :last-child { grid-column: 1 / -1; }
+  .invoice-workspace section > footer { flex-wrap: wrap; gap: 12px; }
+  .invoice-workspace article :is(p, dd) { white-space: normal; overflow-wrap: anywhere; }
+  .invoice-dialog footer button { width: 100%; }
+  .invoice-dialog .max-w-md { width: 100%; }
+}

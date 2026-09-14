@@ -1,5 +1,7 @@
 'use client';
 
+import './invoice-surface.css';
+
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -136,7 +138,7 @@ export function BanquetInvoiceWorkspace() {
     : 'border-red-200 bg-red-50 text-red-700';
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-5 p-3 sm:p-5 lg:p-7">
+    <div data-invoice-surface="true" className="invoice-workspace mx-auto w-full max-w-[1600px] space-y-5 p-3 sm:p-5 lg:p-7">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-600">Banquet Billing</p><h1 className="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Tax Invoices</h1><p className="mt-1 text-sm text-slate-600">Find, download, and correct every issued invoice without opening the calendar.</p></div>
       </header>
