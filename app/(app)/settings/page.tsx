@@ -48,6 +48,7 @@ import { DecorationPartnersSection } from '@/components/settings/decoration-part
 import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
 import { BookingFeedbackSettings } from '@/components/settings/booking-feedback-settings';
 import { QuotationSettingsCard } from '@/components/booking-quotations/quotation-settings-card';
+import { InvoiceNumberingSettingsCard } from '@/components/invoices/invoice-numbering-settings';
 
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
@@ -65,6 +66,7 @@ type SettingsTabKey =
   | 'fullDayBooking'
   | 'bookingFeedback'
   | 'inquiryQuotations'
+  | 'invoiceNumbering'
   | 'mySignature'
   | 'decorationPartners';
 
@@ -466,10 +468,12 @@ function SettingsTabs({
   activeTab,
   onChange,
   canManageSettings,
+  billingEnabled,
 }: {
   activeTab: SettingsTabKey;
   onChange: (tab: SettingsTabKey) => void;
   canManageSettings: boolean;
+  billingEnabled: boolean;
 }) {
   const adminTabs: Array<{ key: SettingsTabKey; label: string }> = [
     { key: 'paymentOptions', label: 'Payment Options' },
@@ -484,6 +488,7 @@ function SettingsTabs({
     { key: 'fullDayBooking', label: 'Full Day Booking' },
     { key: 'bookingFeedback', label: 'Booking Feedback' },
     { key: 'inquiryQuotations', label: 'Inquiry Quotations' },
+    ...(billingEnabled ? [{ key: 'invoiceNumbering' as const, label: 'Tax Invoice' }] : []),
     { key: 'decorationPartners', label: 'Decoration Partners' },
     { key: 'mySignature', label: 'My Signature' },
   ];
@@ -605,6 +610,8 @@ function getTabMeta(tab: SettingsTabKey) {
       return { title: 'Booking Feedback', description: 'Configure post-event customer feedback.', addPlaceholder: '', addButtonLabel: '', emptyMessage: '' };
     case 'inquiryQuotations':
       return { title: 'Inquiry Quotations', description: 'Configure inquiry-stage quotation generation.', addPlaceholder: '', addButtonLabel: '', emptyMessage: '' };
+    case 'invoiceNumbering':
+      return { title: 'Tax Invoice', description: 'Configure restaurant invoice numbering.', addPlaceholder: '', addButtonLabel: '', emptyMessage: '' };
   }
 }
 
@@ -671,6 +678,7 @@ export default function SettingsPage() {
       'fullDayBooking',
       'bookingFeedback',
       'inquiryQuotations',
+      'invoiceNumbering',
       'decorationPartners',
       'mySignature',
         ]
@@ -1388,7 +1396,7 @@ export default function SettingsPage() {
               </div>
             </section>
             ) : null}
-            <SettingsTabs activeTab={activeTab} onChange={handleTabChange} canManageSettings={canManageSettings} />
+            <SettingsTabs activeTab={activeTab} onChange={handleTabChange} canManageSettings={canManageSettings} billingEnabled={Boolean(restaurant?.billingEnabled)} />
             {activeTab === 'decorationPartners' ? (
               <DecorationPartnersSection />
             ) : activeTab === 'hotDates' ? (
@@ -1449,6 +1457,8 @@ export default function SettingsPage() {
               <BookingFeedbackSettings accessToken={accessToken} settings={settings} onSaved={setSettings} />
             ) : activeTab === 'inquiryQuotations' && accessToken ? (
               <QuotationSettingsCard accessToken={accessToken} settings={settings} onSaved={setSettings} />
+            ) : activeTab === 'invoiceNumbering' && canManageSettings && accessToken ? (
+              restaurant?.billingEnabled ? <InvoiceNumberingSettingsCard key={`${user?.id}-${restaurant.id}`} accessToken={accessToken} /> : <p className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-700">Tax invoicing is not enabled for this restaurant.</p>
             ) : activeTab === 'mySignature' ? (
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">

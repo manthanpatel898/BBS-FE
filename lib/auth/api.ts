@@ -1931,6 +1931,16 @@ export async function fetchSettings(accessToken: string) {
   return authorizedRequest<AppSettings>('/settings', accessToken);
 }
 
+export function fetchInvoiceNumbering(accessToken: string) {
+  return authorizedRequest<import('@/lib/banquet/invoice-numbering').InvoiceNumberingSettings>('/settings/invoice-numbering', accessToken);
+}
+
+export function updateInvoiceNumbering(accessToken: string, input: import('@/lib/banquet/invoice-numbering').UpdateInvoiceNumbering) {
+  return authorizedRequest<import('@/lib/banquet/invoice-numbering').InvoiceNumberingSettings>('/settings/invoice-numbering', accessToken, {
+    method: 'PATCH', body: JSON.stringify(input),
+  });
+}
+
 export function updateFoodServiceScheduleSettings(
   accessToken: string,
   input: {
