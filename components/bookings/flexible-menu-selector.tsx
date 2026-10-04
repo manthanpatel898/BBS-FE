@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlexibleChoiceGroup } from '@/lib/auth/types';
 import {
   addFlexibleAddonItem,
@@ -60,7 +60,30 @@ function ChoiceButton({
   );
 }
 
-export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props) {
+export function FlexibleMenuSelector({ groups: configuredGroups, selectedMenus, onChange }: Props) {
+  // Display saved choices in place, including historical items. These display
+  // options never rewrite saved IDs or become selected without a user click.
+  const groups = useMemo(() => {
+    const result = configuredGroups.map((group) => ({
+      ...group,
+      allowedDirectItems: [...group.allowedDirectItems],
+      submenuRules: group.submenuRules.map((rule) => ({ ...rule, allowedItems: [...rule.allowedItems] })),
+    }));
+    for (const menu of selectedMenus) {
+      let group = result.find((entry) => entry.menuId === menu.menuId);
+      if (!group) {
+        group = { groupId: `saved:${menu.menuId}`, menuId: menu.menuId, menuTitle: menu.title, includedChoices: 0, allowedDirectItems: [], submenuRules: [] };
+        result.push(group);
+      }
+      group.allowedDirectItems = Array.from(new Set([...group.allowedDirectItems, ...(menu.directItems ?? [])]));
+      for (const section of menu.sections) {
+        const rule = group.submenuRules.find((entry) => entry.sectionTitle === section.sectionTitle);
+        if (rule) rule.allowedItems = Array.from(new Set([...rule.allowedItems, ...section.items]));
+        else group.submenuRules.push({ sectionTitle: section.sectionTitle, allowedItems: [...section.items] });
+      }
+    }
+    return result;
+  }, [configuredGroups, selectedMenus]);
   const [searches, setSearches] = useState<Record<string, string>>({});
   const [openGroupId, setOpenGroupId] = useState<string | null>(groups[0]?.groupId ?? null);
   const [addonEditor, setAddonEditor] = useState<{
@@ -118,6 +141,7 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
   return (
     <div data-mobile-layout="flexible-menu-selector" className="space-y-3 sm:space-y-4">
       {groups.map((group) => {
+        const historical = !configuredGroups.some((entry) => entry.menuId === group.menuId);
         const summary = countFlexibleGroupSelection(group, selectedMenus);
         const selectedMenu = selectedMenus.find(
           (menu) => menu.menuId === group.menuId,
@@ -149,14 +173,14 @@ export function FlexibleMenuSelector({ groups, selectedMenus, onChange }: Props)
                     {group.menuTitle}
                   </h3>
                   <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-                    Choose any {group.includedChoices}. More selections are allowed.
+                    {historical ? 'Saved menu selections' : `Choose any ${group.includedChoices}. More selections are allowed.`}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
                   <span className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
-                    {summary.selected} selected · {summary.included} included
+                    {summary.selected} selected{historical ? '' : ` · ${summary.included} included`}
                   </span>
-                  {summary.additional > 0 ? (
+                  {!historical && summary.additional > 0 ? (
                     <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
                       +{summary.additional} additional
                     </span>

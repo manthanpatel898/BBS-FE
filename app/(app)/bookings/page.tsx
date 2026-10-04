@@ -81,8 +81,7 @@ import { canShowBookingFeedbackAction, feedbackDisplayLabel } from '@/lib/bookin
 import { getBookingFeedbackState } from '@/lib/booking-feedback/api';
 import type { BookingFeedbackDisplayStatus } from '@/lib/booking-feedback/types';
 import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
-import { MenuSelectionReview } from '@/components/bookings/menu-selection-review';
-import { reconcileMenuSelections, reconcileLoadedMenuSelections, reconcileMenuPackage, resolveReviewedItem, keepPendingMenuSelections } from '@/lib/bookings/menu-selection-reconciliation';
+import { reconcileMenuSelections, reconcileLoadedMenuSelections, reconcileMenuPackage } from '@/lib/bookings/menu-selection-reconciliation';
 import { BookingPackageTabs } from '@/components/bookings/booking-package-tabs';
 import { BookingActivePackageEditor } from '@/components/bookings/booking-active-package-editor';
 import {
@@ -1142,7 +1141,7 @@ export default function BookingsPage() {
     0,
   );
   const grandTotal = baseTotal + additionalPackageTotal + addonPrice;
-  const selectedPackageItemCount = menuSelectionReview.validSelections.reduce(
+  const selectedPackageItemCount = menuSelectionReview.selections.reduce(
     (total, menu) =>
       total +
       (menu.directItems?.length ?? 0) +
@@ -2267,14 +2266,6 @@ export default function BookingsPage() {
     if (changed) {
       setToast({ type: 'error', message: 'The category menu configuration changed. Your selections are kept; please review them and save again.' });
       return false;
-    }
-    for (const entry of packages) {
-      const review = reconcileMenuSelections(entry.selectedMenus, fresh.find((category) => category.id === entry.categoryId));
-      if (review.pending.length) {
-        activatePackage(entry.uiId);
-        setToast({ type: 'error', message: 'Review the previously selected items in this package before saving. Nothing has been removed.' });
-        return false;
-      }
     }
     return true;
   }
@@ -5284,15 +5275,7 @@ function selectionStatus(order: Order) {
               </div>
               <div data-package-wizard-scroll="true" className="app-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 pr-1 [touch-action:pan-y]">
                 {freshWizardCategory !== selectedCategory ? <p className="mb-3 text-sm text-slate-700" role="status">Checking the latest category configuration. If it cannot be loaded, Save will retry.</p> : null}
-                <fieldset disabled={freshWizardCategory !== selectedCategory || isSubmitting} className="min-w-0">
-                  <MenuSelectionReview
-                    key={`${activePackageId}:${formState.categoryId}:${JSON.stringify(menuSelectionReview.options)}`}
-                    review={menuSelectionReview}
-                    onResolve={(item, replacement) => setFormState((current) => ({
-                      ...current,
-                      selectedMenus: resolveReviewedItem(current.selectedMenus, item, replacement),
-                    }))}
-                  />
+                <fieldset disabled={isSubmitting} className="min-w-0">
                   {!isFlexibleCategory && orderedCategoryRules.length === 0 ? (
                     <EmptyState
                       title="No configured items for this category"
@@ -5301,11 +5284,11 @@ function selectionStatus(order: Order) {
                   ) : isFlexibleCategory ? (
                     <FlexibleMenuSelector
                       groups={flexibleCategoryGroups}
-                      selectedMenus={menuSelectionReview.validSelections}
+                      selectedMenus={menuSelectionReview.selections}
                       onChange={(selectedMenus) =>
                         setFormState((current) => ({
                           ...current,
-                          selectedMenus: keepPendingMenuSelections(selectedMenus, menuSelectionReview.pending),
+                          selectedMenus,
                         }))
                       }
                     />
@@ -5751,7 +5734,6 @@ function selectionStatus(order: Order) {
                 </div>
               ) : null}
               <div data-package-wizard-footer="true" className="safe-pad-bottom z-20 shrink-0 border-t border-slate-200 bg-white/95 pt-2 backdrop-blur">
-                {menuSelectionReview.pending.length > 0 ? <p className="mb-2 text-sm font-semibold text-amber-800" aria-live="polite">{selectedPackageItemCount} selected · {menuSelectionReview.pending.length} need review</p> : null}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
