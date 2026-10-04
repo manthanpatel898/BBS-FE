@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluateAuditReport, shouldSkipUnavailableAuditReport } from './audit-policy.mjs';
+import { evaluateAuditReport, isUnavailableAuditReport } from './audit-policy.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const allowedAdvisory = {
   source: 1124334,
@@ -113,9 +117,9 @@ test('blocks the allowlisted advisory after its review deadline', () => {
   assert.deepEqual(result.expiredAdvisoryIds, ['GHSA-MH99-V99M-4GVG']);
 });
 
-test('skips unavailable npm audit reports without bypassing vulnerability reports', () => {
+test('identifies unavailable npm audit reports', () => {
   assert.equal(
-    shouldSkipUnavailableAuditReport({
+    isUnavailableAuditReport({
       error: {
         summary: '',
       },
@@ -124,7 +128,7 @@ test('skips unavailable npm audit reports without bypassing vulnerability report
   );
 
   assert.equal(
-    shouldSkipUnavailableAuditReport({
+    isUnavailableAuditReport({
       error: {
         summary: '',
       },
@@ -138,4 +142,26 @@ test('skips unavailable npm audit reports without bypassing vulnerability report
     }),
     false,
   );
+});
+
+test('CLI fails closed when the audit registry is unavailable', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'bbs-audit-'));
+  try {
+    writeFileSync(path.join(directory, 'npm'), '#!/bin/sh\necho \'{"error":{"code":"ENETUNREACH"}}\'\nexit 1\n', { mode: 0o755 });
+    const result = spawnSync(process.execPath, ['scripts/audit-policy.mjs'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${directory}${path.delimiter}${process.env.PATH}` },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /could not be completed/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects unavailable, incomplete and errored reports instead of reporting success', () => {
+  for (const report of [{}, { error: { code: 'ENETUNREACH' } }, { ...reportWith({}), error: { code: 'EFAIL' } }]) {
+    assert.equal(evaluateAuditReport(report).passed, false);
+  }
+  assert.equal(evaluateAuditReport(reportWith({})).passed, true);
 });

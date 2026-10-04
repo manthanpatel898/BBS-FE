@@ -52,11 +52,20 @@ export function auditErrorMessage(error) {
   return parts.join('\n') || 'unknown audit error';
 }
 
-export function shouldSkipUnavailableAuditReport(report) {
+export function isUnavailableAuditReport(report) {
   return Boolean(report.error) && !report.vulnerabilities;
 }
 
 export function evaluateAuditReport(report, options = {}) {
+  if (report.error || !report.vulnerabilities || typeof report.vulnerabilities !== 'object' || Array.isArray(report.vulnerabilities)) {
+    return {
+      passed: false,
+      allowedAdvisoryIds: [],
+      blockedAdvisoryIds: [],
+      expiredAdvisoryIds: [],
+      unresolvedVulnerabilityNames: ['unavailable audit report'],
+    };
+  }
   const now = options.now ?? new Date();
   const thresholdRank = SEVERITY_RANK[MINIMUM_BLOCKED_SEVERITY];
   const relevantVulnerabilities = Object.values(report.vulnerabilities ?? {}).filter(
@@ -133,10 +142,10 @@ function runAuditPolicy() {
     return 1;
   }
 
-  if (report.error && shouldSkipUnavailableAuditReport(report)) {
+  if (report.error && isUnavailableAuditReport(report)) {
     console.warn(`npm audit did not return a vulnerability report: ${auditErrorMessage(report.error)}`);
-    console.warn('Skipping dependency audit policy because npm audit is unavailable.');
-    return 0;
+    console.error('Dependency audit could not be completed. Retry when npm audit is available.');
+    return 1;
   }
 
   const result = evaluateAuditReport(report);

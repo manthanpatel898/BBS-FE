@@ -32,6 +32,7 @@ import {
   deleteOrder,
   fetchCalendarOrders,
   fetchCategories,
+  fetchCategory,
   fetchHotDates,
   fetchMenus,
   fetchOrderById,
@@ -80,6 +81,8 @@ import { canShowBookingFeedbackAction, feedbackDisplayLabel } from '@/lib/bookin
 import { getBookingFeedbackState } from '@/lib/booking-feedback/api';
 import type { BookingFeedbackDisplayStatus } from '@/lib/booking-feedback/types';
 import { FlexibleMenuSelector } from '@/components/bookings/flexible-menu-selector';
+import { MenuSelectionReview } from '@/components/bookings/menu-selection-review';
+import { reconcileMenuSelections, reconcileLoadedMenuSelections, reconcileMenuPackage, resolveReviewedItem, keepPendingMenuSelections } from '@/lib/bookings/menu-selection-reconciliation';
 import { BookingPackageTabs } from '@/components/bookings/booking-package-tabs';
 import { BookingActivePackageEditor } from '@/components/bookings/booking-active-package-editor';
 import {
@@ -554,6 +557,7 @@ export default function BookingsPage() {
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
+  const [freshWizardCategory, setFreshWizardCategory] = useState<Category | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [partnerInquiryEnabled, setPartnerInquiryEnabled] = useState(false);
@@ -997,6 +1001,34 @@ export default function BookingsPage() {
     [selectedCategory],
   );
   const isFlexibleCategory = flexibleCategoryGroups.length > 0;
+  useEffect(() => {
+    setFreshWizardCategory(null);
+    if (!isWizardOpen || !accessToken || !formState.categoryId) return;
+    let active = true;
+    void fetchCategory(accessToken, formState.categoryId).then((category) => {
+      if (active) {
+        setCategories((current) => [...current.filter((entry) => entry.id !== category.id), category]);
+        setFreshWizardCategory(category);
+      }
+    }).catch(() => {
+      if (active) setToast({ type: 'error', message: 'Unable to refresh this category. Your selections are kept; saving will retry the configuration check.' });
+    });
+    return () => { active = false; };
+  }, [isWizardOpen, accessToken, formState.categoryId]);
+  const menuSelectionReview = useMemo(
+    () => reconcileMenuSelections(formState.selectedMenus, selectedCategory ?? undefined),
+    [formState.selectedMenus, selectedCategory],
+  );
+  // Reconcile editing drafts only. Saved orders and quotation snapshots stay immutable.
+  useEffect(() => {
+    if (!isWizardOpen || !selectedCategory || freshWizardCategory !== selectedCategory) return;
+    setFormState((current) => {
+      if (current.categoryId !== selectedCategory.id) return current;
+      const next = reconcileLoadedMenuSelections(current.selectedMenus, selectedCategory, freshWizardCategory);
+      return JSON.stringify(next) === JSON.stringify(current.selectedMenus)
+        ? current : { ...current, selectedMenus: next };
+    });
+  }, [isWizardOpen, selectedCategory, freshWizardCategory, formState.selectedMenus]);
   const menuLookup = useMemo(
     () => new Map(menus.map((menu) => [menu.id, menu])),
     [menus],
@@ -1110,7 +1142,7 @@ export default function BookingsPage() {
     0,
   );
   const grandTotal = baseTotal + additionalPackageTotal + addonPrice;
-  const selectedPackageItemCount = formState.selectedMenus.reduce(
+  const selectedPackageItemCount = menuSelectionReview.validSelections.reduce(
     (total, menu) =>
       total +
       (menu.directItems?.length ?? 0) +
@@ -1833,7 +1865,7 @@ export default function BookingsPage() {
             sections,
           };
         })
-        .filter((selectedMenu) => selectedMenu.sections.length > 0);
+        .filter((selectedMenu) => selectedMenu.sections.length > 0 || (selectedMenu.directItems?.length ?? 0) > 0);
 
       return {
         ...current,
@@ -1906,7 +1938,7 @@ export default function BookingsPage() {
               .filter((s) => s.items.length > 0),
           };
         })
-        .filter((m) => m.sections.length > 0),
+        .filter((m) => m.sections.length > 0 || (m.directItems?.length ?? 0) > 0),
     }));
   }
 
@@ -1951,7 +1983,7 @@ export default function BookingsPage() {
             sections: menu.sections.filter((section) => section.sectionTitle !== sectionTitle),
           };
         })
-        .filter((menu) => menu.sections.length > 0),
+        .filter((menu) => menu.sections.length > 0 || (menu.directItems?.length ?? 0) > 0),
     }));
   }
 
@@ -2218,14 +2250,43 @@ export default function BookingsPage() {
     }
   }
 
+  async function reviewPackagesBeforeSave() {
+    if (!accessToken) return false;
+    const packages = [
+      { uiId: 'primary', ...resolvedPrimaryPackage },
+      ...resolvedAdditionalPackages,
+    ];
+    const ids = [...new Set(packages.map((entry) => entry.categoryId).filter(Boolean))];
+    const fresh = await Promise.all(ids.map((id) => fetchCategory(accessToken, id)));
+    const signature = (category: Category | undefined) => JSON.stringify({
+      rules: category?.menuRules ?? [], groups: category?.flexibleChoiceGroups ?? [],
+    });
+    const changed = fresh.some((category) => signature(category) !== signature(categories.find((entry) => entry.id === category.id)));
+    setCategories((current) => [...current.filter((entry) => !ids.includes(entry.id)), ...fresh]);
+    setFreshWizardCategory(fresh.find((category) => category.id === formState.categoryId) ?? null);
+    if (changed) {
+      setToast({ type: 'error', message: 'The category menu configuration changed. Your selections are kept; please review them and save again.' });
+      return false;
+    }
+    for (const entry of packages) {
+      const review = reconcileMenuSelections(entry.selectedMenus, fresh.find((category) => category.id === entry.categoryId));
+      if (review.pending.length) {
+        activatePackage(entry.uiId);
+        setToast({ type: 'error', message: 'Review the previously selected items in this package before saving. Nothing has been removed.' });
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function handleSaveBookingSelection() {
     if (!accessToken || !editingOrder) {
       setToast({ type: 'error', message: 'Select an inquiry first.' });
       return;
     }
 
-    const primaryPackage = resolvedPrimaryPackage;
-    const additionalPackages = resolvedAdditionalPackages;
+    const primaryPackage = reconcileMenuPackage(resolvedPrimaryPackage, categories);
+    const additionalPackages = resolvedAdditionalPackages.map((entry) => reconcileMenuPackage(entry, categories));
     if (!primaryPackage.categoryId) {
       setToast({ type: 'error', message: 'Select a category before saving.' });
       return;
@@ -2342,6 +2403,7 @@ export default function BookingsPage() {
             }
           : undefined;
       setIsSubmitting(true);
+      if (!(await reviewPackagesBeforeSave())) return;
       const updatedOrder = await updateOrder(
         accessToken,
         editingOrder.id,
@@ -2391,8 +2453,8 @@ export default function BookingsPage() {
       return;
     }
 
-    const primaryPackage = resolvedPrimaryPackage;
-    const additionalPackages = resolvedAdditionalPackages;
+    const primaryPackage = reconcileMenuPackage(resolvedPrimaryPackage, categories);
+    const additionalPackages = resolvedAdditionalPackages.map((entry) => reconcileMenuPackage(entry, categories));
     if (!primaryPackage.categoryId) {
       setToast({ type: 'error', message: 'Select a category before generating quotation.' });
       return;
@@ -2432,6 +2494,7 @@ export default function BookingsPage() {
 
     try {
       setIsSubmitting(true);
+      if (!(await reviewPackagesBeforeSave())) return;
       const quotation = await generateOrderQuotation(
         accessToken,
         editingOrder.id,
@@ -5149,7 +5212,6 @@ function selectionStatus(order: Order) {
                     setFormState((current) => ({
                       ...current,
                       categoryId,
-                      selectedMenus: [],
                     }));
                   }}
                   onPaxChange={(totalPerson) =>
@@ -5221,6 +5283,16 @@ function selectionStatus(order: Order) {
                 ) : null}
               </div>
               <div data-package-wizard-scroll="true" className="app-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 pr-1 [touch-action:pan-y]">
+                {freshWizardCategory !== selectedCategory ? <p className="mb-3 text-sm text-slate-700" role="status">Checking the latest category configuration. If it cannot be loaded, Save will retry.</p> : null}
+                <fieldset disabled={freshWizardCategory !== selectedCategory || isSubmitting} className="min-w-0">
+                  <MenuSelectionReview
+                    key={`${activePackageId}:${formState.categoryId}:${JSON.stringify(menuSelectionReview.options)}`}
+                    review={menuSelectionReview}
+                    onResolve={(item, replacement) => setFormState((current) => ({
+                      ...current,
+                      selectedMenus: resolveReviewedItem(current.selectedMenus, item, replacement),
+                    }))}
+                  />
                   {!isFlexibleCategory && orderedCategoryRules.length === 0 ? (
                     <EmptyState
                       title="No configured items for this category"
@@ -5229,11 +5301,11 @@ function selectionStatus(order: Order) {
                   ) : isFlexibleCategory ? (
                     <FlexibleMenuSelector
                       groups={flexibleCategoryGroups}
-                      selectedMenus={formState.selectedMenus}
+                      selectedMenus={menuSelectionReview.validSelections}
                       onChange={(selectedMenus) =>
                         setFormState((current) => ({
                           ...current,
-                          selectedMenus,
+                          selectedMenus: keepPendingMenuSelections(selectedMenus, menuSelectionReview.pending),
                         }))
                       }
                     />
@@ -5649,6 +5721,7 @@ function selectionStatus(order: Order) {
                       </div>
                     </section>
                   ) : null}
+                </fieldset>
               </div>
               {subitemDescriptionPopover ? (
                 <div
@@ -5678,6 +5751,7 @@ function selectionStatus(order: Order) {
                 </div>
               ) : null}
               <div data-package-wizard-footer="true" className="safe-pad-bottom z-20 shrink-0 border-t border-slate-200 bg-white/95 pt-2 backdrop-blur">
+                {menuSelectionReview.pending.length > 0 ? <p className="mb-2 text-sm font-semibold text-amber-800" aria-live="polite">{selectedPackageItemCount} selected · {menuSelectionReview.pending.length} need review</p> : null}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"

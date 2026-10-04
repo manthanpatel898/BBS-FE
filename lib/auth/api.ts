@@ -575,6 +575,10 @@ export async function fetchCategories(
   );
 }
 
+export async function fetchCategory(accessToken: string, categoryId: string) {
+  return authorizedRequest<Category>(`/categories/${encodeURIComponent(categoryId)}`, accessToken);
+}
+
 export async function createCategory(
   accessToken: string,
   payload: {
