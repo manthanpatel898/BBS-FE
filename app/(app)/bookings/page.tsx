@@ -19,6 +19,8 @@ import {
 } from '@/lib/banquet/booking-edit-window';
 import { BookingsRoute } from '@/components/auth/bookings-route';
 import { useAuth } from '@/components/auth/auth-provider';
+import { WhatsappMenuActions } from '@/components/bookings/whatsapp-menu-actions';
+import { WhatsappBookingCommunication } from '@/components/bookings/whatsapp-delivery-status';
 import { BookingModeToggle } from '@/components/bookings/booking-mode-toggle';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import {
@@ -559,6 +561,7 @@ export default function BookingsPage() {
   const [freshWizardCategory, setFreshWizardCategory] = useState<Category | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [whatsappConsentPhone, setWhatsappConsentPhone] = useState('');
   const [partnerInquiryEnabled, setPartnerInquiryEnabled] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
   const todayKey = banquetBusinessDate();
@@ -1386,6 +1389,7 @@ export default function BookingsPage() {
     setEditingOrder(null);
     editInquirySnapshotRef.current = null;
     setFormState(initialFormState);
+    setWhatsappConsentPhone('');
     setCustomerTitle('None');
     setCustomEventName('');
     setSelectedAddonOption('');
@@ -1408,6 +1412,7 @@ export default function BookingsPage() {
     setQuotationCancelPopup(null);
     setQuotationActionBusyId(null);
     setFormState(initialFormState);
+    setWhatsappConsentPhone('');
     setPrimaryPackageDraft(packageDraftFromForm(initialFormState));
     setAdditionalCategorySelections([]);
     setActivePackageId('primary');
@@ -1617,6 +1622,7 @@ export default function BookingsPage() {
   }
 
   function openCategoryChooser(order: Order) {
+    if (accessToken) void fetchMyRestaurant(accessToken).then(setRestaurant).catch(() => setRestaurant(current => current ? { ...current, enableWhatsappNotifications: false, whatsappGloballyAvailable: false } : null));
     menuSelectionTrackingRef.current = {
       orderId: order.id,
       startedAt: new Date().toISOString(),
@@ -2208,6 +2214,7 @@ export default function BookingsPage() {
         // Store the payload and open the payment popup — advance popup will create the order on confirm
         pendingCreatePayload.current = {
           ...payload,
+          ...(whatsappConsentPhone === formState.mobileNumber && whatsappConsentPhone ? { whatsappConsentGranted: true } : {}),
           status: 'CONFIRMED',
           notes: formState.additionalInformation.trim() || undefined,
         };
@@ -2217,6 +2224,7 @@ export default function BookingsPage() {
       } else {
         const createdOrder = await createOrder(accessToken, {
           ...payload,
+          ...(whatsappConsentPhone === formState.mobileNumber && whatsappConsentPhone ? { whatsappConsentGranted: true } : {}),
           status: 'INQUIRY',
           notes: formState.additionalInformation.trim() || undefined,
         });
@@ -2270,7 +2278,8 @@ export default function BookingsPage() {
     return true;
   }
 
-  async function handleSaveBookingSelection() {
+  async function handleSaveBookingSelection(sendMenuOnWhatsapp = false) {
+    if (isSubmitting) return;
     if (!accessToken || !editingOrder) {
       setToast({ type: 'error', message: 'Select an inquiry first.' });
       return;
@@ -2398,7 +2407,7 @@ export default function BookingsPage() {
       const updatedOrder = await updateOrder(
         accessToken,
         editingOrder.id,
-        buildMenuSelectionUpdatePayload({
+        { ...buildMenuSelectionUpdatePayload({
           categoryId: primaryPackage.categoryId,
           selectedMenus: primaryPackage.selectedMenus,
           menuComment: primaryPackage.menuComment,
@@ -2412,11 +2421,11 @@ export default function BookingsPage() {
             settings?.enableMainCourseStartTime ?? false,
           additionalCategorySelections: additionalPackages,
           menuSelectionTracking,
-        }),
+        }), ...(sendMenuOnWhatsapp ? { sendMenuOnWhatsapp: true } : {}) },
       );
       resetWizard(false);
       restoreBookingOverlayParent(updatedOrder);
-      setToast({ type: 'success', message: 'Booking details saved successfully.' });
+      setToast({ type: sendMenuOnWhatsapp && !['QUEUED', 'EXISTING'].includes(updatedOrder.whatsapp?.state ?? '') ? 'error' : 'success', message: !sendMenuOnWhatsapp ? 'Booking details saved successfully.' : updatedOrder.whatsapp?.state === 'QUEUED' ? 'Menu saved. WhatsApp message queued.' : updatedOrder.whatsapp?.state === 'EXISTING' ? 'Menu saved. This menu message was already requested.' : `Menu saved, but WhatsApp was not queued. ${updatedOrder.whatsapp?.reason === 'CONSENT_REQUIRED' ? 'Record customer consent first.' : 'Check WhatsApp availability and restaurant configuration.'}` });
       await refreshBookingViews(accessToken);
       if (isDetailOpen) {
         await openOrderDetail(editingOrder.id);
@@ -4611,6 +4620,7 @@ function selectionStatus(order: Order) {
                     className={`${inputCls} min-h-12`}
                   />
                 </Field>
+                {restaurant?.enableWhatsappNotifications && !editingOrder ? <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={!!whatsappConsentPhone && whatsappConsentPhone === formState.mobileNumber} onChange={event => setWhatsappConsentPhone(event.target.checked ? formState.mobileNumber : '')} className="mt-1 h-4 w-4 shrink-0 accent-amber-500" /><span>The customer agreed to receive booking and menu updates on WhatsApp.</span></label> : null}
                 <Field label="Service Slot" required>
                   <div className="space-y-2">
                     <select
@@ -5734,6 +5744,7 @@ function selectionStatus(order: Order) {
                 </div>
               ) : null}
               <div data-package-wizard-footer="true" className="safe-pad-bottom z-20 shrink-0 border-t border-slate-200 bg-white/95 pt-2 backdrop-blur">
+                {restaurant?.enableWhatsappNotifications && editingOrder && accessToken && categoryWizardMode !== 'quotation' ? <div className="mb-2"><WhatsappBookingCommunication key={editingOrder.id} token={accessToken} orderId={editingOrder.id} customerId={editingOrder.customer.id} consentGranted={editingOrder.customer.whatsappConsentGranted ?? false} compact /></div> : null}
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -5742,7 +5753,7 @@ function selectionStatus(order: Order) {
                   >
                     Cancel
                   </button>
-                  <LoadingButton
+                  {categoryWizardMode !== 'quotation' ? <WhatsappMenuActions restaurantEnabled={restaurant?.enableWhatsappNotifications ?? false} globallyAvailable={restaurant?.whatsappGloballyAvailable ?? false} eligibleBooking={editingOrder?.status === 'CONFIRMED'} busy={isSubmitting} onSave={() => void handleSaveBookingSelection()} onSaveAndSend={() => void handleSaveBookingSelection(true)} /> : <LoadingButton
                     type="button"
                     disabled={isSubmitting}
                     onClick={() =>
@@ -5759,7 +5770,7 @@ function selectionStatus(order: Order) {
                     <span className="hidden sm:inline">
                       {categoryWizardMode === 'quotation' ? 'Generate quotation' : 'Save category'}
                     </span>
-                  </LoadingButton>
+                  </LoadingButton>}
                 </div>
               </div>
             </div>
@@ -8027,6 +8038,7 @@ function selectionStatus(order: Order) {
                     );
                   })()}
               </div>
+              {restaurant?.enableWhatsappNotifications && accessToken ? <WhatsappBookingCommunication key={detailOrder.id} token={accessToken} orderId={detailOrder.id} customerId={detailOrder.customer.id} consentGranted={detailOrder.customer.whatsappConsentGranted ?? false} /> : null}
               <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
                 {(() => {
                   const isPastEvent =

@@ -27,6 +27,7 @@ type RestaurantFormState = {
   contactPersonNumber: string;
   contactNumbers: string;
   website: string;
+  instagramUrl: string;
   logoUrl: string;
   address: string;
   startDate: string;
@@ -65,6 +66,7 @@ const initialFormState: RestaurantFormState = {
   contactPersonNumber: '',
   contactNumbers: '',
   website: '',
+  instagramUrl: '',
   logoUrl: '',
   address: '',
   startDate: '',
@@ -205,6 +207,7 @@ export default function RestaurantsPage() {
       contactPersonNumber: restaurant.contactPersonNumber,
       contactNumbers: (restaurant.contactNumbers ?? []).join('\n'),
       website: restaurant.website ?? '',
+      instagramUrl: restaurant.instagramUrl ?? '',
       logoUrl: restaurant.logoUrl ?? '',
       address: restaurant.address,
       startDate: restaurant.startDate.slice(0, 10),
@@ -271,6 +274,7 @@ export default function RestaurantsPage() {
         ),
         contactNumbers: parseContactNumbers(formState.contactNumbers),
         website: formState.website.trim() || null,
+        instagramUrl: formState.instagramUrl.trim() || null,
         logoUrl: formState.logoUrl.trim() || null,
         gstNumber: formState.gstNumber.trim() || undefined,
         invoicePrefix: formState.invoicePrefix.trim() || undefined,
@@ -786,6 +790,7 @@ export default function RestaurantsPage() {
                     placeholder="Website (optional)"
                     className={inputCls}
                   />
+                  <input type="url" value={formState.instagramUrl} onChange={(e) => setFormState((s) => ({ ...s, instagramUrl: e.target.value }))} placeholder="Instagram profile URL (required for WhatsApp)" aria-label="Instagram profile URL" className={inputCls} />
                   <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
                     <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 transition hover:border-amber-400 hover:text-amber-600 ${isLogoUploading ? 'pointer-events-none opacity-60' : ''}`}>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

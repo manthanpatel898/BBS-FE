@@ -1,7 +1,7 @@
 import * as assert from 'node:assert/strict';
 
 async function main() {
-  const pageModule = (await import('./page')) as Record<string, unknown>;
+  const pageModule = (await import('@/lib/categories/subitem-selection')) as Record<string, unknown>;
   const toggleAllVisibleSubitems = pageModule.toggleAllVisibleSubitems;
 
   assert.equal(

@@ -76,6 +76,8 @@ export interface Restaurant {
   enableAdvancedCancelManagement?: boolean;
   enableVoucherFlow?: boolean;
   enableWhatsappNotifications?: boolean;
+  whatsappGloballyAvailable?: boolean;
+  instagramUrl?: string | null;
   enableOdc?: boolean;
   enableFlexibleMenuBuilder?: boolean;
   billingEnabled?: boolean;
@@ -401,6 +403,7 @@ export interface PaginatedOdcMenus {
 }
 
 export interface Customer {
+  whatsappConsentGranted?: boolean;
   id: string;
   restaurantId: string;
   firstName: string;
@@ -674,6 +677,7 @@ export interface MenuSelectionSession {
 }
 
 export interface Order {
+  whatsapp?: { state: 'QUEUED' | 'EXISTING' | 'SKIPPED' | 'FAILED'; reason?: string };
   id: string;
   restaurantId: string;
   customer: Customer;

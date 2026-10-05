@@ -27,6 +27,7 @@ import { Category, CategoryMenuRule, Menu, Restaurant } from '@/lib/auth/types';
 import { PageLoader, TableLoader } from '@/components/ui/page-loader';
 import { CategorySyncPreviewPanel } from '@/components/categories/category-sync-preview-panel';
 import { FlexibleCategoryBuilder } from '@/components/categories/flexible-category-builder';
+import { toggleAllVisibleSubitems } from '@/lib/categories/subitem-selection';
 import {
   buildFlexibleCategoryPayload,
   createFlexibleCategoryDraft,
@@ -70,17 +71,6 @@ function downloadFile(content: string | Blob, filename: string, mimeType: string
 
 function makeRuleKey(menuId: string, sectionTitle: string) {
   return `${menuId}:${sectionTitle}`;
-}
-
-export function toggleAllVisibleSubitems(
-  selectedItems: string[],
-  availableItems: string[],
-) {
-  const allSelected =
-    availableItems.length > 0 &&
-    availableItems.every((item) => selectedItems.includes(item));
-
-  return allSelected ? [] : [...availableItems];
 }
 
 function categoryConfigurationSummary(category: Category) {

@@ -1244,9 +1244,18 @@ export async function fetchOrderSignature(accessToken: string, orderId: string) 
   return authorizedRequest<OrderSignature | null>(`/orders/${orderId}/signature`, accessToken);
 }
 
+export type WhatsappDelivery = { _id: string; eventType: string; status: string; sentAt?: string; deliveredAt?: string; readAt?: string };
+export async function fetchWhatsappDelivery(accessToken: string, orderId: string) {
+  return authorizedRequest<WhatsappDelivery[]>(`/orders/${orderId}/whatsapp-status`, accessToken);
+}
+export async function updateWhatsappConsent(accessToken: string, customerId: string, granted: boolean) {
+  return authorizedRequest<Customer>(`/customers/${customerId}/whatsapp-consent`, accessToken, { method: 'PATCH', body: JSON.stringify({ granted }) });
+}
+
 export async function createOrder(
   accessToken: string,
   payload: {
+    whatsappConsentGranted?: boolean;
     customer: {
       firstName: string;
       lastName: string;
@@ -1309,6 +1318,7 @@ export async function updateOrder(
   accessToken: string,
   orderId: string,
   payload: {
+    sendMenuOnWhatsapp?: boolean;
     customer?: {
       firstName: string;
       lastName: string;

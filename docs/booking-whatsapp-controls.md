@@ -1,0 +1,15 @@
+# Booking WhatsApp controls
+
+- Super admin enables WhatsApp per restaurant and supplies its website, Instagram profile and contact number. Company users cannot enable the subscription themselves.
+- The booking form records explicit customer consent; changing the entered number clears the checked state. Existing consent can be recorded or withdrawn in the event/menu WhatsApp panel.
+- Inquiry creation and booking confirmation request their respective messages only when server-side gates pass.
+- Normal **Save category** does not send a message. **Save & send on WhatsApp** appears only for enabled restaurants and confirmed bookings, never quotation drafts. It is disabled while saving or while global sending is unavailable.
+- A successful save and a queued message are distinct from delivery. Event details show provider acceptance, sent, delivered, read or a safe failure explanation. Status polls briefly for queue reconciliation, then while pending; Refresh status can check later updates.
+- Repeating the same saved menu does not resend its existing message. A changed menu creates a new revision, including all packages and selected items in its PDF.
+
+Before release, complete real-device checks at mobile, tablet and desktop sizes, including keyboard-open scrolling. Full authenticated device testing and actual Twilio delivery require the staging environment and an explicitly approved internal recipient. No production sending is enabled by this code change.
+# Sending-disabled rollout verification — 5 October 2026
+
+Integrated with current main, retaining inline flexible-menu selections. Focused WhatsApp/menu tests pass; frontend lint passes with one existing dashboard warning. Production webpack build exports 53 routes. Local Turbopack is blocked by OS port permissions; deployment retains the normal CI build. Existing full-suite result is 444/448 (food-time source assertion, mobile-wizard source assertion, decoration-address fixture and forecast-footer fixture failures). No claim of a green full regression suite.
+
+The category Select all helper was moved unchanged from the page module into `lib/categories/subitem-selection.ts` to satisfy Next's page-export validation; its behavior test passes. Global sending remains disabled for this rollout. No live customer messages were sent during testing.
