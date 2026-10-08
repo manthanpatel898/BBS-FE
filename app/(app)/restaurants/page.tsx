@@ -28,6 +28,7 @@ type RestaurantFormState = {
   contactNumbers: string;
   website: string;
   instagramUrl: string;
+  whatsappContactNumber: string;
   logoUrl: string;
   address: string;
   startDate: string;
@@ -67,6 +68,7 @@ const initialFormState: RestaurantFormState = {
   contactNumbers: '',
   website: '',
   instagramUrl: '',
+  whatsappContactNumber: '',
   logoUrl: '',
   address: '',
   startDate: '',
@@ -208,6 +210,7 @@ export default function RestaurantsPage() {
       contactNumbers: (restaurant.contactNumbers ?? []).join('\n'),
       website: restaurant.website ?? '',
       instagramUrl: restaurant.instagramUrl ?? '',
+      whatsappContactNumber: restaurant.whatsappContactNumber ?? '',
       logoUrl: restaurant.logoUrl ?? '',
       address: restaurant.address,
       startDate: restaurant.startDate.slice(0, 10),
@@ -275,6 +278,7 @@ export default function RestaurantsPage() {
         contactNumbers: parseContactNumbers(formState.contactNumbers),
         website: formState.website.trim() || null,
         instagramUrl: formState.instagramUrl.trim() || null,
+        whatsappContactNumber: formState.whatsappContactNumber.trim() || null,
         logoUrl: formState.logoUrl.trim() || null,
         gstNumber: formState.gstNumber.trim() || undefined,
         invoicePrefix: formState.invoicePrefix.trim() || undefined,
@@ -790,7 +794,6 @@ export default function RestaurantsPage() {
                     placeholder="Website (optional)"
                     className={inputCls}
                   />
-                  <input type="url" value={formState.instagramUrl} onChange={(e) => setFormState((s) => ({ ...s, instagramUrl: e.target.value }))} placeholder="Instagram profile URL (required for WhatsApp)" aria-label="Instagram profile URL" className={inputCls} />
                   <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
                     <label className={`flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 transition hover:border-amber-400 hover:text-amber-600 ${isLogoUploading ? 'pointer-events-none opacity-60' : ''}`}>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -989,6 +992,19 @@ export default function RestaurantsPage() {
                     />
                     <span>Enable WhatsApp notifications for this restaurant</span>
                   </label>
+                  {formState.enableWhatsappNotifications && (
+                    <div className="grid gap-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4 md:col-span-2 sm:grid-cols-2">
+                      <label className="space-y-2 text-sm font-medium text-slate-700">
+                        <span>WhatsApp contact mobile number <span aria-hidden="true">*</span></span>
+                        <input type="tel" required maxLength={40} value={formState.whatsappContactNumber} onChange={(e) => setFormState((s) => ({ ...s, whatsappContactNumber: e.target.value }))} placeholder="+91 98765 43210" className={inputCls} />
+                      </label>
+                      <label className="space-y-2 text-sm font-medium text-slate-700">
+                        <span>Instagram profile URL <span aria-hidden="true">*</span></span>
+                        <input type="url" required value={formState.instagramUrl} onChange={(e) => setFormState((s) => ({ ...s, instagramUrl: e.target.value }))} placeholder="https://www.instagram.com/your_restaurant/" className={inputCls} />
+                      </label>
+                      <p className="text-sm text-slate-600 sm:col-span-2">This contact number appears inside customer messages. Messages are sent from ZenBooking’s registered number. Website is optional.</p>
+                    </div>
+                  )}
                   <label className="flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-slate-700 md:col-span-2">
                     <input
                       type="checkbox"

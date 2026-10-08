@@ -78,6 +78,7 @@ export interface Restaurant {
   enableWhatsappNotifications?: boolean;
   whatsappGloballyAvailable?: boolean;
   instagramUrl?: string | null;
+  whatsappContactNumber?: string | null;
   enableOdc?: boolean;
   enableFlexibleMenuBuilder?: boolean;
   billingEnabled?: boolean;
