@@ -5,6 +5,14 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { WhatsappMenuActions } from './whatsapp-menu-actions';
 afterEach(cleanup);
+test('unchecked sending preference disables send without disabling ordinary save', () => {
+  let saved = 0; let sent = 0;
+  render(<WhatsappMenuActions restaurantEnabled globallyAvailable eligibleBooking busy={false} sendEnabled={false} onSave={() => saved++} onSaveAndSend={() => sent++} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Save & send on WhatsApp' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save category' }));
+  assert.equal(sent, 0);
+  assert.equal(saved, 1);
+});
 test('ordinary Save does not send and restaurant gate hides the WhatsApp action', () => {
   let saved = 0; let sent = 0;
   render(<WhatsappMenuActions restaurantEnabled={false} globallyAvailable eligibleBooking busy={false} onSave={() => saved++} onSaveAndSend={() => sent++} />);

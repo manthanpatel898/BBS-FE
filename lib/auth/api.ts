@@ -1256,6 +1256,7 @@ export async function createOrder(
   accessToken: string,
   payload: {
     whatsappConsentGranted?: boolean;
+    whatsappUpdatesEnabled?: boolean;
     customer: {
       firstName: string;
       lastName: string;

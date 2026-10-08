@@ -561,7 +561,8 @@ export default function BookingsPage() {
   const [freshWizardCategory, setFreshWizardCategory] = useState<Category | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [whatsappConsentPhone, setWhatsappConsentPhone] = useState('');
+  const [whatsappUpdatesEnabled, setWhatsappUpdatesEnabled] = useState(true);
+  const [menuWhatsappEnabled, setMenuWhatsappEnabled] = useState(true);
   const [partnerInquiryEnabled, setPartnerInquiryEnabled] = useState(false);
   const [totalItems, setTotalItems] = useState(0);
   const todayKey = banquetBusinessDate();
@@ -1389,7 +1390,7 @@ export default function BookingsPage() {
     setEditingOrder(null);
     editInquirySnapshotRef.current = null;
     setFormState(initialFormState);
-    setWhatsappConsentPhone('');
+    setWhatsappUpdatesEnabled(true);
     setCustomerTitle('None');
     setCustomEventName('');
     setSelectedAddonOption('');
@@ -1399,6 +1400,7 @@ export default function BookingsPage() {
   }
 
   function resetWizard(restoreParent = true) {
+    setMenuWhatsappEnabled(true);
     menuSelectionTrackingRef.current = null;
     setEditingOrder(null);
     setSkippedRuleKeys([]);
@@ -1412,7 +1414,7 @@ export default function BookingsPage() {
     setQuotationCancelPopup(null);
     setQuotationActionBusyId(null);
     setFormState(initialFormState);
-    setWhatsappConsentPhone('');
+    setWhatsappUpdatesEnabled(true);
     setPrimaryPackageDraft(packageDraftFromForm(initialFormState));
     setAdditionalCategorySelections([]);
     setActivePackageId('primary');
@@ -2214,7 +2216,7 @@ export default function BookingsPage() {
         // Store the payload and open the payment popup — advance popup will create the order on confirm
         pendingCreatePayload.current = {
           ...payload,
-          ...(whatsappConsentPhone === formState.mobileNumber && whatsappConsentPhone ? { whatsappConsentGranted: true } : {}),
+          whatsappUpdatesEnabled,
           status: 'CONFIRMED',
           notes: formState.additionalInformation.trim() || undefined,
         };
@@ -2224,7 +2226,7 @@ export default function BookingsPage() {
       } else {
         const createdOrder = await createOrder(accessToken, {
           ...payload,
-          ...(whatsappConsentPhone === formState.mobileNumber && whatsappConsentPhone ? { whatsappConsentGranted: true } : {}),
+          whatsappUpdatesEnabled,
           status: 'INQUIRY',
           notes: formState.additionalInformation.trim() || undefined,
         });
@@ -4620,7 +4622,6 @@ function selectionStatus(order: Order) {
                     className={`${inputCls} min-h-12`}
                   />
                 </Field>
-                {restaurant?.enableWhatsappNotifications && !editingOrder ? <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={!!whatsappConsentPhone && whatsappConsentPhone === formState.mobileNumber} onChange={event => setWhatsappConsentPhone(event.target.checked ? formState.mobileNumber : '')} className="mt-1 h-4 w-4 shrink-0 accent-amber-500" /><span>The customer agreed to receive booking and menu updates on WhatsApp.</span></label> : null}
                 <Field label="Service Slot" required>
                   <div className="space-y-2">
                     <select
@@ -5115,6 +5116,7 @@ function selectionStatus(order: Order) {
                 Booking created by: <span className="font-semibold text-slate-900">{bookingCreatedBy}</span>
               </div>
             </div>
+            {restaurant?.enableWhatsappNotifications && !editingOrder ? <label className="mt-4 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={whatsappUpdatesEnabled} onChange={event => setWhatsappUpdatesEnabled(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-amber-500" /><span>Send booking and menu updates on WhatsApp<span className="block text-xs text-slate-500">Requires recorded customer permission. Existing opt-outs are respected.</span></span></label> : null}
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
@@ -5744,16 +5746,16 @@ function selectionStatus(order: Order) {
                 </div>
               ) : null}
               <div data-package-wizard-footer="true" className="safe-pad-bottom z-20 shrink-0 border-t border-slate-200 bg-white/95 pt-2 backdrop-blur">
-                {restaurant?.enableWhatsappNotifications && editingOrder && accessToken && categoryWizardMode !== 'quotation' ? <div className="mb-2"><WhatsappBookingCommunication key={editingOrder.id} token={accessToken} orderId={editingOrder.id} customerId={editingOrder.customer.id} consentGranted={editingOrder.customer.whatsappConsentGranted ?? false} compact /></div> : null}
-                <div className="grid grid-cols-2 gap-2">
+                {restaurant?.enableWhatsappNotifications && categoryWizardMode !== 'quotation' ? <label className="mb-3 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={menuWhatsappEnabled} onChange={event => setMenuWhatsappEnabled(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-amber-500" /><span>Send booking and menu updates on WhatsApp<span className="block text-xs text-slate-500">Requires recorded customer permission. Existing opt-outs are respected.</span></span></label> : null}
+                <div className={`grid items-stretch gap-2 ${categoryWizardMode !== 'quotation' && restaurant?.enableWhatsappNotifications && editingOrder?.status === 'CONFIRMED' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <button
                     type="button"
                     onClick={() => resetWizard()}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:py-2.5"
+                    className="min-h-11 min-w-0 w-full rounded-xl border border-slate-200 px-2 py-2 text-xs font-semibold leading-snug text-slate-600 transition hover:bg-slate-50 sm:px-3 sm:text-sm"
                   >
                     Cancel
                   </button>
-                  {categoryWizardMode !== 'quotation' ? <WhatsappMenuActions restaurantEnabled={restaurant?.enableWhatsappNotifications ?? false} globallyAvailable={restaurant?.whatsappGloballyAvailable ?? false} eligibleBooking={editingOrder?.status === 'CONFIRMED'} busy={isSubmitting} onSave={() => void handleSaveBookingSelection()} onSaveAndSend={() => void handleSaveBookingSelection(true)} /> : <LoadingButton
+                  {categoryWizardMode !== 'quotation' ? <WhatsappMenuActions sendEnabled={menuWhatsappEnabled} restaurantEnabled={restaurant?.enableWhatsappNotifications ?? false} globallyAvailable={restaurant?.whatsappGloballyAvailable ?? false} eligibleBooking={editingOrder?.status === 'CONFIRMED'} busy={isSubmitting} onSave={() => void handleSaveBookingSelection()} onSaveAndSend={() => void handleSaveBookingSelection(menuWhatsappEnabled)} /> : <LoadingButton
                     type="button"
                     disabled={isSubmitting}
                     onClick={() =>

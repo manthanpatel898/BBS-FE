@@ -1,6 +1,7 @@
 # Booking WhatsApp controls
 
 - Super admin enables WhatsApp per restaurant. Only when enabled, the form shows a required dedicated WhatsApp contact mobile number and required Instagram profile URL. Website is optional. The contact number appears inside messages, not as the sender; restaurant contacts are never used as a fallback. Existing enabled restaurants must fill this new field. Company users cannot enable the subscription themselves.
+- Booking creation and menu selection show a default-checked sending preference above the footer buttons. This does not record consent. Creation saves `whatsappUpdatesEnabled`; false blocks preparation and queued delivery for that booking. The menu checkbox controls the explicit send action only; ordinary Save never sends. Customer permission remains managed separately in event details, and opt-outs still block delivery.
 - The booking form records explicit customer consent; changing the entered number clears the checked state. Existing consent can be recorded or withdrawn in the event/menu WhatsApp panel.
 - Inquiry creation and booking confirmation request their respective messages only when server-side gates pass.
 - Normal **Save category** does not send a message. **Save & send on WhatsApp** appears only for enabled restaurants and confirmed bookings, never quotation drafts. It is disabled while saving or while global sending is unavailable.
