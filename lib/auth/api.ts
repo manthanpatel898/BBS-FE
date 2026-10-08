@@ -1257,6 +1257,7 @@ export async function createOrder(
   payload: {
     whatsappConsentGranted?: boolean;
     whatsappUpdatesEnabled?: boolean;
+    verbalWhatsappPermission?: boolean;
     customer: {
       firstName: string;
       lastName: string;

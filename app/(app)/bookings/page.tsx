@@ -2217,6 +2217,7 @@ export default function BookingsPage() {
         pendingCreatePayload.current = {
           ...payload,
           whatsappUpdatesEnabled,
+          verbalWhatsappPermission: !!restaurant?.enableWhatsappNotifications && whatsappUpdatesEnabled,
           status: 'CONFIRMED',
           notes: formState.additionalInformation.trim() || undefined,
         };
@@ -2227,6 +2228,7 @@ export default function BookingsPage() {
         const createdOrder = await createOrder(accessToken, {
           ...payload,
           whatsappUpdatesEnabled,
+          verbalWhatsappPermission: !!restaurant?.enableWhatsappNotifications && whatsappUpdatesEnabled,
           status: 'INQUIRY',
           notes: formState.additionalInformation.trim() || undefined,
         });
@@ -5116,7 +5118,7 @@ function selectionStatus(order: Order) {
                 Booking created by: <span className="font-semibold text-slate-900">{bookingCreatedBy}</span>
               </div>
             </div>
-            {restaurant?.enableWhatsappNotifications && !editingOrder ? <label className="mt-4 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={whatsappUpdatesEnabled} onChange={event => setWhatsappUpdatesEnabled(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-amber-500" /><span>Send booking and menu updates on WhatsApp<span className="block text-xs text-slate-500">Requires recorded customer permission. Existing opt-outs are respected.</span></span></label> : null}
+            {restaurant?.enableWhatsappNotifications && !editingOrder ? <label className="mt-4 flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={whatsappUpdatesEnabled} onChange={event => setWhatsappUpdatesEnabled(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-amber-500" /><span>Send booking and menu updates on WhatsApp<span className="block text-xs text-slate-500">Saving with this selected records that you obtained verbal permission for this number. Uncheck if permission was not given. Existing opt-outs are respected.</span></span></label> : null}
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"

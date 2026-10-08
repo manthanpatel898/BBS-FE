@@ -37,7 +37,8 @@ export function WhatsappBookingCommunication({ token, orderId, customerId, conse
   }
   return <details className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-900">
     <summary className="cursor-pointer text-sm font-semibold">WhatsApp {compact ? 'permission' : 'updates'} · {granted ? 'consent recorded' : 'consent required'}</summary>
-    <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={granted} disabled={busy} onChange={event => void changeConsent(event.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-amber-500" /><span>The customer agreed to receive booking and menu updates on this number. Uncheck to withdraw consent.</span></label>
+    <p className="mt-3 text-sm">{granted ? 'Customer permission is recorded for this number.' : 'No current permission is recorded. Verbal permission is recorded when creating a booking with WhatsApp updates selected.'}</p>
+    {granted ? <button type="button" disabled={busy} onClick={() => void changeConsent(false)} className="mt-2 min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 disabled:opacity-50">Stop WhatsApp updates for this customer</button> : null}
     {!compact ? <div className="mt-3"><WhatsappDeliveryStatus entries={entries} /><button type="button" onClick={() => { setError(''); setRefreshVersion(value => value + 1); }} className="mt-2 min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800">Refresh status</button></div> : null}
     {error ? <p role="alert" className="mt-2 text-sm text-red-700">{error}</p> : null}
   </details>;
