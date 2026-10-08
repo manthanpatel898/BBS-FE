@@ -269,12 +269,18 @@ export function PrintDocument({
 
   return (
     <article
+      data-booking-print="true"
       className={`mx-auto max-w-[210mm] bg-white text-stone-950 shadow-sm print:max-w-none print:shadow-none ${
         isKitchenCopy
           ? 'px-[5mm] py-[4mm] text-[12px] font-semibold print:px-[3mm] print:py-[2mm] print:text-[12px]'
           : 'px-[7mm] py-[6mm] text-stone-900 print:px-[4mm] print:pb-[16mm] print:pt-[3mm] print:text-[11px]'
       }`}
     >
+      <style>{`@media print {
+        @page { size: A4; margin: 8mm; }
+        [data-booking-print] [data-menu-item] { break-inside: avoid; }
+        [data-booking-print] [data-banquet-rules] { break-inside: avoid; }
+      }`}</style>
       <header className={`border-b border-stone-400 ${isKitchenCopy ? 'pb-1.5' : 'pb-3'}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -399,6 +405,7 @@ export function PrintDocument({
                               {section.items.map((item, index) => (
                                 <div
                                   key={`${section.key}-${index}-${item}`}
+                                  data-menu-item="true"
                                   className="border-b border-dotted border-stone-300 py-0.5 font-semibold text-stone-900 last:border-b-0"
                                 >
                                   {item}
@@ -440,6 +447,7 @@ export function PrintDocument({
                               {section.items.map((item, index) => (
                                 <div
                                   key={`${section.key}-${index}-${item}`}
+                                  data-menu-item="true"
                                   className="border-b border-dotted border-stone-300 py-0.5 font-semibold text-stone-900 last:border-b-0"
                                 >
                                   {item}
@@ -509,7 +517,7 @@ export function PrintDocument({
                             </div>
                             <div className="px-1.5 py-1">
                               {section.items.map((item, itemIndex) => (
-                                <div key={`${section.key}-${itemIndex}`} className="border-b border-dotted border-stone-300 py-0.5 font-semibold text-stone-900 last:border-b-0">
+                                <div data-menu-item="true" key={`${section.key}-${itemIndex}`} className="border-b border-dotted border-stone-300 py-0.5 font-semibold text-stone-900 last:border-b-0">
                                   {item}
                                 </div>
                               ))}
@@ -533,7 +541,7 @@ export function PrintDocument({
         );
       })}
 
-      <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'}`}>
+      <section className={`${isKitchenCopy ? 'mt-2' : 'mt-3 print:mt-2'} print:break-inside-avoid`}>
         <div className={`${isKitchenCopy ? 'overflow-hidden rounded-[10px] border border-stone-400' : 'mt-2 overflow-hidden rounded-[10px] border border-stone-400'}`}>
           <div className={`grid grid-cols-2 divide-x ${isKitchenCopy ? 'divide-stone-400 bg-stone-100' : 'divide-stone-400 bg-stone-100'}`}>
             <SummaryCell
@@ -634,7 +642,7 @@ export function PrintDocument({
             </section>
           </section>
 
-          <section className="mt-3 overflow-hidden rounded-[10px] border border-stone-400 print:mt-2">
+          <section data-banquet-rules="true" className="mt-3 overflow-hidden rounded-[10px] border border-stone-400 print:mt-2">
             <div className="border-b border-stone-400 bg-stone-100 px-2 py-1">
               <p className="text-[12px] font-black uppercase text-stone-950">
                 Banquet Rules
