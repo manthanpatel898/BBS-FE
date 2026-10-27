@@ -5693,6 +5693,8 @@ function selectionStatus(order: Order) {
                           <FoodServiceTimeSelect
                             label="Welcome Drink Start Time"
                             value={formState.welcomeDrinkStartTime}
+                            eventStartTime={formState.startTime}
+                            eventEndTime={formState.endTime}
                             disabled={isSubmitting}
                             onChange={(value) =>
                               setFormState((current) => ({
@@ -5706,6 +5708,8 @@ function selectionStatus(order: Order) {
                           <FoodServiceTimeSelect
                             label="Main Course Start Time"
                             value={formState.mainCourseStartTime}
+                            eventStartTime={formState.startTime}
+                            eventEndTime={formState.endTime}
                             disabled={isSubmitting}
                             onChange={(value) =>
                               setFormState((current) => ({
