@@ -235,7 +235,7 @@ const REPORT_CARDS: Array<{
   {
     type: 'advance',
     title: 'Advance Collections',
-    description: 'Track advance collections by payment date, payment type, and customer with instant totals.',
+    description: 'Track advance collections for confirmed bookings by payment date, payment type, and customer.',
     eyebrow: 'Financial',
   },
   {

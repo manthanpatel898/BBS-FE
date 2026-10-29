@@ -56,7 +56,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
         type: 'advance',
         title: 'Advance Collections',
         description:
-          'Every advance payment recorded — filter by date, payment mode, or customer. Includes totals and remark.',
+          'Advance payments collected for confirmed bookings — filter by date, payment mode, or customer. Cancelled bookings are excluded.',
         badge: 'Collections log',
       },
       {

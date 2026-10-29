@@ -553,6 +553,7 @@ export default function OdcInquiriesPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const detailActionsRef = useRef<HTMLDivElement | null>(null);
   const calendarSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
@@ -2987,6 +2988,16 @@ export default function OdcInquiriesPage() {
                     {detailOrder.menuSelectionSnapshot.length ? 'Menu Selected' : 'Menu Pending'}
                   </span>
               </div>
+              {isCompanyAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => detailActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 lg:hidden"
+                >
+                  <span>Actions</span>
+                  <span aria-hidden="true">↓</span>
+                </button>
+              ) : null}
 
               <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
@@ -3244,8 +3255,8 @@ export default function OdcInquiriesPage() {
               </div>
 
               {isCompanyAdmin ? (
-              <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
+              <div ref={detailActionsRef} className="sticky bottom-0 z-20 mx-0 mt-4 w-full max-w-full overflow-x-hidden border-t border-slate-200 bg-white/95 px-0 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:w-[calc(100%+3rem)] sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
+                <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Actions
                   </p>
@@ -3255,20 +3266,20 @@ export default function OdcInquiriesPage() {
                     </span>
                   ) : null}
                 </div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {detailOrder.status === 'CONFIRMED' ? (
                       <>
                         <Link
                           href={`/print/order?id=${detailOrder.id}&type=odc`}
                           target="_blank"
-                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          className="inline-flex w-full min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                         >
                           Print
                         </Link>
                         <Link
                           href={`/print/order?id=${detailOrder.id}&type=odc&copy=kitchen`}
                           target="_blank"
-                          className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          className="inline-flex w-full min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                         >
                           Kitchen Print
                         </Link>
