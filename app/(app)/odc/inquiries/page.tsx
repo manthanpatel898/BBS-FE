@@ -3266,7 +3266,7 @@ export default function OdcInquiriesPage() {
                     </span>
                   ) : null}
                 </div>
-                  <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid w-full min-w-0 grid-cols-2 gap-2 min-[520px]:grid-cols-3 md:grid-cols-4">
                     {detailOrder.status === 'CONFIRMED' ? (
                       <>
                         <Link
