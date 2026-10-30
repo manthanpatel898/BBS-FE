@@ -2988,7 +2988,7 @@ export default function OdcInquiriesPage() {
                     {detailOrder.menuSelectionSnapshot.length ? 'Menu Selected' : 'Menu Pending'}
                   </span>
               </div>
-              {isCompanyAdmin ? (
+              {detailOrder ? (
                 <button
                   type="button"
                   onClick={() => detailActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
@@ -3254,7 +3254,7 @@ export default function OdcInquiriesPage() {
 
               </div>
 
-              {isCompanyAdmin ? (
+              {detailOrder ? (
               <div ref={detailActionsRef} className="sticky bottom-0 z-20 mx-0 mt-4 w-full max-w-full overflow-x-hidden border-t border-slate-200 bg-white/95 px-0 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:w-[calc(100%+3rem)] sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
                 <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
