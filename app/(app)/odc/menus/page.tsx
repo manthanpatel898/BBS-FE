@@ -77,6 +77,7 @@ export default function OdcMenusPage() {
   const [editingMenu, setEditingMenu] = useState<OdcMenu | null>(null);
   const [formState, setFormState] = useState<MenuFormState>(initialFormState);
   const [itemDraft, setItemDraft] = useState('');
+  const [bulkItemsDraft, setBulkItemsDraft] = useState('');
   const [itemDescriptionDraft, setItemDescriptionDraft] = useState('');
   const [subitemSearch, setSubitemSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -161,6 +162,7 @@ export default function OdcMenusPage() {
     setEditingMenu(null);
     setFormState(initialFormState);
     setItemDraft('');
+    setBulkItemsDraft('');
     setItemDescriptionDraft('');
     setSubitemSearch('');
     setError('');
@@ -184,6 +186,7 @@ export default function OdcMenusPage() {
       hotSellingItems: [...(firstSection?.hotSellingItems ?? [])],
     });
     setItemDraft('');
+    setBulkItemsDraft('');
     setItemDescriptionDraft('');
     setSubitemSearch('');
     setError('');
@@ -209,6 +212,11 @@ export default function OdcMenusPage() {
     }));
     setItemDraft('');
     setItemDescriptionDraft('');
+  }
+
+  function addBulkItems() {
+    addItems(bulkItemsDraft);
+    setBulkItemsDraft('');
   }
 
   function removeItem(item: string) {
@@ -650,6 +658,33 @@ export default function OdcMenusPage() {
                   >
                     Add
                   </button>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Add subitems in bulk</p>
+                      <p className="mt-1 text-xs text-slate-600">Paste one subitem per line. Add descriptions below after all names are added.</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-700">One line = one item</span>
+                  </div>
+                  <textarea
+                    value={bulkItemsDraft}
+                    onChange={(event) => setBulkItemsDraft(event.target.value)}
+                    placeholder={'Paneer Tikka\nHara Bhara Kabab\nVeg Spring Roll'}
+                    rows={5}
+                    className={`${inputCls} mt-3 resize-y bg-white`}
+                  />
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={addBulkItems}
+                      disabled={!bulkItemsDraft.trim()}
+                      className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Add bulk items
+                    </button>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
