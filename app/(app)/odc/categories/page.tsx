@@ -286,6 +286,26 @@ export default function OdcCategoriesPage() {
     }));
   }
 
+  function setAllAllowedItems(menuId: string, sectionTitle: string, items: string[]) {
+    setFormState((current) =>
+      ({
+        ...current,
+        menuRules: current.menuRules.map((rule) => {
+          if (rule.menuId !== menuId || rule.sectionTitle !== sectionTitle) return rule;
+          const allSelected = items.length > 0 && rule.allowedItems.length === items.length;
+          const allowedItems = allSelected ? [] : [...items];
+          return {
+            ...rule,
+            allowedItems,
+            selectionLimit: allowedItems.length
+              ? Math.min(rule.selectionLimit, allowedItems.length)
+              : 0,
+          };
+        }),
+      }),
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken) {
@@ -742,6 +762,15 @@ export default function OdcCategoriesPage() {
                                 <p className="mt-1 text-sm text-slate-500">
                                   Start with none selected, then choose only the subitems that should appear while booking.
                                 </p>
+                                <div className="mt-3 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAllAllowedItems(rule.menuId, rule.sectionTitle, section.items)}
+                                    className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+                                  >
+                                    {rule.allowedItems.length === section.items.length ? 'Clear all' : 'Select all'}
+                                  </button>
+                                </div>
                                 <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                                   {section.items.map((item) => {
                                     const checked = rule.allowedItems.includes(item);
