@@ -328,7 +328,8 @@ export default function OdcCategoriesPage() {
       name: formState.name.trim(),
       pricePerPlate,
       description: formState.description.trim() || null,
-      menuRules: formState.menuRules,
+      // menuTitle is display-only client state; the API derives it from menuId.
+      menuRules: formState.menuRules.map(({ menuTitle: _menuTitle, ...rule }) => rule),
       ...(isSuperAdmin ? { restaurantId: effectiveRestaurantId } : {}),
     };
 
