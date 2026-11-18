@@ -777,7 +777,9 @@ const advanceColumns: ColumnDef<AdvancePaymentReportRow>[] = [
     isCurrency: true,
     render: (row) => formatCurrency(row.amount),
     exportValue: (row) => formatExportAmount(row.amount),
-    total: (row) => row.amount,
+    // Cancelled bookings must reduce the collected-advance total while their
+    // original payment rows remain visible for reconciliation.
+    total: (row) => row.status === 'CANCELLED' ? -Math.abs(row.amount) : row.amount,
   },
   { key: 'eventType', label: 'Event', render: (row) => row.eventType || '-' },
   {
