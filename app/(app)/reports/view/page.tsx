@@ -1165,6 +1165,43 @@ function SummaryTotals<Row>({
   );
 }
 
+function AdvanceReportTotalsSummary({ rows }: { rows: AdvancePaymentReportRow[] }) {
+  const confirmedAdvances = rows
+    .filter((row) => row.status === 'CONFIRMED')
+    .reduce((sum, row) => sum + Math.max(Number(row.amount) || 0, 0), 0);
+  const cancelledAdvances = rows
+    .filter((row) => row.status === 'CANCELLED')
+    .reduce((sum, row) => sum + Math.max(Number(row.amount) || 0, 0), 0);
+  const grossTotal = confirmedAdvances + cancelledAdvances;
+
+  const totals = [
+    ['Confirmed advances', confirmedAdvances],
+    ['Cancelled advances', cancelledAdvances],
+    ['Gross total', grossTotal],
+  ] as const;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {totals.map(([label, value]) => (
+        <div
+          key={label}
+          className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4"
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">
+            {label}
+          </p>
+          <p className="mt-3 text-2xl font-bold text-slate-900">
+            <InrAmount
+              value={value}
+              symbolClassName="mr-0.5 align-[0.2em] text-xs font-bold opacity-50"
+            />
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DataTable<Row>({
   rows,
   columns,
@@ -2820,7 +2857,7 @@ export default function ReportViewPage() {
 
       {activeReport === 'advance' ? (
         <div className="space-y-4">
-          <SummaryTotals rows={advanceRows} columns={advanceColumns} />
+          <AdvanceReportTotalsSummary rows={advanceRows} />
           <DataTable
             rows={advanceRows}
             columns={advanceColumns}
