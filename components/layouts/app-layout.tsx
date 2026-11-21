@@ -343,6 +343,18 @@ function buildNavItems(
   return [
     { type: 'link', href: '/bookings', label: 'Bookings', icon: <IconCalendar /> },
     { type: 'link', href: '/followups', label: 'Followups', icon: <IconBell /> },
+    ...(canAccessOdc && user && (hasPermission(user, PERMISSIONS.ODC_MENUS_VIEW) || hasPermission(user, PERMISSIONS.ODC_CATEGORIES_VIEW))
+      ? [{
+          type: 'group' as const,
+          id: 'outdoor-catering',
+          label: 'Outdoor Catering',
+          icon: <IconMenu />,
+          children: [
+            ...(hasPermission(user, PERMISSIONS.ODC_CATEGORIES_VIEW) ? [{ type: 'link' as const, href: '/odc/categories', label: 'ODC Categories', icon: <IconTag /> }] : []),
+            ...(hasPermission(user, PERMISSIONS.ODC_MENUS_VIEW) ? [{ type: 'link' as const, href: '/odc/menus', label: 'ODC Menus', icon: <IconMenu /> }] : []),
+          ],
+        }]
+      : []),
     ...(user && hasPermission(user, PERMISSIONS.REPORTS_FEEDBACK_VIEW)
       ? [{ type: 'link' as const, href: '/reports', label: 'Reports', icon: <IconReport /> }]
       : []),

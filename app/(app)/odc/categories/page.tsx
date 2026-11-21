@@ -18,6 +18,7 @@ import {
   updateOdcCategory,
 } from '@/lib/auth/api';
 import { OdcCategory, OdcMenu, Restaurant } from '@/lib/auth/types';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 
 type CategoryFormState = {
   name: string;
@@ -53,6 +54,9 @@ export default function OdcCategoriesPage() {
   });
 
   const { accessToken, user } = useAuth();
+  const canCreateCategories = user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.ODC_CATEGORIES_CREATE);
+  const canUpdateCategories = user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.ODC_CATEGORIES_UPDATE);
+  const canDeleteCategories = user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.ODC_CATEGORIES_DELETE);
   const [categories, setCategories] = useState<OdcCategory[]>([]);
   const [menus, setMenus] = useState<OdcMenu[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -431,7 +435,7 @@ export default function OdcCategoriesPage() {
   }
 
   return (
-    <ConfigRoute>
+    <ConfigRoute requiredPermission={PERMISSIONS.ODC_CATEGORIES_VIEW}>
       <section className="space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -443,7 +447,7 @@ export default function OdcCategoriesPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              disabled={!effectiveRestaurantId}
+              disabled={!effectiveRestaurantId || !canCreateCategories}
               className="ml-auto rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               + Add category
@@ -541,8 +545,8 @@ export default function OdcCategoriesPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => openEditModal(category)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Edit</button>
-                        <button type="button" onClick={() => setCategoryToDelete(category)} className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50">Delete</button>
+                        {canUpdateCategories ? <button type="button" onClick={() => openEditModal(category)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Edit</button> : null}
+                        {canDeleteCategories ? <button type="button" onClick={() => setCategoryToDelete(category)} className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50">Delete</button> : null}
                       </div>
                     </td>
                   </tr>
@@ -575,8 +579,8 @@ export default function OdcCategoriesPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <button type="button" onClick={() => openEditModal(category)} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600">Edit</button>
-                  <button type="button" onClick={() => setCategoryToDelete(category)} className="flex-1 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600">Delete</button>
+                  {canUpdateCategories ? <button type="button" onClick={() => openEditModal(category)} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600">Edit</button> : null}
+                  {canDeleteCategories ? <button type="button" onClick={() => setCategoryToDelete(category)} className="flex-1 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600">Delete</button> : null}
                 </div>
               </article>
             ))

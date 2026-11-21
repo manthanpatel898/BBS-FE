@@ -17,6 +17,7 @@ import {
   updateOdcMenu,
 } from '@/lib/auth/api';
 import { MenuSection, OdcMenu, Restaurant } from '@/lib/auth/types';
+import { PERMISSIONS, hasPermission } from '@/lib/auth/permissions';
 
 type MenuFormState = {
   displayOrder: string;
@@ -88,6 +89,8 @@ export default function OdcMenusPage() {
   const isSuperAdmin = user?.role === 'super_admin';
   const effectiveRestaurantId = isSuperAdmin ? selectedRestaurantId : user?.restaurantId ?? '';
   const hasOdcAccess = Boolean(user?.canAccessOdc);
+  const canViewMenus = user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.ODC_MENUS_VIEW);
+  const canCreateMenus = user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.ODC_MENUS_CREATE);
 
   useEffect(() => {
     if (!accessToken || !isSuperAdmin) return;
@@ -361,7 +364,7 @@ export default function OdcMenusPage() {
   }
 
   return (
-    <ConfigRoute>
+    <ConfigRoute requiredPermission={PERMISSIONS.ODC_MENUS_VIEW}>
       <section className="space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -373,7 +376,7 @@ export default function OdcMenusPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              disabled={!effectiveRestaurantId}
+              disabled={!effectiveRestaurantId || !canCreateMenus}
               className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               + Add menu
@@ -512,20 +515,20 @@ export default function OdcMenusPage() {
                         ))}
                       </div>
                       <div className="mt-5 flex gap-2">
-                        <button
+                        {user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.ODC_MENUS_UPDATE) ? <button
                           type="button"
                           onClick={() => openEditModal(menu)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
                         >
                           Edit
-                        </button>
-                        <button
+                        </button> : null}
+                        {user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.ODC_MENUS_DELETE) ? <button
                           type="button"
                           onClick={() => setMenuToDelete(menu)}
                           className="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
                         >
                           Delete
-                        </button>
+                        </button> : null}
                       </div>
                     </div>
                   ) : null}

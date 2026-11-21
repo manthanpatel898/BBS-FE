@@ -38,6 +38,7 @@ import {
   SignatureLocationPermissionStatus,
 } from '@/lib/auth/types';
 import { cropSignatureCanvasToDataUrl } from '@/lib/signature-crop';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 
 type InquiryFormState = {
   customerName: string;
@@ -558,6 +559,8 @@ export default function OdcInquiriesPage() {
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isCompanyAdmin = user?.role === 'company_admin';
+  const canEditOdcOrders = isSuperAdmin || isCompanyAdmin || hasPermission(user, PERMISSIONS.ODC_ORDERS_UPDATE);
+  const canManageOdcFollowups = isSuperAdmin || isCompanyAdmin || hasPermission(user, PERMISSIONS.ODC_ORDERS_FOLLOWUPS_MANAGE);
   const effectiveRestaurantId = isSuperAdmin ? selectedRestaurantId : user?.restaurantId ?? '';
   const hasOdcAccess = Boolean(user?.canAccessOdc);
   const selectedCategory = categories.find((category) => category.id === formState.categoryId);
@@ -3212,7 +3215,7 @@ export default function OdcInquiriesPage() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Follow-ups
                   </p>
-                  {isCompanyAdmin && canAddOdcFollowUp(detailOrder.status) ? (
+                  {canManageOdcFollowups && canAddOdcFollowUp(detailOrder.status) ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -3335,13 +3338,13 @@ export default function OdcInquiriesPage() {
                         >
                           Transfer
                         </button>
-                        <button
+                        {canEditOdcOrders ? <button
                           type="button"
                           onClick={() => openEditOdcInquiry(detailOrder)}
                           className="inline-flex min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                         >
                           Edit inquiry
-                        </button>
+                        </button> : null}
                         <button
                           type="button"
                           onClick={() => {

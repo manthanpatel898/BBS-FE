@@ -62,6 +62,18 @@ export const PERMISSIONS = {
   DECORATION_REPORTS_VIEW: 'decoration.reports.view',
   DECORATION_REPORTS_EXPORT: 'decoration.reports.export',
   DECORATION_IMPORT_MANAGE: 'decoration.import.manage',
+  ODC_VIEW: 'odc.view',
+  ODC_ORDERS_VIEW: 'odc.orders.view',
+  ODC_ORDERS_UPDATE: 'odc.orders.update',
+  ODC_ORDERS_FOLLOWUPS_MANAGE: 'odc.orders.followups.manage',
+  ODC_CATEGORIES_VIEW: 'odc.categories.view',
+  ODC_CATEGORIES_CREATE: 'odc.categories.create',
+  ODC_CATEGORIES_UPDATE: 'odc.categories.update',
+  ODC_CATEGORIES_DELETE: 'odc.categories.delete',
+  ODC_MENUS_VIEW: 'odc.menus.view',
+  ODC_MENUS_CREATE: 'odc.menus.create',
+  ODC_MENUS_UPDATE: 'odc.menus.update',
+  ODC_MENUS_DELETE: 'odc.menus.delete',
 } as const;
 
 export function hasPermission(user: AuthUser | null | undefined, permission: string) {
