@@ -230,7 +230,7 @@ const REPORT_CARDS: Array<{
 }> = [
   {
     type: 'booking',
-    permission: PERMISSIONS.REPORTS_VIEW,
+    permission: PERMISSIONS.REPORTS_BOOKING_VIEW,
     title: 'Booking Report',
     description: 'Generate inquiry, confirmed, or cancelled booking reports with customizable columns and exports.',
     eyebrow: 'Bookings',
@@ -244,7 +244,7 @@ const REPORT_CARDS: Array<{
   },
   {
     type: 'cancelled',
-    permission: PERMISSIONS.REPORTS_VIEW,
+    permission: PERMISSIONS.REPORTS_CANCELLED_VIEW,
     title: 'Cancellation Report',
     description: 'Export cancelled booking history with reason, advance paid, totals, and inquiry details.',
     eyebrow: 'Bookings',
@@ -1383,9 +1383,9 @@ export default function ReportViewPage() {
       : 'booking';
   const activeCard = REPORT_CARDS.find((card) => card.type === activeReport) ?? REPORT_CARDS[0];
   const reportPermissionByType: Record<ReportType, string> = {
-    booking: PERMISSIONS.REPORTS_VIEW,
+    booking: PERMISSIONS.REPORTS_BOOKING_VIEW,
     advance: PERMISSIONS.REPORTS_ADVANCE_PAYMENTS_VIEW,
-    cancelled: PERMISSIONS.REPORTS_VIEW,
+    cancelled: PERMISSIONS.REPORTS_CANCELLED_VIEW,
     itemSales: PERMISSIONS.REPORTS_ITEM_SALES_VIEW,
     eventPlanner: PERMISSIONS.REPORTS_EVENT_PLANNER_VIEW,
     pendingPayments: PERMISSIONS.REPORTS_PENDING_PAYMENTS_VIEW,
@@ -1442,7 +1442,7 @@ export default function ReportViewPage() {
   );
 
   const canViewActiveReport = user?.role === 'super_admin' || user?.role === 'company_admin' ||
-    hasPermission(user, PERMISSIONS.REPORTS_VIEW) || hasPermission(user, reportPermissionByType[activeReport]);
+    hasPermission(user, reportPermissionByType[activeReport]);
   if (!canViewActiveReport) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">

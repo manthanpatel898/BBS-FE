@@ -355,7 +355,20 @@ function buildNavItems(
           ],
         }]
       : []),
-    ...(user && hasPermission(user, PERMISSIONS.REPORTS_FEEDBACK_VIEW)
+    ...(user && [
+      PERMISSIONS.REPORTS_BOOKING_VIEW,
+      PERMISSIONS.REPORTS_CANCELLED_VIEW,
+      PERMISSIONS.REPORTS_ADVANCE_PAYMENTS_VIEW,
+      PERMISSIONS.REPORTS_ITEM_SALES_VIEW,
+      PERMISSIONS.REPORTS_EVENT_PLANNER_VIEW,
+      PERMISSIONS.REPORTS_PENDING_PAYMENTS_VIEW,
+      PERMISSIONS.REPORTS_REVENUE_VIEW,
+      PERMISSIONS.REPORTS_UPCOMING_EVENTS_VIEW,
+      PERMISSIONS.REPORTS_HALL_OCCUPANCY_VIEW,
+      PERMISSIONS.REPORTS_REPEAT_CUSTOMERS_VIEW,
+      PERMISSIONS.REPORTS_TREASURY_VIEW,
+      PERMISSIONS.REPORTS_FEEDBACK_VIEW,
+    ].some((permission) => hasPermission(user, permission))
       ? [{ type: 'link' as const, href: '/reports', label: 'Reports', icon: <IconReport /> }]
       : []),
     ...(billingEnabled && user && hasPermission(user, PERMISSIONS.BOOKINGS_INVOICES_VIEW)

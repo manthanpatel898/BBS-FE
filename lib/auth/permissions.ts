@@ -40,6 +40,8 @@ export const PERMISSIONS = {
   BOOKINGS_FIELD_STATUS_UPDATE: 'bookings.fields.status.update',
   BOOKINGS_FEEDBACK_MANAGE: 'bookings.feedback.manage',
   REPORTS_VIEW: 'reports.view',
+  REPORTS_BOOKING_VIEW: 'reports.view.booking',
+  REPORTS_CANCELLED_VIEW: 'reports.view.cancelled',
   REPORTS_ADVANCE_PAYMENTS_VIEW: 'reports.view.advance_payments',
   REPORTS_ITEM_SALES_VIEW: 'reports.view.item_sales',
   REPORTS_EVENT_PLANNER_VIEW: 'reports.view.event_planner',

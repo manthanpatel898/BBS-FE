@@ -80,7 +80,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
     reports: [
       {
         type: 'booking',
-        permission: PERMISSIONS.REPORTS_VIEW,
+        permission: PERMISSIONS.REPORTS_BOOKING_VIEW,
         title: 'Booking Report',
         description:
           'Inquiry, confirmed, or cancelled bookings with fully customisable columns and CSV / XLSX export.',
@@ -96,7 +96,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'cancelled',
-        permission: PERMISSIONS.REPORTS_VIEW,
+        permission: PERMISSIONS.REPORTS_CANCELLED_VIEW,
         title: 'Cancellation Report',
         description:
           'Full history of cancelled bookings with cancellation reason, advance paid, totals, and inquiry details.',
@@ -189,7 +189,6 @@ const colorMap: Record<ReportCategory['color'], { eyebrow: string; badge: string
 export default function ReportsPage() {
   const { user } = useAuth();
   const canViewReports = user?.role === 'super_admin' || user?.role === 'company_admin' ||
-    hasPermission(user, PERMISSIONS.REPORTS_VIEW) ||
     REPORT_CATEGORIES.some((category) => category.reports.some((report) => hasPermission(user, report.permission)));
 
   if (!canViewReports) {
@@ -206,8 +205,7 @@ export default function ReportsPage() {
     .map((category) => ({
       ...category,
       reports: category.reports.filter((report) =>
-        user?.role === 'super_admin' || user?.role === 'company_admin' ||
-        hasPermission(user, PERMISSIONS.REPORTS_VIEW) || hasPermission(user, report.permission),
+        user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, report.permission),
       ),
     }))
     .filter((category) => category.reports.length > 0);
