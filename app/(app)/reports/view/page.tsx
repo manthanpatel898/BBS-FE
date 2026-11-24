@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { useAuth } from '@/components/auth/auth-provider';
+import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import {
   fetchAdvancePaymentsReport,
   fetchBookingReport,
@@ -222,72 +223,84 @@ const CANCELLED_FIELDS: Array<{ key: CancelledFieldKey; label: string }> = [
 
 const REPORT_CARDS: Array<{
   type: ReportType;
+  permission: string;
   title: string;
   description: string;
   eyebrow: string;
 }> = [
   {
     type: 'booking',
+    permission: PERMISSIONS.REPORTS_VIEW,
     title: 'Booking Report',
     description: 'Generate inquiry, confirmed, or cancelled booking reports with customizable columns and exports.',
     eyebrow: 'Bookings',
   },
   {
     type: 'advance',
+    permission: PERMISSIONS.REPORTS_ADVANCE_PAYMENTS_VIEW,
     title: 'Advance Collections',
     description: 'Track advance collections for confirmed bookings by payment date, payment type, and customer.',
     eyebrow: 'Financial',
   },
   {
     type: 'cancelled',
+    permission: PERMISSIONS.REPORTS_VIEW,
     title: 'Cancellation Report',
     description: 'Export cancelled booking history with reason, advance paid, totals, and inquiry details.',
     eyebrow: 'Bookings',
   },
   {
     type: 'itemSales',
+    permission: PERMISSIONS.REPORTS_ITEM_SALES_VIEW,
     title: 'Item Sales Report',
     description: 'See item-wise sales for confirmed bookings by date range, sorted from highest selling to lowest.',
     eyebrow: 'Operations',
   },
   {
     type: 'eventPlanner',
+    permission: PERMISSIONS.REPORTS_EVENT_PLANNER_VIEW,
     title: 'Event Planner Report',
     description: 'Review which confirmed bookings were assigned to which event planner and export the planner-wise schedule by date.',
     eyebrow: 'Operations',
   },
   {
     type: 'pendingPayments',
+    permission: PERMISSIONS.REPORTS_PENDING_PAYMENTS_VIEW,
     title: 'Pending Payments',
     description: 'All confirmed bookings with an outstanding balance. Filter by event date range or customer search.',
     eyebrow: 'Financial',
   },
   {
     type: 'revenue',
+    permission: PERMISSIONS.REPORTS_REVENUE_VIEW,
     title: 'Revenue Report',
     description: 'Monthly, event-type, or hall-wise revenue breakdown for confirmed bookings in a date range.',
     eyebrow: 'Financial',
   },
   {
     type: 'upcomingEvents',
+    permission: PERMISSIONS.REPORTS_UPCOMING_EVENTS_VIEW,
     title: 'Upcoming Events',
     description: 'All confirmed events in the next 7, 15, or 30 days with customer, hall, slot, planner, and balance details.',
     eyebrow: 'Bookings',
   },
   {
     type: 'hallOccupancy',
+    permission: PERMISSIONS.REPORTS_HALL_OCCUPANCY_VIEW,
     title: 'Hall Occupancy Report',
     description: 'Booking count, total guests, and revenue for each hall over any selected date range.',
     eyebrow: 'Operations',
   },
   {
     type: 'repeatCustomers',
+    permission: PERMISSIONS.REPORTS_REPEAT_CUSTOMERS_VIEW,
     title: 'Repeat Customers',
     description: 'Customers with two or more confirmed bookings — total bookings, lifetime revenue, and booking dates.',
     eyebrow: 'Customers',
   },
   {
     type: 'treasury',
+    permission: PERMISSIONS.REPORTS_TREASURY_VIEW,
     title: 'Treasury Ledger',
     description: 'Full chronological ledger: confirmed advances, cancellations, dine-in usages, payouts, next booking adjustments, and forfeited amounts.',
     eyebrow: 'Financial',
@@ -1369,6 +1382,19 @@ export default function ReportViewPage() {
       ? reportParam
       : 'booking';
   const activeCard = REPORT_CARDS.find((card) => card.type === activeReport) ?? REPORT_CARDS[0];
+  const reportPermissionByType: Record<ReportType, string> = {
+    booking: PERMISSIONS.REPORTS_VIEW,
+    advance: PERMISSIONS.REPORTS_ADVANCE_PAYMENTS_VIEW,
+    cancelled: PERMISSIONS.REPORTS_VIEW,
+    itemSales: PERMISSIONS.REPORTS_ITEM_SALES_VIEW,
+    eventPlanner: PERMISSIONS.REPORTS_EVENT_PLANNER_VIEW,
+    pendingPayments: PERMISSIONS.REPORTS_PENDING_PAYMENTS_VIEW,
+    revenue: PERMISSIONS.REPORTS_REVENUE_VIEW,
+    upcomingEvents: PERMISSIONS.REPORTS_UPCOMING_EVENTS_VIEW,
+    hallOccupancy: PERMISSIONS.REPORTS_HALL_OCCUPANCY_VIEW,
+    repeatCustomers: PERMISSIONS.REPORTS_REPEAT_CUSTOMERS_VIEW,
+    treasury: PERMISSIONS.REPORTS_TREASURY_VIEW,
+  };
 
   useEffect(() => {
     if ((searchParams.get('type') ?? searchParams.get('report')) !== 'booking') {
@@ -1394,7 +1420,7 @@ export default function ReportViewPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!accessToken || user?.role !== 'company_admin') return;
+    if (!accessToken || (user?.role !== 'super_admin' && user?.role !== 'company_admin')) return;
     fetchSettings(accessToken)
       .then((settings) => {
         setPaymentModes(settings.paymentOptions.map((option: SettingOption) => option.label));
@@ -1415,11 +1441,13 @@ export default function ReportViewPage() {
     [cancelledSelectedFields],
   );
 
-  if (user?.role !== 'company_admin') {
+  const canViewActiveReport = user?.role === 'super_admin' || user?.role === 'company_admin' ||
+    hasPermission(user, PERMISSIONS.REPORTS_VIEW) || hasPermission(user, reportPermissionByType[activeReport]);
+  if (!canViewActiveReport) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-sm font-medium text-slate-600">
-          Reports are available for company admin only.
+          You do not have permission to view this report.
         </p>
       </div>
     );

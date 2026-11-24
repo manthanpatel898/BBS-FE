@@ -426,7 +426,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     user?.canAccessVoucherFlow ??
     ((sidebarRestaurant?.enableCancelledBookings ?? false) &&
       (sidebarRestaurant?.enableVoucherFlow ?? false));
-  const canAccessOdc = user?.canAccessOdc ?? false;
+  const canAccessOdc =
+    (user?.canAccessOdc ?? false) ||
+    Boolean(user && (hasPermission(user, PERMISSIONS.ODC_VIEW) ||
+      hasPermission(user, PERMISSIONS.ODC_CATEGORIES_VIEW) ||
+      hasPermission(user, PERMISSIONS.ODC_MENUS_VIEW) ||
+      hasPermission(user, PERMISSIONS.ODC_ORDERS_VIEW)));
   const isAdminUser = user?.role === 'super_admin' || user?.role === 'company_admin';
 
   const navItems = useMemo(

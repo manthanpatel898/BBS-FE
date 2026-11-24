@@ -20,6 +20,7 @@ type ReportType =
 
 type ReportCard = {
   type: ReportType;
+  permission: string;
   title: string;
   description: string;
   badge: string;
@@ -40,6 +41,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
     reports: [
       {
         type: 'revenue',
+        permission: PERMISSIONS.REPORTS_REVENUE_VIEW,
         title: 'Revenue Report',
         description:
           'Monthly, event-type, or hall-wise revenue breakdown for confirmed bookings. Spot your best-performing periods at a glance.',
@@ -47,6 +49,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'pendingPayments',
+        permission: PERMISSIONS.REPORTS_PENDING_PAYMENTS_VIEW,
         title: 'Pending Payments',
         description:
           'All confirmed bookings that still have an outstanding balance. Prioritise follow-ups before the event date.',
@@ -54,6 +57,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'advance',
+        permission: PERMISSIONS.REPORTS_ADVANCE_PAYMENTS_VIEW,
         title: 'Advance Collections',
         description:
           'Advance payments collected for confirmed bookings — filter by date, payment mode, or customer. Cancelled bookings are excluded.',
@@ -61,6 +65,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'treasury',
+        permission: PERMISSIONS.REPORTS_TREASURY_VIEW,
         title: 'Treasury Ledger',
         description:
           'Full chronological ledger of all advances — confirmed, cancelled, dine-in usages, payouts, next booking adjustments, and forfeited amounts. See where every rupee went.',
@@ -75,6 +80,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
     reports: [
       {
         type: 'booking',
+        permission: PERMISSIONS.REPORTS_VIEW,
         title: 'Booking Report',
         description:
           'Inquiry, confirmed, or cancelled bookings with fully customisable columns and CSV / XLSX export.',
@@ -82,6 +88,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'upcomingEvents',
+        permission: PERMISSIONS.REPORTS_UPCOMING_EVENTS_VIEW,
         title: 'Upcoming Events',
         description:
           'All confirmed events in the next 7, 15, or 30 days — customer details, hall, slot, planner, and pending balance.',
@@ -89,6 +96,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'cancelled',
+        permission: PERMISSIONS.REPORTS_VIEW,
         title: 'Cancellation Report',
         description:
           'Full history of cancelled bookings with cancellation reason, advance paid, totals, and inquiry details.',
@@ -103,6 +111,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
     reports: [
       {
         type: 'hallOccupancy',
+        permission: PERMISSIONS.REPORTS_HALL_OCCUPANCY_VIEW,
         title: 'Hall Occupancy',
         description:
           'Booking count, total guests, and revenue for each hall over any date range. Find your busiest and quietest halls.',
@@ -110,6 +119,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'itemSales',
+        permission: PERMISSIONS.REPORTS_ITEM_SALES_VIEW,
         title: 'Item Sales',
         description:
           'See which menu sections — Soup, Farsan, Main Course, etc. — were selected the most in a given date range.',
@@ -117,6 +127,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'eventPlanner',
+        permission: PERMISSIONS.REPORTS_EVENT_PLANNER_VIEW,
         title: 'Event Planner',
         description:
           'Which confirmed bookings are assigned to which planner, with assignment date, function details, and guest count.',
@@ -131,6 +142,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
     reports: [
       {
         type: 'repeatCustomers',
+        permission: PERMISSIONS.REPORTS_REPEAT_CUSTOMERS_VIEW,
         title: 'Repeat Customers',
         description:
           'Customers who have booked two or more times. Shows total bookings, lifetime revenue, and first vs last booking date.',
@@ -138,6 +150,7 @@ const REPORT_CATEGORIES: ReportCategory[] = [
       },
       {
         type: 'feedback',
+        permission: PERMISSIONS.REPORTS_FEEDBACK_VIEW,
         title: 'Booking Feedback',
         description: 'Review event ratings, customer comments, response rate, and question-wise performance.',
         badge: 'Ratings · Responses',
@@ -175,20 +188,28 @@ const colorMap: Record<ReportCategory['color'], { eyebrow: string; badge: string
 
 export default function ReportsPage() {
   const { user } = useAuth();
-  const canViewFeedback = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.REPORTS_FEEDBACK_VIEW);
+  const canViewReports = user?.role === 'super_admin' || user?.role === 'company_admin' ||
+    hasPermission(user, PERMISSIONS.REPORTS_VIEW) ||
+    REPORT_CATEGORIES.some((category) => category.reports.some((report) => hasPermission(user, report.permission)));
 
-  if (user?.role !== 'company_admin' && !canViewFeedback) {
+  if (!canViewReports) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-sm font-medium text-slate-600">
-          Reports are available for company admin only.
+          You do not have permission to view reports.
         </p>
       </div>
     );
   }
 
   const visibleCategories = REPORT_CATEGORIES
-    .map((category) => ({ ...category, reports: category.reports.filter((report) => user?.role === 'company_admin' || report.type === 'feedback') }))
+    .map((category) => ({
+      ...category,
+      reports: category.reports.filter((report) =>
+        user?.role === 'super_admin' || user?.role === 'company_admin' ||
+        hasPermission(user, PERMISSIONS.REPORTS_VIEW) || hasPermission(user, report.permission),
+      ),
+    }))
     .filter((category) => category.reports.length > 0);
   const totalReports = visibleCategories.reduce((sum, cat) => sum + cat.reports.length, 0);
 
