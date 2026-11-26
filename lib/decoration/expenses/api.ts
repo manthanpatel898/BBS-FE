@@ -1,0 +1,10 @@
+import { authorizedRequest } from '@/lib/auth/api';
+import { EventAccount, EventOption, ExpenseFilters, ExpenseInput, ExpenseReport, ExpenseType, PaidExpense, reportQuery } from './domain';
+const base = '/decoration/expenses';
+export const fetchExpenseTypes = (token: string) => authorizedRequest<ExpenseType[]>(`${base}/types`, token);
+export const saveExpenseType = (token: string, input: Omit<ExpenseType, 'id'>, id?: string) => authorizedRequest<ExpenseType>(`${base}/types${id ? `/${encodeURIComponent(id)}` : ''}`, token, { method: id ? 'PATCH' : 'POST', body: JSON.stringify(input) });
+export const fetchExpenseEvents = (token: string, search = '', page = 1) => authorizedRequest<{ items: EventOption[]; total: number; totalPages: number; page: number }>(`${base}/events?${new URLSearchParams({ search, page: String(page) })}`, token);
+export const fetchEventExpenses = (token: string, id: string) => authorizedRequest<PaidExpense[]>(`${base}/bookings/${encodeURIComponent(id)}`, token);
+export const saveEventExpense = (token: string, bookingId: string, input: ExpenseInput, previous?: PaidExpense, recalculate = false) => authorizedRequest<PaidExpense>(previous ? `${base}/${encodeURIComponent(previous.id)}` : `${base}/bookings/${encodeURIComponent(bookingId)}`, token, { method: previous ? 'PATCH' : 'POST', body: JSON.stringify({ ...input, ...(previous ? { revision: previous.revision, recalculate } : {}) }) });
+export const fetchExpenseReport = (token: string, filters: ExpenseFilters, exporting = false) => authorizedRequest<ExpenseReport>(`${base}/report?${reportQuery(filters, exporting)}`, token);
+export const fetchEventAccount = (token: string, id: string, exporting = false) => authorizedRequest<EventAccount>(`${base}/accounts/${encodeURIComponent(id)}${exporting ? '?export=true' : ''}`, token);

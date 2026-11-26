@@ -1,0 +1,11 @@
+import { PaidExpense, money } from '@/lib/decoration/expenses/domain';
+export const expenseInputClass = 'mt-1 block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 disabled:bg-slate-100';
+export function ExpenseTable({ rows, onEdit, showEvent = false }: { rows: PaidExpense[]; onEdit?: (entry: PaidExpense) => void; showEvent?: boolean }) {
+  if (!rows.length) return <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">No paid expenses recorded for this selection.</p>;
+  return <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[760px] text-left text-sm text-slate-800"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Paid date</th>{showEvent && <th className="p-3">Event</th>}<th className="p-3">Expense type</th><th className="p-3">Calculation</th><th className="p-3">Paid amount</th><th className="p-3">Mode</th><th className="p-3">Remark / recorded by</th>{onEdit && <th className="p-3">Action</th>}</tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t border-slate-100"><td className="whitespace-nowrap p-3">{row.paidDate}</td>{showEvent && <td className="p-3">{row.event?.bookingNumber ?? 'Event unavailable'}<div className="text-xs text-slate-500">{row.event?.functionName}</div></td>}<td className="p-3 font-semibold">{row.typeName}</td><td className="p-3">{row.kind === 'PERCENTAGE' ? `${row.value}% × ${money(row.baseAmount)}` : 'Amount (₹)'}</td><td className="whitespace-nowrap p-3 font-bold">{money(row.amount)}</td><td className="p-3">{row.mode.replaceAll('_', ' ')}</td><td className="max-w-64 break-words p-3">{row.remark || '—'}<div className="mt-1 text-xs text-slate-500">Recorded by {row.recordedBy}{row.revision > 0 ? ` · Edited by ${row.updatedBy}` : ''}</div></td>{onEdit && <td className="p-3"><button onClick={() => onEdit(row)} className="min-h-11 font-semibold text-amber-800">Edit</button></td>}</tr>)}</tbody></table></div>;
+}
+export function saveExpenseBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob), anchor = document.createElement('a');
+  anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

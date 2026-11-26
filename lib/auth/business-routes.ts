@@ -61,6 +61,8 @@ const DECORATION_ROUTE_PERMISSIONS: Array<[string, string]> = [
   ['/decoration/dashboard', 'decoration.view'],
   ['/decoration/events', 'decoration.bookings.view'],
   ['/decoration/followups', 'decoration.followups.manage'],
+  ['/decoration/reports/expenses', 'decoration.expenses.view'],
+  ['/decoration/reports/accounts', 'decoration.accounts.view'],
   ['/decoration/reports', 'decoration.reports.view'],
   ['/decoration/import', 'decoration.import.manage'],
   ['/decoration/catalog', 'decoration.catalog.view'],
@@ -79,7 +81,7 @@ export function getDecorationRoutePermission(pathname: string): string | null {
 
 export function getDecorationHomeRoute(permissions: string[] = []): string {
   const preferredRoutes = DECORATION_ROUTE_PERMISSIONS.filter(([route]) =>
-    ['/decoration/dashboard', '/decoration/events', '/decoration/followups'].includes(route),
+    ['/decoration/dashboard', '/decoration/events', '/decoration/followups', '/decoration/reports/expenses', '/decoration/reports/accounts'].includes(route),
   );
   return (
     preferredRoutes.find(([, permission]) => permissions.includes(permission))?.[0] ??

@@ -1,5 +1,6 @@
 'use client';
 
+import { EventExpenses } from './expenses/event-expenses';
 import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -85,6 +86,7 @@ function Detail({ booking, warning, onClose, onAction }: { booking: DecorationBo
             action={canManageDecoration ? <button type="button" onClick={() => onAction(booking.decorationSnapshot?.length ? 'edit-decoration' : 'choose-decoration')} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-amber-400">{booking.decorationSnapshot?.length ? 'Edit selection' : 'Choose decoration'}</button> : null}
           ><DecorationSnapshotGallery lines={booking.decorationSnapshot ?? []} detail /></Card>
           <Card title="Advance Payments" compact><DecorationAdvanceLedger booking={booking} /></Card>
+          <EventExpenses key={booking.id} booking={booking} />
           {booking.decorationGeneralNotes?.trim() ? <Card title="General Notes" compact><p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{booking.decorationGeneralNotes.trim()}</p></Card> : null}
         </div>
         <aside className="min-w-0 space-y-3 lg:space-y-4">

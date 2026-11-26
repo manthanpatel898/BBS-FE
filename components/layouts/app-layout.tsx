@@ -261,7 +261,7 @@ function buildNavItems(
     const canViewFollowups =
       role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_FOLLOWUPS_MANAGE);
     const canViewReports =
-      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_REPORTS_VIEW);
+      role === 'company_admin' || [PERMISSIONS.DECORATION_REPORTS_VIEW, PERMISSIONS.DECORATION_EXPENSES_VIEW, PERMISSIONS.DECORATION_ACCOUNTS_VIEW].some((permission) => hasPermission(user, permission));
 
     return [
       ...(role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_VIEW)

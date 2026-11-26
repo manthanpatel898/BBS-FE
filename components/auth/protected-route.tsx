@@ -16,6 +16,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const normalizedPathname =
     pathname && pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
+  const canViewFinancialReportsIndex = normalizedPathname === '/decoration/reports' &&
+    ['decoration.expenses.view', 'decoration.accounts.view'].some((permission) => hasPermission(user, permission));
   const isResetPasswordRoute = normalizedPathname === '/reset-password';
 
   useEffect(() => {
@@ -53,11 +55,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (
       user.role === 'employee' &&
       requiredPermission &&
-      !hasPermission(user, requiredPermission)
+      !hasPermission(user, requiredPermission) && !canViewFinancialReportsIndex
     ) {
       router.replace(getHomeRouteForUser(user));
     }
-  }, [isReady, isResetPasswordRoute, normalizedPathname, router, user]);
+  }, [canViewFinancialReportsIndex, isReady, isResetPasswordRoute, normalizedPathname, router, user]);
 
   if (!isReady) {
     return <div className="text-sm text-stone-400">Loading session...</div>;
@@ -89,7 +91,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (
     user.role === 'employee' &&
     requiredPermission &&
-    !hasPermission(user, requiredPermission)
+    !hasPermission(user, requiredPermission) && !canViewFinancialReportsIndex
   ) {
     return null;
   }

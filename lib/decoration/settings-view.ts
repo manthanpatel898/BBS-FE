@@ -1,7 +1,7 @@
-export type DecorationSettingsTab = 'profile' | 'events' | 'venues' | 'decoration' | 'hotDates';
+export type DecorationSettingsTab = 'profile' | 'events' | 'venues' | 'decoration' | 'hotDates' | 'expenses';
 
 export function normalizeDecorationSettingsTab(value: string | null | undefined): DecorationSettingsTab {
-  return value === 'events' || value === 'venues' || value === 'decoration' || value === 'hotDates' ? value : 'profile';
+  return value === 'events' || value === 'venues' || value === 'decoration' || value === 'hotDates' || value === 'expenses' ? value : 'profile';
 }
 
 export function parseCompanyContactNumbers(value: string): string[] {
