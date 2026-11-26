@@ -1,3 +1,4 @@
+import '@/components/decoration/expenses/finance.css';
 import { AppLayout } from '@/components/layouts/app-layout';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 

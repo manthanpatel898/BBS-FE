@@ -52,7 +52,7 @@ test('editing a percentage entry keeps the recorded basis until explicit recalcu
     return ok(String(url).endsWith('/types') ? [type] : [entry]);
   };
   mount(<EventExpenses booking={booking} />, ['decoration.expenses.manage']);
-  fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Restaurant commission' }));
   assert.ok(screen.getByText(/Paid expense: ₹5,000.00/));
   fireEvent.click(screen.getByRole('checkbox', { name: /Use current finalized event price/ }));
   assert.ok(screen.getByText(/Paid expense: ₹6,000.00/));
@@ -68,7 +68,7 @@ test('view-only employee sees recorded expenses without editing actions', async 
   mount(<EventExpenses booking={booking} />, ['decoration.expenses.view']);
   assert.ok(await screen.findByText('Restaurant commission'));
   assert.equal(screen.queryByRole('button', { name: 'Add Expense' }), null);
-  assert.equal(screen.queryByRole('button', { name: 'Edit' }), null);
+  assert.equal(screen.queryByRole('button', { name: /^Edit/ }), null);
 });
 
 test('account statement shows customer dues separately from expenses and hides export without permission', async () => {
@@ -77,9 +77,10 @@ test('account statement shows customer dues separately from expenses and hides e
     totals: { finalizedPrice: 50000, received: 30000, outstanding: 20000, totalExpenses: 7000, margin: 43000, receivedLessExpenses: 23000 }, payments: [], expenses: [entry],
   });
   mount(<DecorationEventAccount />, ['decoration.accounts.view'], `event=${booking.id}`);
-  assert.ok(await screen.findByText('₹20,000.00'));
+  assert.ok((await screen.findAllByText('₹20,000.00')).length >= 1);
   assert.ok(screen.getByText('₹43,000.00'));
-  assert.ok(screen.getByText('Customer balance pending'));
+  assert.ok(screen.getByRole('option', { name: /Wedding · Customer/ }));
+  assert.ok(screen.getAllByText('Customer balance pending').length >= 1);
   assert.equal(screen.queryByRole('button', { name: 'Export Excel' }), null);
 });
 

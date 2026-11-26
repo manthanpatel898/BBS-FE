@@ -36,7 +36,7 @@ export function ExpenseTypesSettings() {
     finally { setSaving(false); }
   }
   if (!allowed) return <p>You do not have permission to manage expense types.</p>;
-  return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900">
+  return <section className="event-finance finance-types space-y-5 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900">
     <div><h2 className="text-xl font-bold">Expense Types</h2><p className="mt-1 text-sm text-slate-600">Set up paid expense categories for your events. Percentage entries use the finalized event price. Start with restaurant commission (%), printing, transport, external labour and other expenses (₹).</p></div>
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
     <form onSubmit={save} className="flex flex-wrap items-end gap-3">
@@ -45,7 +45,7 @@ export function ExpenseTypesSettings() {
       <button disabled={saving || loading || !name.trim()} className="min-h-11 rounded-xl bg-amber-500 px-4 font-bold text-slate-950 disabled:opacity-50">{saving ? 'Saving…' : editing ? 'Save type' : 'Add type'}</button>
       {editing && <button type="button" disabled={saving} onClick={reset} className="min-h-11 px-3 text-sm">Cancel edit</button>}
     </form>
-    {loading ? <p role="status">Loading expense types…</p> : !types.length ? <p className="text-sm text-slate-500">No expense types yet. Add your first type above.</p> : <ul className="divide-y divide-slate-100">{types.map((type) => <li key={type.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{type.name}</p><p className="text-sm text-slate-500">{type.kind === 'PERCENTAGE' ? 'Percentage (%)' : 'Amount (₹)'} · {type.isActive ? 'Active' : 'Inactive'}</p></div><div className="flex gap-3"><button disabled={saving} onClick={() => { setEditing(type); setName(type.name); setKind(type.kind); }} className="min-h-11 text-sm font-semibold">Edit</button><button disabled={saving} onClick={() => void toggle(type)} className="min-h-11 text-sm font-semibold text-amber-800">{type.isActive ? 'Deactivate' : 'Activate'}</button></div></li>)}</ul>}
+    {loading ? <p role="status">Loading expense types…</p> : !types.length ? <p className="text-sm text-slate-500">No expense types yet. Add your first type above.</p> : <ul className="divide-y divide-slate-100">{types.map((type) => <li key={type.id} className="finance-type-row"><div><p className="font-semibold">{type.name}</p><p className="text-sm text-slate-500">{type.kind === 'PERCENTAGE' ? 'Percentage (%)' : 'Amount (₹)'} · {type.isActive ? 'Active' : 'Inactive'}</p></div><div className="flex gap-3"><button disabled={saving} onClick={() => { setEditing(type); setName(type.name); setKind(type.kind); }} className="min-h-11 text-sm font-semibold">Edit</button><button disabled={saving} onClick={() => void toggle(type)} className="min-h-11 text-sm font-semibold text-amber-800">{type.isActive ? 'Deactivate' : 'Activate'}</button></div></li>)}</ul>}
     <p className="text-xs text-slate-500">Changing a name or deactivating a type preserves recorded expenses. To change the calculation method, create a new type.</p>
   </section>;
 }

@@ -41,7 +41,7 @@ export function EventExpenses({ booking }: { booking: DecorationBooking }) {
     finally { setSaving(false); }
   }
   if (!canView) return canAccount ? <Link href={`/decoration/reports/accounts/?event=${booking.id}`} className="text-sm font-semibold text-amber-800">View Event Account Statement →</Link> : null;
-  return <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 text-slate-900">
+  return <section className="event-finance space-y-4 rounded-xl border border-slate-200 bg-white p-4 text-slate-900">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Paid Expenses</h2><p className="mt-1 text-sm text-slate-600">Total {money(rows.reduce((sum, row) => sum + row.amount, 0))} · Separate from customer advances</p></div>{canManage && <button type="button" disabled={loading || saving} onClick={() => edit()} className="min-h-11 rounded-xl bg-amber-500 px-4 text-sm font-bold disabled:opacity-50">Add Expense</button>}</div>
     {error && <p role="alert" className="text-sm text-red-700">{error} <button type="button" disabled={saving} onClick={() => void load()} className="underline">Refresh expenses</button></p>}
     {open && <form onSubmit={submit} aria-label={editing ? 'Edit paid expense' : 'Add paid expense'} className="space-y-3 rounded-xl bg-slate-50 p-4">

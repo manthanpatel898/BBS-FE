@@ -1,11 +1,90 @@
-import { PaidExpense, money } from '@/lib/decoration/expenses/domain';
-export const expenseInputClass = 'mt-1 block min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 disabled:bg-slate-100';
-export function ExpenseTable({ rows, onEdit, showEvent = false }: { rows: PaidExpense[]; onEdit?: (entry: PaidExpense) => void; showEvent?: boolean }) {
-  if (!rows.length) return <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">No paid expenses recorded for this selection.</p>;
-  return <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full min-w-[760px] text-left text-sm text-slate-800"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Paid date</th>{showEvent && <th className="p-3">Event</th>}<th className="p-3">Expense type</th><th className="p-3">Calculation</th><th className="p-3">Paid amount</th><th className="p-3">Mode</th><th className="p-3">Remark / recorded by</th>{onEdit && <th className="p-3">Action</th>}</tr></thead><tbody>{rows.map((row) => <tr key={row.id} className="border-t border-slate-100"><td className="whitespace-nowrap p-3">{row.paidDate}</td>{showEvent && <td className="p-3">{row.event?.bookingNumber ?? 'Event unavailable'}<div className="text-xs text-slate-500">{row.event?.functionName}</div></td>}<td className="p-3 font-semibold">{row.typeName}</td><td className="p-3">{row.kind === 'PERCENTAGE' ? `${row.value}% × ${money(row.baseAmount)}` : 'Amount (₹)'}</td><td className="whitespace-nowrap p-3 font-bold">{money(row.amount)}</td><td className="p-3">{row.mode.replaceAll('_', ' ')}</td><td className="max-w-64 break-words p-3">{row.remark || '—'}<div className="mt-1 text-xs text-slate-500">Recorded by {row.recordedBy}{row.revision > 0 ? ` · Edited by ${row.updatedBy}` : ''}</div></td>{onEdit && <td className="p-3"><button onClick={() => onEdit(row)} className="min-h-11 font-semibold text-amber-800">Edit</button></td>}</tr>)}</tbody></table></div>;
+import { PaidExpense, money } from "@/lib/decoration/expenses/domain";
+
+export const expenseInputClass = "finance-field";
+export function financialDate(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00Z`);
+  return Number.isNaN(date.valueOf())
+    ? value
+    : new Intl.DateTimeFormat("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(date);
+}
+export function paymentMode(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .replace("Upi", "UPI");
+}
+export function ExpenseTable({
+  rows,
+  onEdit,
+  showEvent = false,
+}: {
+  rows: PaidExpense[];
+  onEdit?: (entry: PaidExpense) => void;
+  showEvent?: boolean;
+}) {
+  if (!rows.length)
+    return (
+      <p className="finance-empty">
+        No paid expenses recorded for this selection.
+      </p>
+    );
+  return (
+    <ul aria-label="Paid expenses" className="finance-ledger-list">
+      {rows.map((row) => (
+        <li key={row.id} className="finance-ledger-row">
+          <div className="finance-row-title">{row.typeName}</div>
+          <div className="finance-row-amount finance-negative">
+            {money(row.amount)}
+          </div>
+          <div className="finance-row-details">
+            {showEvent && (
+              <div>
+                {row.event?.bookingNumber ?? "Event unavailable"}
+                {row.event?.functionName ? ` · ${row.event.functionName}` : ""}
+              </div>
+            )}
+            {row.kind === "PERCENTAGE" && (
+              <div>
+                {row.value}% × {money(row.baseAmount)}
+              </div>
+            )}
+            <div>
+              {financialDate(row.paidDate)} · Recorded by {row.recordedBy}
+            </div>
+            {row.remark && <p className="finance-row-remark">{row.remark}</p>}
+            {row.revision > 0 && <div>Edited by {row.updatedBy}</div>}
+          </div>
+          <div className="finance-row-actions">
+            <span className="finance-mode">{paymentMode(row.mode)}</span>
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(row)}
+                className="finance-edit"
+                aria-label={`Edit ${row.typeName}`}
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 export function saveExpenseBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob), anchor = document.createElement('a');
-  anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove();
+  const url = URL.createObjectURL(blob),
+    anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
