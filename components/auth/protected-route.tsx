@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth/business-routes';
 import { hasPermission } from '@/lib/auth/permissions';
 import { canAccessEventExpenses, isEventExpenseRoute } from '@/lib/auth/event-expenses-addon';
+import { payrollAvailable } from '@/lib/payroll/domain';
 import { useAuth } from './auth-provider';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -44,7 +45,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (
       user.role !== 'super_admin' &&
       normalizedPathname &&
-      (!isRouteAllowedForBusiness(normalizedPathname, user.businessType) || (isEventExpenseRoute(normalizedPathname) && !canAccessEventExpenses(user)))
+      (!isRouteAllowedForBusiness(normalizedPathname, user.businessType) || (isEventExpenseRoute(normalizedPathname) && !canAccessEventExpenses(user)) || (normalizedPathname.startsWith('/decoration/payroll') && !payrollAvailable(user)))
     ) {
       router.replace(getHomeRouteForUser(user));
       return;
@@ -56,7 +57,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (
       user.role === 'employee' &&
       requiredPermission &&
-      !hasPermission(user, requiredPermission) && !canViewFinancialReportsIndex
+      !hasPermission(user, requiredPermission) && !(requiredPermission === 'payroll.view' && hasPermission(user, 'payroll.manage')) && !canViewFinancialReportsIndex
     ) {
       router.replace(getHomeRouteForUser(user));
     }
@@ -81,7 +82,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (
     user.role !== 'super_admin' &&
     normalizedPathname &&
-    (!isRouteAllowedForBusiness(normalizedPathname, user.businessType) || (isEventExpenseRoute(normalizedPathname) && !canAccessEventExpenses(user)))
+    (!isRouteAllowedForBusiness(normalizedPathname, user.businessType) || (isEventExpenseRoute(normalizedPathname) && !canAccessEventExpenses(user)) || (normalizedPathname.startsWith('/decoration/payroll') && !payrollAvailable(user)))
   ) {
     return null;
   }
@@ -92,7 +93,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (
     user.role === 'employee' &&
     requiredPermission &&
-    !hasPermission(user, requiredPermission) && !canViewFinancialReportsIndex
+    !hasPermission(user, requiredPermission) && !(requiredPermission === 'payroll.view' && hasPermission(user, 'payroll.manage')) && !canViewFinancialReportsIndex
   ) {
     return null;
   }

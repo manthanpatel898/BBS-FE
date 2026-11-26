@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useAuth } from '@/components/auth/auth-provider';
 import { TcModal } from '@/components/auth/tc-modal';
 import { CommonModal } from '@/components/ui/common-modal';
+import { payrollAvailable } from '@/lib/payroll/domain';
 import { canAccessEventExpenses } from '@/lib/auth/event-expenses-addon';
 import { fetchActiveTerms, fetchIncomingPartnerInquiryCount, fetchMyRestaurant, fetchProfile } from '@/lib/auth/api';
 import { ActiveTermsAndConditions, AuthUser, Restaurant } from '@/lib/auth/types';
@@ -280,6 +281,7 @@ function buildNavItems(
       ...(canViewReports
         ? [{ type: 'link' as const, href: '/decoration/reports', label: 'Reports', icon: <IconReport /> }]
         : []),
+      ...(payrollAvailable(user) && (role === 'company_admin' || hasPermission(user, PERMISSIONS.PAYROLL_VIEW) || hasPermission(user, PERMISSIONS.PAYROLL_MANAGE)) ? [{ type: 'link' as const, href: '/decoration/payroll', label: 'Staff Payroll', icon: <IconUsers /> }] : []),
       { type: 'link' as const, href: '/decoration/settings', label: 'Settings', icon: <IconSettings /> },
       ...(role === 'company_admin'
         ? [
@@ -546,16 +548,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           setSidebarRestaurant(restaurant);
           const current = liveSession.current;
           const enabled = restaurant.businessType === 'EVENT_DECORATION' && restaurant.enableEventExpenses === true;
-          if (current.accessToken === accessToken && current.user && current.user.restaurantId === user.restaurantId && current.user.canAccessEventExpenses !== enabled) {
-            current.setSession({ accessToken, user: { ...current.user, canAccessEventExpenses: enabled } });
+          const payrollEnabled = restaurant.businessType === 'EVENT_DECORATION' && restaurant.enableStaffPayroll === true;
+          if (current.accessToken === accessToken && current.user && current.user.restaurantId === user.restaurantId && (current.user.canAccessEventExpenses !== enabled || current.user.canAccessStaffPayroll !== payrollEnabled)) {
+            current.setSession({ accessToken, user: { ...current.user, canAccessEventExpenses: enabled, canAccessStaffPayroll: payrollEnabled } });
           }
         })
         .catch(() => {
           if (!isMounted || requestId !== latestCompanyRequest) return;
           setSidebarRestaurant(null);
           const current = liveSession.current;
-          if (current.accessToken === accessToken && current.user?.restaurantId === user.restaurantId && current.user.canAccessEventExpenses === true) {
-            current.setSession({ accessToken, user: { ...current.user, canAccessEventExpenses: false } });
+          if (current.accessToken === accessToken && current.user?.restaurantId === user.restaurantId && (current.user.canAccessEventExpenses === true || current.user.canAccessStaffPayroll === true)) {
+            current.setSession({ accessToken, user: { ...current.user, canAccessEventExpenses: false, canAccessStaffPayroll: false } });
           }
         });
     };

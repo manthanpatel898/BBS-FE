@@ -1,3 +1,4 @@
+import { payrollAvailable } from '@/lib/payroll/domain';
 import { canAccessEventExpenses } from './event-expenses-addon';
 import { AuthUser } from './types';
 import {
@@ -16,7 +17,7 @@ export function getHomeRouteForUser(user: AuthUser | null) {
     user.businessType === 'EVENT_DECORATION' &&
     user.role === 'employee'
   ) {
-    return getDecorationHomeRoute((user.effectivePermissions ?? []).filter((permission) => canAccessEventExpenses(user) || !['decoration.expenses.', 'decoration.expense_types.', 'decoration.accounts.'].some((prefix) => permission.startsWith(prefix))));
+    return getDecorationHomeRoute([...(user.effectivePermissions ?? []), ...((user.effectivePermissions ?? []).includes('payroll.manage') ? ['payroll.view'] : [])].filter((permission) => (payrollAvailable(user) || !permission.startsWith('payroll.')) && ( canAccessEventExpenses(user) || !['decoration.expenses.', 'decoration.expense_types.', 'decoration.accounts.'].some((prefix) => permission.startsWith(prefix)))));
   }
   return getBusinessHomeRoute(user.businessType);
 }

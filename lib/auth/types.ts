@@ -16,6 +16,7 @@ export interface AuthUser {
   canAccessVoucherFlow?: boolean;
   canAccessOdc?: boolean;
   canAccessEventExpenses?: boolean;
+  canAccessStaffPayroll?: boolean;
   restaurantLogoUrl?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
   acceptedTerms?: {
@@ -83,6 +84,7 @@ export interface Restaurant {
   enableOdc?: boolean;
   enableFlexibleMenuBuilder?: boolean;
   enableEventExpenses?: boolean;
+  enableStaffPayroll?: boolean;
   billingEnabled?: boolean;
   gstNumber?: string | null;
   invoicePrefix?: string | null;
