@@ -15,6 +15,7 @@ export interface AuthUser {
   canUseAdvancedCancelManagement?: boolean;
   canAccessVoucherFlow?: boolean;
   canAccessOdc?: boolean;
+  canAccessEventExpenses?: boolean;
   restaurantLogoUrl?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
   acceptedTerms?: {
@@ -81,6 +82,7 @@ export interface Restaurant {
   whatsappContactNumber?: string | null;
   enableOdc?: boolean;
   enableFlexibleMenuBuilder?: boolean;
+  enableEventExpenses?: boolean;
   billingEnabled?: boolean;
   gstNumber?: string | null;
   invoicePrefix?: string | null;

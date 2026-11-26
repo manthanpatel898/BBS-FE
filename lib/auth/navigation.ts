@@ -1,3 +1,4 @@
+import { canAccessEventExpenses } from './event-expenses-addon';
 import { AuthUser } from './types';
 import {
   EVENT_DECORATION_MODULE_ENABLED,
@@ -15,7 +16,7 @@ export function getHomeRouteForUser(user: AuthUser | null) {
     user.businessType === 'EVENT_DECORATION' &&
     user.role === 'employee'
   ) {
-    return getDecorationHomeRoute(user.effectivePermissions);
+    return getDecorationHomeRoute((user.effectivePermissions ?? []).filter((permission) => canAccessEventExpenses(user) || !['decoration.expenses.', 'decoration.expense_types.', 'decoration.accounts.'].some((prefix) => permission.startsWith(prefix))));
   }
   return getBusinessHomeRoute(user.businessType);
 }

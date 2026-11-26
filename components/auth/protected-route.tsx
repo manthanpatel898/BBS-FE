@@ -8,6 +8,7 @@ import {
   isRouteAllowedForBusiness,
 } from '@/lib/auth/business-routes';
 import { hasPermission } from '@/lib/auth/permissions';
+import { canAccessEventExpenses, isEventExpenseRoute } from '@/lib/auth/event-expenses-addon';
 import { useAuth } from './auth-provider';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -16,7 +17,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const normalizedPathname =
     pathname && pathname !== '/' ? pathname.replace(/\/+$/, '') : pathname;
-  const canViewFinancialReportsIndex = normalizedPathname === '/decoration/reports' &&
+  const canViewFinancialReportsIndex = normalizedPathname === '/decoration/reports' && canAccessEventExpenses(user) &&
     ['decoration.expenses.view', 'decoration.accounts.view'].some((permission) => hasPermission(user, permission));
   const isResetPasswordRoute = normalizedPathname === '/reset-password';
 
@@ -43,7 +44,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (
       user.role !== 'super_admin' &&
       normalizedPathname &&
-      !isRouteAllowedForBusiness(normalizedPathname, user.businessType)
+      (!isRouteAllowedForBusiness(normalizedPathname, user.businessType) || (isEventExpenseRoute(normalizedPathname) && !canAccessEventExpenses(user)))
     ) {
       router.replace(getHomeRouteForUser(user));
       return;
@@ -80,7 +81,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (
     user.role !== 'super_admin' &&
     normalizedPathname &&
-    !isRouteAllowedForBusiness(normalizedPathname, user.businessType)
+    (!isRouteAllowedForBusiness(normalizedPathname, user.businessType) || (isEventExpenseRoute(normalizedPathname) && !canAccessEventExpenses(user)))
   ) {
     return null;
   }

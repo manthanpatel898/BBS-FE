@@ -11,6 +11,7 @@ import { EventExpenses } from './event-expenses';
 import { DecorationEventAccount } from './event-account';
 import { DecorationExpenseReport } from './expense-report';
 import { ExpenseTypesSettings } from './expense-types-settings';
+import DecorationReportsPage from '@/app/(app)/decoration/reports/page';
 import { PaidExpense } from '@/lib/decoration/expenses/domain';
 
 const originalFetch = globalThis.fetch;
@@ -19,8 +20,8 @@ const router = { replace() {}, push() {}, refresh() {}, back() {}, forward() {},
 const booking = { id: '111111111111111111111111', packageRate: 60000, isPackagePriceFinalized: true } as DecorationBooking;
 const type = { id: '222222222222222222222222', name: 'Restaurant commission', kind: 'PERCENTAGE', isActive: true };
 const entry: PaidExpense = { id: '333333333333333333333333', bookingId: booking.id, typeId: type.id, typeName: 'Restaurant commission', kind: 'PERCENTAGE', value: 10, baseAmount: 50000, amount: 5000, paidDate: '2026-01-01', mode: 'CASH', remark: 'Already paid', recordedBy: 'Test User', updatedBy: 'Test User', revision: 0 };
-function mount(component: React.ReactNode, permissions: string[], query = '') {
-  window.localStorage.setItem('banquate_auth_session', JSON.stringify({ savedAt: Date.now(), session: { accessToken: 'test-token', user: { id: 'test-user', firstName: 'Test', lastName: 'User', role: 'employee', businessType: 'EVENT_DECORATION', effectivePermissions: permissions } } }));
+function mount(component: React.ReactNode, permissions: string[], query = '', addon = true) {
+  window.localStorage.setItem('banquate_auth_session', JSON.stringify({ savedAt: Date.now(), session: { accessToken: 'test-token', user: { id: 'test-user', firstName: 'Test', lastName: 'User', role: 'employee', businessType: 'EVENT_DECORATION', canAccessEventExpenses: addon, effectivePermissions: permissions } } }));
   return render(<AppRouterContext.Provider value={router}><PathnameContext.Provider value="/decoration/events"><SearchParamsContext.Provider value={new URLSearchParams(query)}><AuthProvider>{component}</AuthProvider></SearchParamsContext.Provider></PathnameContext.Provider></AppRouterContext.Provider>);
 }
 const ok = (data: unknown) => Response.json({ success: true, message: 'OK', data });
@@ -120,4 +121,29 @@ test('expense report shows full-filter totals and sends paid-date filters when a
   assert.equal(new URL(requests[1]).searchParams.get('dateTo'), '2026-01-31');
   await screen.findByText('Total paid expenses · all matching records');
   assert.equal(screen.queryByRole('button', { name: 'Export Excel' }), null);
+});
+
+
+test('unchecked add-on hides the event expense section and makes no expense API calls', async () => {
+ let calls=0;
+ globalThis.fetch=async()=>{calls+=1;return ok([]);};
+ const view=mount(<EventExpenses booking={booking}/>, ['decoration.expenses.view','decoration.expenses.manage','decoration.accounts.view'], '', false);
+ assert.equal(view.container.textContent, '');
+ assert.equal(calls,0);
+});
+test('unchecked add-on hides both financial report cards while retaining ordinary reports', () => {
+ mount(<DecorationReportsPage/>, ['decoration.reports.view','decoration.expenses.view','decoration.accounts.view'], '', false);
+ assert.equal(screen.queryByRole('link',{name:/Expense Report/}),null);
+ assert.equal(screen.queryByRole('link',{name:/Event Account Statement/}),null);
+ assert.ok(screen.getByRole('link',{name:/Booking Report/}));
+});
+test('direct account, report and expense type surfaces cannot load data without the add-on', () => {
+ let calls=0;
+ globalThis.fetch=async()=>{calls+=1;return ok([]);};
+ for(const component of [<DecorationEventAccount key="account"/>,<DecorationExpenseReport key="report"/>,<ExpenseTypesSettings key="types"/>]) {
+  mount(component, ['decoration.accounts.view','decoration.expenses.view','decoration.expense_types.manage'], `event=${booking.id}`, false);
+  assert.ok(screen.getByText(/add-on is not enabled/));
+  cleanup();
+ }
+ assert.equal(calls,0);
 });

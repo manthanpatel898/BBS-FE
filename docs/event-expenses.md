@@ -29,3 +29,10 @@ The account statement uses the approved compact light design. Event search, sele
 Scoped finance fields explicitly override the app's dark gradients, white placeholder text, shadow and date-picker tint. Phone inputs use 16px text and controls retain 44px touch targets. Type names, booking identifiers, remarks and amounts wrap within their containers, including report aggregates and settings rows. APIs, permissions, calculations and export data are unchanged.
 
 Verified against the built static app using intercepted synthetic APIs: account screen at 320/390/820/1024/1440px, expense report at 320/390/820/1440px, long unbroken names/identifiers/remarks and large amounts at 320px, and settings type-name wrapping. Checked computed field contrast, no dark field shadow, metric column counts, page/descendant overflow and a downloaded Excel workbook. No production customer data was used.
+
+
+## Event Expenses & Accounts add-on
+
+The super-admin company create/edit form contains an Event Decoration-only **Event Expenses & Accounts add-on** checkbox. It defaults off and uses the company `enableEventExpenses` field; ordinary company admins cannot change it. Existing companies are off until a super admin enables them.
+
+The authenticated profile exposes `canAccessEventExpenses`. This entitlement is required in addition to employee permissions for event expense controls/account links, both financial reports, Expense Types settings, navigation and direct report URLs. The app refreshes the flag from the existing company profile read on entry and window focus; failures hide paid features. Disabling preserves data and re-enabling restores it. No pricing, checkout or automatic billing is introduced.

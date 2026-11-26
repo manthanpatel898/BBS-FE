@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useAuth } from '@/components/auth/auth-provider';
 import { TcModal } from '@/components/auth/tc-modal';
 import { CommonModal } from '@/components/ui/common-modal';
+import { canAccessEventExpenses } from '@/lib/auth/event-expenses-addon';
 import { fetchActiveTerms, fetchIncomingPartnerInquiryCount, fetchMyRestaurant, fetchProfile } from '@/lib/auth/api';
 import { ActiveTermsAndConditions, AuthUser, Restaurant } from '@/lib/auth/types';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
@@ -261,7 +262,7 @@ function buildNavItems(
     const canViewFollowups =
       role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_FOLLOWUPS_MANAGE);
     const canViewReports =
-      role === 'company_admin' || [PERMISSIONS.DECORATION_REPORTS_VIEW, PERMISSIONS.DECORATION_EXPENSES_VIEW, PERMISSIONS.DECORATION_ACCOUNTS_VIEW].some((permission) => hasPermission(user, permission));
+      role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_REPORTS_VIEW) || (canAccessEventExpenses(user) && [PERMISSIONS.DECORATION_EXPENSES_VIEW, PERMISSIONS.DECORATION_ACCOUNTS_VIEW].some((permission) => hasPermission(user, permission)));
 
     return [
       ...(role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_VIEW)
@@ -416,7 +417,9 @@ function getActiveGroupIds(pathname: string) {
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { accessToken, logout, user } = useAuth();
+  const { accessToken, logout, user, setSession } = useAuth();
+  const liveSession = useRef({ accessToken, user, setSession });
+  useEffect(() => { liveSession.current = { accessToken, user, setSession }; }, [accessToken, user, setSession]);
   const [pageHeader, setPageHeader] = useState<AppPageHeader>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(true);
@@ -534,20 +537,33 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
     let isMounted = true;
 
-    fetchMyRestaurant(accessToken)
-      .then((restaurant) => {
-        if (isMounted) {
+    let latestCompanyRequest = 0;
+    const refreshCompany = () => {
+      const requestId = ++latestCompanyRequest;
+      fetchMyRestaurant(accessToken)
+        .then((restaurant) => {
+          if (!isMounted || requestId !== latestCompanyRequest) return;
           setSidebarRestaurant(restaurant);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
+          const current = liveSession.current;
+          const enabled = restaurant.businessType === 'EVENT_DECORATION' && restaurant.enableEventExpenses === true;
+          if (current.accessToken === accessToken && current.user && current.user.restaurantId === user.restaurantId && current.user.canAccessEventExpenses !== enabled) {
+            current.setSession({ accessToken, user: { ...current.user, canAccessEventExpenses: enabled } });
+          }
+        })
+        .catch(() => {
+          if (!isMounted || requestId !== latestCompanyRequest) return;
           setSidebarRestaurant(null);
-        }
-      });
-
+          const current = liveSession.current;
+          if (current.accessToken === accessToken && current.user?.restaurantId === user.restaurantId && current.user.canAccessEventExpenses === true) {
+            current.setSession({ accessToken, user: { ...current.user, canAccessEventExpenses: false } });
+          }
+        });
+    };
+    refreshCompany();
+    window.addEventListener('focus', refreshCompany);
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', refreshCompany);
     };
   }, [accessToken, user?.restaurantId, user?.role]);
 

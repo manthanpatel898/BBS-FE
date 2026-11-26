@@ -1,5 +1,6 @@
 'use client';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { canAccessEventExpenses } from '@/lib/auth/event-expenses-addon';
 import { useAuth } from '@/components/auth/auth-provider';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { fetchExpenseTypes, saveExpenseType } from '@/lib/decoration/expenses/api';
@@ -8,7 +9,7 @@ import { expenseInputClass } from './shared';
 
 export function ExpenseTypesSettings() {
   const { accessToken, user } = useAuth();
-  const allowed = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_EXPENSE_TYPES_MANAGE);
+  const allowed = canAccessEventExpenses(user) && (user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_EXPENSE_TYPES_MANAGE));
   const [types, setTypes] = useState<ExpenseType[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<ExpenseType | null>(null), [name, setName] = useState(''), [kind, setKind] = useState<ExpenseKind>('RUPEES');
   const latestLoad = useRef(0);
@@ -35,6 +36,7 @@ export function ExpenseTypesSettings() {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to update expense type.'); }
     finally { setSaving(false); }
   }
+  if (!canAccessEventExpenses(user)) return <p>Event Expenses &amp; Accounts add-on is not enabled for your company.</p>;
   if (!allowed) return <p>You do not have permission to manage expense types.</p>;
   return <section className="event-finance finance-types space-y-5 rounded-2xl border border-slate-200 bg-white p-5 text-slate-900">
     <div><h2 className="text-xl font-bold">Expense Types</h2><p className="mt-1 text-sm text-slate-600">Set up paid expense categories for your events. Percentage entries use the finalized event price. Start with restaurant commission (%), printing, transport, external labour and other expenses (₹).</p></div>

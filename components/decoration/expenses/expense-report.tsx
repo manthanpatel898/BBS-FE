@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { canAccessEventExpenses } from '@/lib/auth/event-expenses-addon';
 import { useAuth } from '@/components/auth/auth-provider';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { fetchExpenseReport, fetchExpenseTypes } from '@/lib/decoration/expenses/api';
@@ -11,7 +12,7 @@ import { ExpenseTable, expenseInputClass, saveExpenseBlob } from './shared';
 const initialFilters = (): ExpenseFilters => ({ dateFrom: `${indiaToday().slice(0, 7)}-01`, dateTo: indiaToday(), bookingId: '', typeId: '', mode: '', page: 1 });
 export function DecorationExpenseReport() {
   const { accessToken, user } = useAuth();
-  const allowed = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_EXPENSES_VIEW);
+  const allowed = canAccessEventExpenses(user) && (user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_EXPENSES_VIEW));
   const canExport = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_REPORTS_EXPORT);
   const canAccount = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_ACCOUNTS_VIEW);
   const [draft, setDraft] = useState(initialFilters), [filters, setFilters] = useState(initialFilters), [report, setReport] = useState<ExpenseReport | null>(null), [types, setTypes] = useState<ExpenseType[]>([]), [loading, setLoading] = useState(true), [exporting, setExporting] = useState(false), [error, setError] = useState('');
@@ -38,6 +39,7 @@ export function DecorationExpenseReport() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to export expenses.'); }
     finally { setExporting(false); }
   }
+  if (!canAccessEventExpenses(user)) return <p>Event Expenses &amp; Accounts add-on is not enabled for your company.</p>;
   if (!allowed) return <p>You do not have permission to view expense reports.</p>;
   return <div className="event-finance finance-report space-y-5 text-slate-900"><Link href="/decoration/reports/" className="text-sm font-semibold text-amber-800">← All reports</Link><header><p className="text-xs font-semibold uppercase tracking-widest text-amber-700">Event Company · Internal Financial Report</p><h1 className="mt-2 break-words text-2xl font-bold tabular-nums">Expense Report</h1><p className="mt-2 text-sm text-slate-600">Paid expenses across your events. Date filters use the expense payment date, including spending before or after an event.</p></header>
     <form onSubmit={generate} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><label className="text-sm font-medium">Paid from<input type="date" value={draft.dateFrom} onChange={(event) => setDraft({ ...draft, dateFrom: event.target.value })} className={expenseInputClass} /></label><label className="text-sm font-medium">Paid through<input type="date" value={draft.dateTo} onChange={(event) => setDraft({ ...draft, dateTo: event.target.value })} className={expenseInputClass} /></label><label className="text-sm font-medium">Expense type<select value={draft.typeId} onChange={(event) => setDraft({ ...draft, typeId: event.target.value })} className={expenseInputClass}><option value="">All types</option>{types.map((type) => <option key={type.id} value={type.id}>{type.name}{type.isActive ? '' : ' (inactive)'}</option>)}</select></label><label className="text-sm font-medium">Payment mode<select value={draft.mode} onChange={(event) => setDraft({ ...draft, mode: event.target.value })} className={expenseInputClass}><option value="">All modes</option>{EXPENSE_MODES.map((mode) => <option key={mode} value={mode}>{mode.replaceAll('_', ' ')}</option>)}</select></label>{accessToken && <ExpenseEventPicker token={accessToken} value={draft.bookingId} onChange={(id) => setDraft({ ...draft, bookingId: id })} optional />}</div><div className="finance-report-actions"><button disabled={loading} className="min-h-11 rounded-xl bg-amber-500 px-4 text-sm font-bold disabled:opacity-50">Apply filters</button>{canExport && <button type="button" onClick={() => void download()} disabled={loading || exporting || !report?.count} className="min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold disabled:opacity-50">{exporting ? 'Exporting…' : 'Export Excel'}</button>}</div></form>

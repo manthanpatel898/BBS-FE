@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { canAccessEventExpenses } from '@/lib/auth/event-expenses-addon';
 import { useAuth } from '@/components/auth/auth-provider';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 import { DecorationBooking } from '@/lib/auth/types';
@@ -10,9 +11,9 @@ import { ExpenseTable, expenseInputClass } from './shared';
 
 export function EventExpenses({ booking }: { booking: DecorationBooking }) {
   const { accessToken, user } = useAuth();
-  const canView = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_EXPENSES_VIEW) || hasPermission(user, PERMISSIONS.DECORATION_EXPENSES_MANAGE);
+  const canView = canAccessEventExpenses(user) && (user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_EXPENSES_VIEW) || hasPermission(user, PERMISSIONS.DECORATION_EXPENSES_MANAGE));
   const canManage = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_EXPENSES_MANAGE);
-  const canAccount = user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_ACCOUNTS_VIEW);
+  const canAccount = canAccessEventExpenses(user) && (user?.role === 'company_admin' || hasPermission(user, PERMISSIONS.DECORATION_ACCOUNTS_VIEW));
   const [rows, setRows] = useState<PaidExpense[]>([]), [types, setTypes] = useState<ExpenseType[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [saving, setSaving] = useState(false);
   const [recalculate, setRecalculate] = useState(false);
   const [open, setOpen] = useState(false), [editing, setEditing] = useState<PaidExpense | undefined>(), [typeId, setTypeId] = useState(''), [value, setValue] = useState(''), [paidDate, setPaidDate] = useState(indiaToday), [mode, setMode] = useState('CASH'), [remark, setRemark] = useState('');
@@ -40,6 +41,7 @@ export function EventExpenses({ booking }: { booking: DecorationBooking }) {
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save expense.'); }
     finally { setSaving(false); }
   }
+  if (!canAccessEventExpenses(user)) return null;
   if (!canView) return canAccount ? <Link href={`/decoration/reports/accounts/?event=${booking.id}`} className="text-sm font-semibold text-amber-800">View Event Account Statement →</Link> : null;
   return <section className="event-finance space-y-4 rounded-xl border border-slate-200 bg-white p-4 text-slate-900">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Paid Expenses</h2><p className="mt-1 text-sm text-slate-600">Total {money(rows.reduce((sum, row) => sum + row.amount, 0))} · Separate from customer advances</p></div>{canManage && <button type="button" disabled={loading || saving} onClick={() => edit()} className="min-h-11 rounded-xl bg-amber-500 px-4 text-sm font-bold disabled:opacity-50">Add Expense</button>}</div>

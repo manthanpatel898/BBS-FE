@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { canAccessEventExpenses } from '@/lib/auth/event-expenses-addon';
 import { useAuth } from "@/components/auth/auth-provider";
 import { hasPermission, PERMISSIONS } from "@/lib/auth/permissions";
 import { fetchEventAccount } from "@/lib/decoration/expenses/api";
@@ -17,9 +18,9 @@ import {
 export function DecorationEventAccount() {
   const { accessToken, user } = useAuth(),
     params = useSearchParams();
-  const allowed =
+  const allowed = canAccessEventExpenses(user) && (
     user?.role === "company_admin" ||
-    hasPermission(user, PERMISSIONS.DECORATION_ACCOUNTS_VIEW);
+    hasPermission(user, PERMISSIONS.DECORATION_ACCOUNTS_VIEW));
   const canExport =
     user?.role === "company_admin" ||
     hasPermission(user, PERMISSIONS.DECORATION_REPORTS_EXPORT);
@@ -159,6 +160,7 @@ export function DecorationEventAccount() {
       setExporting(false);
     }
   }
+  if (!canAccessEventExpenses(user)) return <p>Event Expenses &amp; Accounts add-on is not enabled for your company.</p>;
   if (!allowed)
     return <p>You do not have permission to view event account statements.</p>;
   const totals = account?.totals;

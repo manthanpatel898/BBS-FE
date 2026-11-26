@@ -40,6 +40,7 @@ type RestaurantFormState = {
   enableWhatsappNotifications: boolean;
   enableOdc: boolean;
   enableFlexibleMenuBuilder: boolean;
+  enableEventExpenses: boolean;
   billingEnabled: boolean;
   gstNumber: string;
   invoicePrefix: string;
@@ -80,6 +81,7 @@ const initialFormState: RestaurantFormState = {
   enableWhatsappNotifications: false,
   enableOdc: false,
   enableFlexibleMenuBuilder: false,
+  enableEventExpenses: false,
   billingEnabled: false,
   gstNumber: '',
   invoicePrefix: '',
@@ -222,6 +224,7 @@ export default function RestaurantsPage() {
       enableWhatsappNotifications: restaurant.enableWhatsappNotifications ?? false,
       enableOdc: restaurant.enableOdc ?? false,
       enableFlexibleMenuBuilder: restaurant.enableFlexibleMenuBuilder ?? false,
+      enableEventExpenses: restaurant.enableEventExpenses ?? false,
       billingEnabled: restaurant.billingEnabled ?? false,
       gstNumber: restaurant.gstNumber ?? '',
       invoicePrefix: restaurant.invoicePrefix ?? '',
@@ -271,6 +274,7 @@ export default function RestaurantsPage() {
       } = formState;
       const payload = {
         ...baseFormState,
+        enableEventExpenses: formState.businessType === 'EVENT_DECORATION' && formState.enableEventExpenses,
         enableFlexibleMenuBuilder: normalizeFlexibleMenuBuilderFlag(
           formState.businessType,
           formState.enableFlexibleMenuBuilder,
@@ -721,6 +725,7 @@ export default function RestaurantsPage() {
                         setFormState((s) => ({
                           ...s,
                           businessType: e.target.value as BusinessType,
+                          enableEventExpenses: e.target.value === 'EVENT_DECORATION' ? s.enableEventExpenses : false,
                           enableFlexibleMenuBuilder:
                             e.target.value === 'BANQUET'
                               ? s.enableFlexibleMenuBuilder
@@ -872,6 +877,12 @@ export default function RestaurantsPage() {
                     rows={3}
                     className={`${inputCls} md:col-span-2 resize-none`}
                   />
+                  {formState.businessType === 'EVENT_DECORATION' && (
+                    <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 md:col-span-2">
+                      <input type="checkbox" checked={formState.enableEventExpenses} onChange={(event) => setFormState((state) => ({ ...state, enableEventExpenses: event.target.checked }))} className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-amber-500 focus:ring-amber-400" />
+                      <span><span className="block text-sm font-semibold text-slate-900">Event Expenses &amp; Accounts add-on</span><span className="mt-1 block text-xs leading-5 text-slate-600">Enable paid event expenses, Expense Types settings, Expense Report and Event Account Statement for this company. Employee permissions still apply.</span></span>
+                    </label>
+                  )}
                   {formState.businessType === 'BANQUET' ? (
                     <div className="grid gap-4 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 md:col-span-2 md:grid-cols-2">
                       <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-white px-4 py-3 md:col-span-2">
