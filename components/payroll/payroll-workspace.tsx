@@ -93,7 +93,11 @@ export function StaffPayrollWorkspace() {
         [
           "Staff",
           "Role",
-          "Monthly salary",
+          "Monthly salary rate",
+          "Salary start date",
+          "Payable days",
+          "Days in month",
+          "Salary for this month",
           "Overtime pay",
           "Salary payable",
           "Leave days (record only)",
@@ -104,6 +108,10 @@ export function StaffPayrollWorkspace() {
         all.items.map((row) => [
           row.staff.name,
           row.staff.role,
+          row.proration?.monthlySalary ?? row.staff.monthlySalary,
+          row.staff.startDate ?? `${row.staff.startMonth}-01`,
+          row.proration?.payableDays ?? "",
+          row.proration?.daysInMonth ?? "",
           row.baseSalary,
           row.overtimeTotal,
           row.totalPayable,
@@ -313,6 +321,12 @@ export function StaffPayrollWorkspace() {
                   <dd>{money(row.totalPayable)}</dd>
                 </div>
               </dl>
+              {row.proration?.isProrated && (
+                <p className="payroll-help">
+                  {money(row.proration.monthlySalary)} ×{" "}
+                  {row.proration.payableDays}/{row.proration.daysInMonth} days
+                </p>
+              )}
               <div className="payroll-staff-actions">
                 {manage && (
                   <>

@@ -35,7 +35,7 @@ export const createPayrollStaff = (token: string, input: StaffInput) =>
 export const updatePayrollStaff = (
   token: string,
   id: string,
-  input: Omit<StaffInput, "startMonth"> & {
+  input: StaffInput & {
     effectiveMonth: string;
     isActive: boolean;
     revision: number;

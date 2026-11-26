@@ -162,7 +162,7 @@ test("view-only employees do not get salary edit or payment actions", async () =
   assert.ok(screen.getByRole("button", { name: "Details" }));
 });
 
-test("editing metadata uses the selected month salary rather than a future scheduled raise", async () => {
+test("editing a prorated month keeps the full monthly salary rate", async () => {
   const { PayrollDialog } = await import("./payroll-dialog");
   let input: Record<string, unknown> | null = null;
   globalThis.fetch = async (_url, init) => {
@@ -175,8 +175,13 @@ test("editing metadata uses the selected month salary rather than a future sched
       row={
         {
           ...row,
-          status: "PAID",
-          staff: { ...row.staff, monthlySalary: 22000 },
+          status: "UNPAID",
+          baseSalary: 10967.74,
+          staff: {
+            ...row.staff,
+            monthlySalary: 20000,
+            startDate: "2026-11-15",
+          },
         } as never
       }
       month="2026-11"
@@ -187,11 +192,42 @@ test("editing metadata uses the selected month salary rather than a future sched
   );
   assert.equal(
     (screen.getByLabelText("Monthly salary (₹)") as HTMLInputElement).value,
-    "18000",
+    "20000",
   );
   fireEvent.change(screen.getByLabelText("Phone number"), {
     target: { value: "9000000000" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Save staff" }));
-  await waitFor(() => assert.equal(input?.monthlySalary, 18000));
+  await waitFor(() => assert.equal(input?.monthlySalary, 20000));
+  await waitFor(() => assert.equal(input?.startDate, "2026-11-15"));
+});
+
+test("new staff uses an exact salary start date and previews the joining month", async () => {
+  const { PayrollDialog } = await import("./payroll-dialog");
+  let input: Record<string, unknown> | null = null;
+  globalThis.fetch = async (_url, init) => {
+    if (init?.method === "POST") input = JSON.parse(String(init.body));
+    return ok(row.staff);
+  };
+  render(
+    <PayrollDialog
+      action="staff"
+      month="2020-12"
+      token="sample-token"
+      onClose={() => {}}
+      onSaved={() => {}}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText("Staff name"), {
+    target: { value: "Sample" },
+  });
+  fireEvent.change(screen.getByLabelText("Monthly salary (₹)"), {
+    target: { value: "20000" },
+  });
+  const date = screen.getByLabelText("Salary starts from") as HTMLInputElement;
+  assert.equal(date.type, "date");
+  fireEvent.change(date, { target: { value: "2020-12-15" } });
+  assert.ok(screen.getByText("First month · 17/31 days"));
+  fireEvent.click(screen.getByRole("button", { name: "Save staff" }));
+  await waitFor(() => assert.equal(input?.startDate, "2020-12-15"));
 });

@@ -20,6 +20,7 @@ import {
 import {
   PayrollRow,
   leaveEndDate,
+  joiningSalaryPreview,
   overtimePreview,
 } from "@/lib/payroll/domain";
 export type PayrollAction = "staff" | "edit" | "overtime" | "leave" | "pay";
@@ -41,17 +42,12 @@ export function PayrollDialog({
   const [name, setName] = useState(row?.staff.name ?? ""),
     [role, setRole] = useState(row?.staff.role ?? ""),
     [phone, setPhone] = useState(row?.staff.phone ?? ""),
-    [salary, setSalary] = useState(
-      String(
-        row
-          ? row.baseSalary > 0
-            ? row.baseSalary
-            : row.staff.monthlySalary
-          : "",
-      ),
-    ),
+    [salary, setSalary] = useState(String(row?.staff.monthlySalary ?? "")),
     [rate, setRate] = useState(String(row?.staff.overtimeHourlyRate ?? 0)),
     [effectiveMonth, setEffectiveMonth] = useState(month),
+    [startDate, setStartDate] = useState(
+      row?.staff.startDate ?? `${row?.staff.startMonth ?? month}-01`,
+    ),
     [active, setActive] = useState(row?.staff.isActive ?? true);
   const [date, setDate] = useState(() =>
       action === "pay" || month === indiaToday().slice(0, 7)
@@ -131,7 +127,7 @@ export function PayrollDialog({
           phone,
           monthlySalary: Number(salary),
           overtimeHourlyRate: Number(rate),
-          startMonth: effectiveMonth,
+          startDate,
         });
       if (action === "edit" && row)
         await updatePayrollStaff(token, row.staff.id, {
@@ -140,6 +136,7 @@ export function PayrollDialog({
           phone,
           monthlySalary: Number(salary),
           overtimeHourlyRate: Number(rate),
+          startDate,
           effectiveMonth,
           isActive: active,
           revision: row.staff.revision,
@@ -293,20 +290,51 @@ export function PayrollDialog({
                   </label>
                 </div>
                 <label>
-                  {action === "staff"
-                    ? "Salary starts from"
-                    : "Salary effective from"}
+                  Salary starts from
                   <input
                     required
-                    type="month"
-                    value={effectiveMonth}
-                    onChange={(e) => setEffectiveMonth(e.target.value)}
+                    type="date"
+                    value={startDate}
+                    readOnly={row?.status === "PAID"}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (e.target.value.slice(0, 7) > effectiveMonth)
+                        setEffectiveMonth(e.target.value.slice(0, 7));
+                    }}
                     className="finance-field"
                   />
                 </label>
+                {action === "edit" && (
+                  <label>
+                    Salary effective from
+                    <input
+                      required
+                      type="month"
+                      min={startDate.slice(0, 7)}
+                      value={effectiveMonth}
+                      onChange={(e) => setEffectiveMonth(e.target.value)}
+                      className="finance-field"
+                    />
+                  </label>
+                )}
+                {action === "staff" &&
+                  joiningSalaryPreview(salary, startDate) && (
+                    <div className="payroll-calculation" aria-live="polite">
+                      <span>
+                        First month ·{" "}
+                        {joiningSalaryPreview(salary, startDate)!.payableDays}/
+                        {joiningSalaryPreview(salary, startDate)!.daysInMonth}{" "}
+                        days
+                      </span>
+                      <strong>
+                        {money(joiningSalaryPreview(salary, startDate)!.amount)}
+                      </strong>
+                    </div>
+                  )}
                 <p className="payroll-help">
-                  Fixed monthly salary. Set the overtime rate to 0 if you enter
-                  overtime amounts manually. Paid salary records stay unchanged.
+                  The first month uses actual calendar days, including the start
+                  day. Later months receive the full monthly salary. Paid salary
+                  records stay unchanged.
                 </p>
                 {action === "edit" && (
                   <label className="payroll-check">
@@ -450,7 +478,7 @@ export function PayrollDialog({
               <>
                 <div className="payroll-pay-breakdown">
                   <div>
-                    <span>Monthly salary</span>
+                    <span>Salary for this month</span>
                     <strong>{money(row.baseSalary)}</strong>
                   </div>
                   <div>
@@ -462,6 +490,13 @@ export function PayrollDialog({
                     <strong>{money(row.totalPayable)}</strong>
                   </div>
                 </div>
+                {row.proration?.isProrated && (
+                  <p className="payroll-help">
+                    {money(row.proration.monthlySalary)} ×{" "}
+                    {row.proration.payableDays}/{row.proration.daysInMonth}{" "}
+                    days, including the start day.
+                  </p>
+                )}
                 <p className="payroll-help">
                   Confirm you have paid this amount. This records the payment;
                   it does not transfer money.

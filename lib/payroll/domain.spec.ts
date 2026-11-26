@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  joiningSalaryPreview,
   overtimePreview,
   leaveEndDate,
   payrollAvailable,
@@ -47,4 +48,23 @@ test("payroll-only employees get a permitted home only when the separate add-on 
     getHomeRouteForUser({ ...user, canAccessStaffPayroll: true }),
     "/decoration/payroll",
   );
+});
+
+test("joining salary preview uses actual calendar days and includes the start day", () => {
+  assert.deepEqual(joiningSalaryPreview("20000", "2020-12-15"), {
+    amount: 10967.74,
+    payableDays: 17,
+    daysInMonth: 31,
+  });
+  assert.deepEqual(joiningSalaryPreview("20000", "2020-12-01"), {
+    amount: 20000,
+    payableDays: 31,
+    daysInMonth: 31,
+  });
+  assert.deepEqual(joiningSalaryPreview("29000", "2024-02-29"), {
+    amount: 1000,
+    payableDays: 1,
+    daysInMonth: 29,
+  });
+  assert.equal(joiningSalaryPreview("20000", "2020-02-30"), null);
 });

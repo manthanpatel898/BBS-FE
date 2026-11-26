@@ -15,10 +15,19 @@ export type PayrollStaff = {
   monthlySalary: number;
   overtimeHourlyRate: number;
   startMonth: string;
+  startDate?: string;
   isActive: boolean;
   revision: number;
 };
+export type SalaryProration = {
+  monthlySalary: number;
+  daysInMonth: number;
+  payableDays: number;
+  isProrated: boolean;
+  startDate: string;
+};
 export type PayrollPayment = {
+  proration?: SalaryProration;
   id: string;
   month: string;
   paidDate: string;
@@ -30,6 +39,7 @@ export type PayrollPayment = {
   totalPayable: number;
 };
 export type PayrollRow = {
+  proration?: SalaryProration;
   staff: PayrollStaff;
   baseSalary: number;
   overtimeTotal: number;
@@ -84,7 +94,7 @@ export type StaffInput = {
   phone: string;
   monthlySalary: number;
   overtimeHourlyRate: number;
-  startMonth: string;
+  startDate: string;
 };
 export function payrollQuery(
   month: string,
@@ -133,4 +143,28 @@ export function leaveEndDate(start: string, days: string) {
     return null;
   date.setUTCDate(date.getUTCDate() + count - 1);
   return date.toISOString().slice(0, 10);
+}
+
+export function joiningSalaryPreview(salary: string, start: string) {
+  const value = Number(salary),
+    date = new Date(`${start}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(start) ||
+    !Number.isFinite(date.valueOf()) ||
+    date.toISOString().slice(0, 10) !== start ||
+    !Number.isFinite(value) ||
+    value <= 0
+  )
+    return null;
+  const daysInMonth = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  const payableDays = daysInMonth - date.getUTCDate() + 1;
+  return {
+    amount:
+      Math.round(((value * payableDays) / daysInMonth + Number.EPSILON) * 100) /
+      100,
+    payableDays,
+    daysInMonth,
+  };
 }

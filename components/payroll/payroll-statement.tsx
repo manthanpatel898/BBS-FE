@@ -110,6 +110,16 @@ export function StaffPayrollStatement({
                     {money(data.row.overtimeTotal)} · {data.row.leaveDays} leave
                     days (record only)
                   </p>
+                  <p className="payroll-help">
+                    Salary starts{" "}
+                    {financialDate(
+                      data.row.staff.startDate ??
+                        `${data.row.staff.startMonth}-01`,
+                    )}
+                    {data.row.proration?.isProrated
+                      ? ` · ${money(data.row.proration.monthlySalary)} × ${data.row.proration.payableDays}/${data.row.proration.daysInMonth} days`
+                      : ""}
+                  </p>
                   {data.payment && (
                     <p className="payroll-notice">
                       Paid on {financialDate(data.payment.paidDate)} ·{" "}
