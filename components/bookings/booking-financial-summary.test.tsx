@@ -89,3 +89,30 @@ test('deletion preview accounts for excess payments before increasing pending', 
   assert.equal(pendingAfterPaymentDeletion(1000, 1200, 500), 300);
   assert.equal(pendingAfterPaymentDeletion(900, 900, 200), 200);
 });
+
+test('breakdown separates configured addons from additional services and applies discounts visibly', () => {
+  const html = renderToStaticMarkup(
+    <BookingFinancialSummary
+      order={{
+        grandTotal: 1000,
+        advanceAmount: 800,
+        pendingAmount: 200,
+        baseTotal: 1000,
+        additionalCategoryTotal: 0,
+        extrasTotal: 50,
+        addonServiceSnapshots: [{ price: 100 }, { price: 50 }],
+        discountAmount: 100,
+        originalBillAmount: 1100,
+        settlementDiscountAmount: 100,
+      }}
+      formatCurrency={money}
+    />,
+  );
+  assert.match(html, /Addon services<\/dt><dd[^>]*>₹150<\/dd>/);
+  assert.match(html, /Additional services<\/dt><dd[^>]*>₹50<\/dd>/);
+  assert.match(html, /Booking discount<\/dt><dd[^>]*>[−-]₹100<\/dd>/);
+  assert.match(
+    html,
+    /Cumulative settlement discount<\/dt><dd[^>]*>[−-]₹100<\/dd>/,
+  );
+});

@@ -6,6 +6,7 @@ type FinancialOrder = {
   baseTotal: number;
   additionalCategoryTotal: number;
   extrasTotal: number;
+  addonServiceSnapshots?: Array<{ price: number }>;
   discountAmount: number;
   originalBillAmount?: number;
   settlementDiscountAmount?: number;
@@ -69,7 +70,16 @@ export function BookingFinancialSummary({
           {[
             ['Primary package', order.baseTotal],
             ['Additional packages', order.additionalCategoryTotal],
-            ['Addon services', order.extrasTotal],
+            [
+              'Addon services',
+              Math.round(
+                (order.addonServiceSnapshots ?? []).reduce(
+                  (sum, addon) => sum + addon.price,
+                  0,
+                ) * 100,
+              ) / 100,
+            ],
+            ['Additional services', order.extrasTotal],
             ['Booking discount', order.discountAmount],
             [
               'Original bill',
@@ -84,7 +94,11 @@ export function BookingFinancialSummary({
             <div key={label} className="flex justify-between gap-3">
               <dt className="text-slate-600">{label}</dt>
               <dd className="font-semibold">
-                {formatCurrency(Number(amount))}
+                {Number(amount) > 0 &&
+                (label === 'Booking discount' ||
+                  label === 'Cumulative settlement discount')
+                  ? `−${formatCurrency(Number(amount))}`
+                  : formatCurrency(Number(amount))}
               </dd>
             </div>
           ))}
