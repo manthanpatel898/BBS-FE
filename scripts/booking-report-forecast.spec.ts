@@ -28,6 +28,8 @@ const response: BookingReportResponse = {
       priceSource: 'ESTIMATED_AVERAGE',
       isEstimated: true,
       effectivePlatePrice: 600,
+      originalBillAmount: 62000,
+      settlementDiscountAmount: 0,
       effectiveGrandTotal: 62000,
       effectivePendingAmount: 52000,
       packageCount: 0,
@@ -36,6 +38,8 @@ const response: BookingReportResponse = {
     },
   ],
   totals: {
+    originalBillAmount: 62000,
+    settlementDiscountAmount: 0,
     grandTotal: 62000,
     advanceAmount: 10000,
     pendingAmount: 52000,
@@ -69,7 +73,7 @@ assert.equal(
 
 assert.equal(
   buildBookingReportFooterSections(
-    ['customerName', 'grandTotal', 'advanceAmount', 'pendingAmount'],
+    ['customerName', 'originalBillAmount', 'settlementDiscountAmount', 'additionalCategoryTotal', 'grandTotal', 'advanceAmount', 'pendingAmount'],
     response.totals,
   ),
   undefined,
@@ -84,7 +88,10 @@ assert.deepEqual(
     {
       title: 'Report Totals',
       rows: [
-        { label: 'Grand Total', value: 62000 },
+        { label: 'Original Bill', value: 62000 },
+        { label: 'Settlement Discount', value: 0 },
+        { label: 'Final Amount', value: 62000 },
+        { label: 'Additional Package Total', value: 0 },
         { label: 'Advance Amount', value: 10000 },
         { label: 'Pending Amount', value: 52000 },
       ],

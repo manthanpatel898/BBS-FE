@@ -2,6 +2,7 @@
 import { getBookingServiceSlotOptions, buildDayHallSlotMatrix, FULL_DAY_HELP, FULL_DAY_CARD_CLASS } from '@/lib/bookings/service-slots';
 
 import Link from 'next/link';
+import { canSettleBooking } from '@/lib/bookings/settlement';
 import { useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
@@ -25,6 +26,7 @@ import { BookingModeToggle } from '@/components/bookings/booking-mode-toggle';
 import { useAppPageHeader } from '@/components/layouts/app-layout';
 import {
   addAdvancePayment,
+  addSettlementDiscount,
   addOrderFollowUp,
   assignEventPlanner,
   cancelOrder,
@@ -687,6 +689,15 @@ export default function BookingsPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentPopupMode, setPaymentPopupMode] = useState<PaymentMode>('Cash');
   const [paymentRemark, setPaymentRemark] = useState('');
+  const [paymentDate, setPaymentDate] = useState(todayKey);
+  const [settlementOrder, setSettlementOrder] = useState<Order | null>(null);
+  const [settlementAmount, setSettlementAmount] = useState('');
+  const [settlementReason, setSettlementReason] = useState('');
+  const [settlementSaving, setSettlementSaving] = useState(false);
+  const settlementEligible = (order: Order) => canSettleBooking({ businessType: restaurant?.businessType, enabled: restaurant?.enablePostEventSettlement, status: order.status, eventDate: order.eventDate, today: todayKey });
+  const canCorrectBookingPayments = (order: Order) =>
+    (order.status === 'CONFIRMED' && banquetDetailActionMode(order.eventDate, todayKey) === 'FULL') ||
+    settlementEligible(order);
   const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
   const [reversingPaymentId, setReversingPaymentId] = useState<string | null>(null);
   const [paymentEditor, setPaymentEditor] = useState<{
@@ -877,7 +888,12 @@ export default function BookingsPage() {
       setIsMobileDetailActionsOpen(false);
 
       try {
-        const order = await fetchOrderById(accessToken, orderId);
+        setRestaurant(current => current ? { ...current, enablePostEventSettlement: false } : null);
+        const [order, liveRestaurant] = await Promise.all([
+          fetchOrderById(accessToken, orderId),
+          fetchMyRestaurant(accessToken).catch(() => null),
+        ]);
+        setRestaurant(current => liveRestaurant ?? (current ? { ...current, enablePostEventSettlement: false } : null));
         setDetailOrder(order);
         setIsDetailOpen(true);
       } catch (requestError) {
@@ -899,6 +915,26 @@ export default function BookingsPage() {
     },
     [accessToken, detailOrder?.id, isDetailOpen],
   );
+
+  useEffect(() => {
+    if (!accessToken || !isDetailOpen) return;
+    let active = true;
+    const refreshEntitlement = async () => {
+      setRestaurant(current => current ? { ...current, enablePostEventSettlement: false } : null);
+      const liveRestaurant = await fetchMyRestaurant(accessToken).catch(() => null);
+      if (active && liveRestaurant) setRestaurant(liveRestaurant);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshEntitlement();
+    };
+    window.addEventListener('focus', refreshEntitlement);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refreshEntitlement);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [accessToken, isDetailOpen]);
 
   useEffect(() => {
     setSelectedEventPlanner(detailOrder?.currentEventPlanner?.plannerName ?? '');
@@ -3351,6 +3387,35 @@ export default function BookingsPage() {
     }
   }
 
+  async function handleSettlementDiscount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !settlementOrder || settlementSaving ||
+        !settlementEligible(settlementOrder) ||
+        !(isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_SETTLEMENT_MANAGE))) return;
+    const amount = Number(settlementAmount);
+    if (!Number.isFinite(amount) || amount <= 0 ||
+        Math.abs(Math.round(amount * 100) - amount * 100) > 0.000001 ||
+        amount > settlementOrder.pendingAmount || !settlementReason.trim()) {
+      setToast({ type: 'error', message: 'Enter an amount up to the pending balance with at most two decimals and a reason.' });
+      return;
+    }
+    try {
+      setSettlementSaving(true);
+      const updated = await addSettlementDiscount(accessToken, settlementOrder.id, {
+        amount,
+        reason: settlementReason.trim(),
+      });
+      setDetailOrder(updated);
+      setSettlementOrder(null);
+      await refreshBookingViews(accessToken);
+      setToast({ type: 'success', message: 'Settlement discount recorded.' });
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Unable to record settlement discount.' });
+    } finally {
+      setSettlementSaving(false);
+    }
+  }
+
   async function handleAddAdvancePayment() {
     if (!accessToken || !paymentPopup) return;
     if (!canAddAdvancePayment) {
@@ -3359,7 +3424,11 @@ export default function BookingsPage() {
     }
 
     const amount = Number(paymentAmount);
-    if (!amount || amount < 1) {
+    if (!paymentDate || paymentDate > todayKey) {
+      setToast({ type: 'error', message: 'Enter a valid payment date no later than today.' });
+      return;
+    }
+    if (!amount || amount < 0.01) {
       setToast({ type: 'error', message: 'Enter a valid payment amount.' });
       return;
     }
@@ -3369,6 +3438,7 @@ export default function BookingsPage() {
       const updatedOrder = await addAdvancePayment(accessToken, paymentPopup.orderId, {
         amount,
         paymentMode: paymentPopupMode,
+        date: paymentDate,
         remark: paymentRemark.trim() || undefined,
       });
       setPaymentPopup(null);
@@ -6798,6 +6868,57 @@ function selectionStatus(order: Order) {
           </ModalShell>
         ) : null}
 
+        {settlementOrder ? (
+          <ModalShell
+            title="Settlement Discount"
+            eyebrow="Post-event Settlement"
+            onClose={() => { if (!settlementSaving) setSettlementOrder(null); }}
+            widthClassName="max-w-md"
+            zIndexClassName="z-[70]"
+          >
+            <form className="mt-6 space-y-4" onSubmit={handleSettlementDiscount}>
+              <Field label="Amount">
+                <input
+                  className={inputCls}
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={settlementOrder.pendingAmount}
+                  value={settlementAmount}
+                  onChange={event => setSettlementAmount(event.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Reason">
+                <textarea
+                  className={inputCls}
+                  value={settlementReason}
+                  onChange={event => setSettlementReason(event.target.value)}
+                  maxLength={1000}
+                  required
+                />
+              </Field>
+              <p className="text-sm">
+                Final bill: {formatCurrency(Math.max(settlementOrder.grandTotal - (Number(settlementAmount) || 0), 0))}
+                <br />
+                Pending: {formatCurrency(Math.max(settlementOrder.pendingAmount - (Number(settlementAmount) || 0), 0))}
+              </p>
+              <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+                An active invoice will automatically be cancelled and reissued.
+                Its previous version remains in invoice history.
+              </p>
+              <LoadingButton
+                type="submit"
+                className={primaryButtonCls}
+                isLoading={settlementSaving}
+                disabled={settlementSaving}
+              >
+                Apply settlement discount
+              </LoadingButton>
+            </form>
+          </ModalShell>
+        ) : null}
+
         {paymentPopup ? (
           <ModalShell
             title={paymentEditor?.paymentId ? 'Edit Payment' : 'Record Payment'}
@@ -6816,7 +6937,7 @@ function selectionStatus(order: Order) {
               <Field label="Amount">
                 <input
                   type="number"
-                  min="1"
+                  min="0.01"
                   step="0.01"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
@@ -6838,6 +6959,7 @@ function selectionStatus(order: Order) {
                   ))}
                 </select>
               </Field>
+              {!paymentEditor?.paymentId ? <Field label="Payment Date"><input type="date" value={paymentDate} max={todayKey} onChange={e => setPaymentDate(e.target.value)} className={inputCls} required /></Field> : null}
               <Field label="Remarks">
                 <textarea
                   value={paymentRemark}
@@ -7724,7 +7846,12 @@ function selectionStatus(order: Order) {
                         ['Primary package', detailOrder.baseTotal],
                         ['Additional packages', detailOrder.additionalCategoryTotal],
                         ['Addon services', detailOrder.extrasTotal],
-                        ['Discount', detailOrder.discountAmount],
+                        ['Booking discount', detailOrder.discountAmount],
+                        ['Original bill', detailOrder.originalBillAmount ?? detailOrder.grandTotal + (detailOrder.settlementDiscountAmount ?? 0)],
+                        ['Settlement discount', detailOrder.settlementDiscountAmount ?? 0],
+                        ['Final bill', detailOrder.grandTotal],
+                        ['Pending', detailOrder.pendingAmount],
+                        ['Excess paid', detailOrder.excessPaidAmount ?? Math.max(detailOrder.advanceAmount - detailOrder.grandTotal, 0)],
                       ].map(([label, amount]) => (
                         <div key={label} className="rounded-xl bg-slate-50 px-3 py-3">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -7812,7 +7939,7 @@ function selectionStatus(order: Order) {
                     Cancel reason: {detailOrder.cancelReason}
                   </p>
                 ) : null}
-                {(detailOrder.status === 'CONFIRMED' || detailOrder.status === 'CANCELLED') && (
+                {(['CONFIRMED', 'COMPLETED', 'CANCELLED'].includes(detailOrder.status)) && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
@@ -7834,7 +7961,7 @@ function selectionStatus(order: Order) {
                               ) : null}
                               <th className="px-3 py-2 font-medium">Remarks</th>
                               <th className="px-3 py-2 font-medium">Recorded By</th>
-                              {(detailOrder.status === 'CONFIRMED' &&
+                              {(canCorrectBookingPayments(detailOrder) &&
                                 (canEditAdvancePayment || canDeleteAdvancePayment)) ||
                               (detailOrder.status === 'CANCELLED' && canManageCancelAdvance) ? (
                                 <th className="px-3 py-2 font-medium text-right">Actions</th>
@@ -7875,13 +8002,14 @@ function selectionStatus(order: Order) {
                                     <td className="px-3 py-3 text-slate-700">{payment.remark || '-'}</td>
                                     <td className="px-3 py-3 text-slate-700">{payment.recordedByName}</td>
                                     {(canEditAdvancePayment || canDeleteAdvancePayment) &&
-                                    detailOrder.status === 'CONFIRMED' ? (
+                                    canCorrectBookingPayments(detailOrder) ? (
                                     <td className="px-3 py-3">
                                       <div className="flex justify-end gap-2">
                                         {canEditAdvancePayment ? (
                                         <button
                                           type="button"
                                           onClick={() => {
+                                            setPaymentDate(payment.date.slice(0, 10));
                                             setPaymentAmount(String(payment.amount));
                                             setPaymentPopupMode(payment.paymentMode);
                                             setPaymentRemark(payment.remark ?? '');
@@ -8046,6 +8174,20 @@ function selectionStatus(order: Order) {
                     );
                   })()}
               </div>
+              {detailOrder.settlementDiscounts?.length ? (
+                <section className="my-4 rounded-2xl border border-slate-200 bg-white p-4">
+                  <h3 className="font-bold">Settlement History</h3>
+                  {detailOrder.settlementDiscounts.map((entry, index) => (
+                    <div key={`${entry.recordedAt}-${index}`} className="mt-3 border-t border-slate-100 pt-3 text-sm">
+                      <p className="font-semibold">
+                        {formatCurrency(entry.amount)} · {entry.recordedByName} · {' '}
+                        {new Date(entry.recordedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                      </p>
+                      <p className="whitespace-pre-wrap text-slate-600">{entry.reason}</p>
+                    </div>
+                  ))}
+                </section>
+              ) : null}
               {restaurant?.enableWhatsappNotifications && accessToken ? <WhatsappBookingCommunication key={detailOrder.id} token={accessToken} orderId={detailOrder.id} customerId={detailOrder.customer.id} consentGranted={detailOrder.customer.whatsappConsentGranted ?? false} /> : null}
               <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
                 {(() => {
@@ -8069,7 +8211,40 @@ function selectionStatus(order: Order) {
                           {feedbackDisplayLabel(detailFeedbackStatus)}
                         </button>
                       ) : null}
-                      {detailOrder.status === 'CONFIRMED' ? (
+                      {settlementEligible(detailOrder) ? (
+                        <>
+                          {canAddAdvancePayment ? (
+                            <button
+                              type="button"
+                              className={ghostButtonCls}
+                              onClick={() => {
+                                setPaymentDate(todayKey);
+                                setPaymentAmount('');
+                                setPaymentRemark('');
+                                setPaymentPopupMode(defaultPaymentMode);
+                                setPaymentEditor({ orderId: detailOrder.id });
+                                setPaymentPopup({ orderId: detailOrder.id });
+                              }}
+                            >
+                              Record Payment
+                            </button>
+                          ) : null}
+                          {(isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_SETTLEMENT_MANAGE)) && detailOrder.pendingAmount > 0 ? (
+                            <button
+                              type="button"
+                              className={ghostButtonCls}
+                              onClick={() => {
+                                setSettlementOrder(detailOrder);
+                                setSettlementAmount('');
+                                setSettlementReason('');
+                              }}
+                            >
+                              Settlement Discount
+                            </button>
+                          ) : null}
+                        </>
+                      ) : null}
+                      {['CONFIRMED', 'COMPLETED'].includes(detailOrder.status) ? (
                         <>
                           {restaurant?.billingEnabled && canViewInvoice ? (
                             <button
@@ -8119,10 +8294,11 @@ function selectionStatus(order: Order) {
                               Print Tag
                             </button>
                           ) : null}
-                          {!isPastEvent && canAddAdvancePayment ? (
+                          {!isPastEvent && detailOrder.status === 'CONFIRMED' && canAddAdvancePayment ? (
                           <button
                             type="button"
                             onClick={() => {
+                              setPaymentDate(todayKey);
                               setPaymentAmount('');
                               setPaymentPopupMode(defaultPaymentMode);
                               setPaymentRemark('');

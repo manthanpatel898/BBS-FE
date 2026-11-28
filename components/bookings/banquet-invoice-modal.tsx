@@ -19,6 +19,7 @@ import {
 import { LoadingButton } from '@/components/ui/loading-button';
 import { calculateInvoicePreviewTotals } from '@/lib/banquet/invoice-calculation';
 import { buildBanquetInvoiceIssuePayload } from '@/lib/banquet/invoice-issuance';
+import { resolveInvoiceDiscount } from '@/lib/banquet/invoice-settlement';
 import { useToast } from '@/components/ui/toast';
 
 const fieldClass = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
@@ -54,6 +55,7 @@ export function BanquetInvoiceModal({
   const [reissueMode, setReissueMode] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [error, setError] = useState('');
+  const settled = (order.settlementDiscountAmount ?? 0) > 0;
 
   useEffect(() => {
     let active = true;
@@ -65,6 +67,10 @@ export function BanquetInvoiceModal({
       .then(([nextPreview, history]) => {
         if (!active) return;
         setPreview(nextPreview);
+        if (settled) {
+          setDiscountType(nextPreview.discount.type);
+          setDiscount(String(nextPreview.discount.value / 100));
+        }
         const issued = history.find((invoice) => invoice.status === 'ISSUED') ?? null;
         setActiveInvoice(issued);
         setHistory(history);
@@ -99,26 +105,31 @@ export function BanquetInvoiceModal({
       })
       .finally(() => active && setBusy(false));
     return () => { active = false; };
-  }, [accessToken, order.id, showToast]);
+  }, [accessToken, order.id, settled, showToast]);
 
   const discountValue = useMemo(() => {
     const value = Number(discount) || 0;
     return discountType === 'PERCENTAGE' ? Math.round(value * 100) : Math.round(value * 100);
   }, [discount, discountType]);
-  const displayedTotals = useMemo(
-    () =>
-      activeInvoice && !reissueMode
-        ? activeInvoice.totals
-        : preview
-          ? calculateInvoicePreviewTotals(preview, discountType, discountValue)
-          : null,
-    [activeInvoice, discountType, discountValue, preview, reissueMode],
+  const effectiveDiscount = resolveInvoiceDiscount(
+    settled, preview?.discount ?? null, discountType, discountValue,
   );
+  const displayedTotals = useMemo(
+    () => {
+      if (activeInvoice && !reissueMode) return activeInvoice.totals;
+      if (!preview) return null;
+      if (settled) return preview.totals;
+      return calculateInvoicePreviewTotals(preview, discountType, discountValue);
+    },
+    [activeInvoice, discountType, discountValue, preview, reissueMode, settled],
+  );
+  const displayedDocument = activeInvoice && !reissueMode ? activeInvoice : preview;
+  const displayedTaxMode = activeInvoice && !reissueMode ? activeInvoice.tax.mode : preview?.taxMode;
   const money = (paise = 0) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(paise / 100);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if ((!canIssue || activeInvoice) && !reissueMode) return;
+    if (((!canIssue || activeInvoice) && !reissueMode) || !effectiveDiscount) return;
     try {
       setBusy(true);
       setError('');
@@ -129,8 +140,8 @@ export function BanquetInvoiceModal({
         customerState: state,
         customerCountry: country,
         customerGstNumber: gstin,
-        discountType,
-        discountValue,
+        discountType: effectiveDiscount.type,
+        discountValue: effectiveDiscount.value,
       });
       const issued = reissueMode
         ? await cancelAndReissueBanquetInvoice(accessToken, order.id, {
@@ -195,17 +206,23 @@ export function BanquetInvoiceModal({
                   <label className="grid gap-1 text-sm font-semibold text-slate-700">State {gstin ? '(required)' : '(optional)'}<input className={fieldClass} value={state} onChange={(e)=>setState(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required={Boolean(gstin)} /></label>
                   <label className="grid gap-1 text-sm font-semibold text-slate-700">Country<input className={fieldClass} value={country} onChange={(e)=>setCountry(e.target.value)} disabled={Boolean(activeInvoice) && !reissueMode} required /></label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700">Discount (optional)<select className={fieldClass} value={discountType} onChange={(e)=>setDiscountType(e.target.value as BanquetInvoiceDiscountType)} disabled={Boolean(activeInvoice) && !reissueMode}><option value="NONE">None</option><option value="FIXED">Fixed amount</option><option value="PERCENTAGE">Percentage</option></select></label>
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700">Value<input className={fieldClass} inputMode="decimal" value={discount} onChange={(e)=>setDiscount(e.target.value)} disabled={(Boolean(activeInvoice) && !reissueMode) || discountType==='NONE'} /></label>
+                    <label className="grid gap-1 text-sm font-semibold text-slate-700">Discount (optional)<select className={fieldClass} value={discountType} onChange={(e)=>setDiscountType(e.target.value as BanquetInvoiceDiscountType)} disabled={settled || (Boolean(activeInvoice) && !reissueMode)}><option value="NONE">None</option><option value="FIXED">Fixed amount</option><option value="PERCENTAGE">Percentage</option></select></label>
+                    <label className="grid gap-1 text-sm font-semibold text-slate-700">Value<input className={fieldClass} inputMode="decimal" value={discount} onChange={(e)=>setDiscount(e.target.value)} disabled={settled || (Boolean(activeInvoice) && !reissueMode) || discountType==='NONE'} /></label>
                   </div>
+                  {settled ? (
+                    <p className="text-xs text-amber-800 sm:col-span-2">
+                      The booking discount and recorded settlement discounts are enforced together.
+                      Invoice discounts cannot be changed here. A replacement uses the current booking totals.
+                    </p>
+                  ) : null}
                 </div>
               </details>
               {reissueMode ? <label className="grid gap-1 text-sm font-semibold text-red-700 sm:col-span-2">Reason for cancelling current invoice<textarea className={`${fieldClass} resize-y`} value={cancellationReason} onChange={(e)=>setCancellationReason(e.target.value)} minLength={3} required /></label> : null}
             </div>
             <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
-              {(activeInvoice?.lines ?? preview?.lines ?? []).map((line, index)=><div key={`${line.description}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 border-b border-slate-100 px-4 py-3 last:border-0"><div><p className="font-semibold text-slate-900">{line.description}</p><p className="text-xs text-slate-500">{line.quantity} × {money(line.unitRatePaise)}</p></div><p className="font-semibold">{money(line.amountPaise)}</p></div>)}
+              {(displayedDocument?.lines ?? []).map((line, index)=><div key={`${line.description}-${index}`} className="grid grid-cols-[1fr_auto] gap-3 border-b border-slate-100 px-4 py-3 last:border-0"><div><p className="font-semibold text-slate-900">{line.description}</p><p className="text-xs text-slate-500">{line.quantity} × {money(line.unitRatePaise)}</p></div><p className="font-semibold">{money(line.amountPaise)}</p></div>)}
             </div>
-            {displayedTotals ? <div className="mt-4 ml-auto grid max-w-md gap-2 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Taxable amount</span><b>{money(displayedTotals.taxableSubtotalPaise)}</b></div>{preview?.taxMode==='CGST_SGST'?<><div className="flex justify-between"><span>CGST</span><b>{money(displayedTotals.cgstPaise)}</b></div><div className="flex justify-between"><span>SGST</span><b>{money(displayedTotals.sgstPaise)}</b></div></>:<div className="flex justify-between"><span>IGST</span><b>{money(displayedTotals.igstPaise)}</b></div>}<div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span>Grand total</span><b>{money(displayedTotals.grandTotalPaise)}</b></div>{preview?.amountInWords?<p className="border-t border-slate-200 pt-2 text-xs font-semibold text-slate-600">{preview.amountInWords}</p>:null}</div> : null}
+            {displayedTotals ? <div className="mt-4 ml-auto grid max-w-md gap-2 rounded-xl bg-slate-50 p-4 text-sm"><div className="flex justify-between"><span>Taxable amount</span><b>{money(displayedTotals.taxableSubtotalPaise)}</b></div>{displayedTaxMode==='CGST_SGST'?<><div className="flex justify-between"><span>CGST</span><b>{money(displayedTotals.cgstPaise)}</b></div><div className="flex justify-between"><span>SGST</span><b>{money(displayedTotals.sgstPaise)}</b></div></>:<div className="flex justify-between"><span>IGST</span><b>{money(displayedTotals.igstPaise)}</b></div>}<div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span>Grand total</span><b>{money(displayedTotals.grandTotalPaise)}</b></div>{displayedDocument?.amountInWords?<p className="border-t border-slate-200 pt-2 text-xs font-semibold text-slate-600">{displayedDocument.amountInWords}</p>:null}</div> : null}
             {preview?.bank ? <div className="mt-4 rounded-xl border border-slate-200 p-4 text-sm text-slate-700"><p className="font-bold text-slate-950">Company&apos;s Bank Details</p><p>{preview.bank.accountHolderName} · {preview.bank.bankName}</p><p>A/c: {preview.bank.accountNumber} · {preview.bank.branchName} / {preview.bank.ifscCode}</p></div> : null}
             {history.some((invoice)=>invoice.status==='CANCELLED') && canDownload ? <div className="mt-5 rounded-xl border border-slate-200 p-4"><p className="text-sm font-bold text-slate-900">Invoice history</p><div className="mt-2 grid gap-2">{history.filter((invoice)=>invoice.status==='CANCELLED').map((invoice)=><button type="button" key={invoice.id} onClick={()=>void download(invoice.id)} className="flex min-h-11 items-center justify-between rounded-xl bg-slate-50 px-3 text-left text-sm text-slate-700"><span>{invoice.invoiceNumber}</span><span className="font-semibold">Download cancelled copy</span></button>)}</div></div> : null}
           </div>
@@ -213,7 +230,7 @@ export function BanquetInvoiceModal({
             <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-300 px-5 font-semibold text-slate-700">Close</button>
             {activeInvoice && canReissue && !reissueMode ? <button type="button" onClick={()=>setReissueMode(true)} className="min-h-11 rounded-xl border border-red-200 px-5 font-semibold text-red-700">Correct &amp; reissue</button> : null}
             {reissueMode ? <LoadingButton type="submit" isLoading={busy} className="min-h-11 rounded-xl bg-red-600 px-5 font-bold text-white">Cancel &amp; issue replacement</LoadingButton> : null}
-            {activeInvoice && canDownload && !reissueMode ? <LoadingButton type="button" isLoading={busy} onClick={()=>void download()} className="min-h-11 rounded-xl bg-amber-500 px-5 font-bold text-slate-950">Download PDF</LoadingButton> : !activeInvoice ? <LoadingButton type="submit" isLoading={busy} disabled={!canIssue} className="min-h-11 rounded-xl bg-amber-500 px-5 font-bold text-slate-950 disabled:opacity-50">Issue invoice</LoadingButton> : null}
+            {activeInvoice && canDownload && !reissueMode ? <LoadingButton type="button" isLoading={busy} onClick={()=>void download()} className="min-h-11 rounded-xl bg-amber-500 px-5 font-bold text-slate-950">Download PDF</LoadingButton> : !activeInvoice ? <LoadingButton type="submit" isLoading={busy} disabled={!canIssue || !preview} className="min-h-11 rounded-xl bg-amber-500 px-5 font-bold text-slate-950 disabled:opacity-50">Issue invoice</LoadingButton> : null}
           </footer>
         </form>
       </section>

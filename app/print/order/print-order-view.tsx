@@ -561,6 +561,18 @@ export function PrintDocument({
 
       {!isKitchenCopy ? (
         <section className="mt-4 print:pt-2">
+          <div className="mb-3 grid grid-cols-2 gap-2 rounded-[10px] border border-stone-400 p-3 text-[12px] font-bold">
+            {[
+              ['Booking discount', order.discountAmount],
+              ['Original bill', order.originalBillAmount ?? order.grandTotal + (order.settlementDiscountAmount ?? 0)],
+              ['Settlement discount', order.settlementDiscountAmount ?? 0],
+              ['Final bill', order.grandTotal],
+              ['Pending', order.pendingAmount],
+              ['Excess paid', order.excessPaidAmount ?? Math.max(order.advanceAmount - order.grandTotal, 0)],
+            ].map(([label, amount]) => <div key={label} className="flex justify-between gap-2"><span>{label}</span><span>{formatCurrency(Number(amount))}</span></div>)}
+          </div>
+          {order.settlementDiscounts?.length ? <div className="mb-3 rounded-[10px] border border-stone-400 p-3 text-[12px]"><h3 className="font-black">Settlement History</h3>{order.settlementDiscounts.map((entry, index) => <div key={index} className="mt-2"><b>{formatCurrency(entry.amount)} · {entry.recordedByName} · {new Date(entry.recordedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</b><p className="whitespace-pre-wrap">{entry.reason}</p></div>)}</div> : null}
+
           <div className="overflow-hidden rounded-[10px] border border-stone-400">
             <table className="min-w-full border-collapse text-[12px] font-bold text-stone-950 print:text-[12px]">
               <thead className="bg-stone-100 text-stone-950">

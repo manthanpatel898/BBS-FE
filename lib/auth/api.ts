@@ -2588,3 +2588,13 @@ export const fetchDecorationLimitedReport=(token:string,kind:import('./types').D
 export const updateDecorationWorksheetRow=(token:string,id:string,payload:Record<string,unknown>)=>authorizedRequest<import('./types').DecorationBooking>(`/decoration/bookings/${encodeURIComponent(id)}/worksheet`,token,{method:'PATCH',body:JSON.stringify(payload)});
 export async function downloadDecorationLimitedReport(token:string,kind:import('./types').DecorationLimitedReportKind,filters:DecorationReportFilters,format:'csv'|'xlsx'){const response=await fetch(`${API_URL}/decoration/reports/export/${kind}/${format}?${decorationReportQuery(filters)}`,{headers:{Authorization:`Bearer ${token}`}});if(!response.ok){const payload=await response.json().catch(()=>null) as {message?:string|string[]}|null;if(response.status===401)notifySessionExpired();throw new Error(Array.isArray(payload?.message)?payload.message.join(', '):payload?.message??'Unable to export decoration report.')}return response.blob()}
 export const fetchDecorationLimitedPrintableReport=(token:string,kind:import('./types').DecorationLimitedReportKind,filters:DecorationReportFilters)=>authorizedRequest<import('./types').DecorationLimitedPrintableReport>(`/decoration/reports/export/${kind}/print?${decorationReportQuery(filters)}`,token);
+
+export function addSettlementDiscount(accessToken: string, orderId: string, payload: { amount: number; reason: string }) {
+  return authorizedRequest<Order>(`/orders/${orderId}/settlement-discounts`, accessToken, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export function fetchSettlementDiscountReport(accessToken: string, filters: { from?: string; to?: string }) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+  return authorizedRequest<import('./types').SettlementDiscountReport>(`/orders/settlement-discounts-report${query.size ? `?${query}` : ''}`, accessToken);
+}

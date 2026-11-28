@@ -18,6 +18,8 @@ function reportResponse(): BookingReportResponse {
         priceSource: 'PACKAGE',
         isEstimated: false,
         effectivePlatePrice: 800,
+        originalBillAmount: 109000,
+        settlementDiscountAmount: 5000,
         effectiveGrandTotal: 104000,
         effectivePendingAmount: 94000,
         packageCount: 3,
@@ -27,6 +29,8 @@ function reportResponse(): BookingReportResponse {
     ],
     averagePlatePrice: 800,
     totals: {
+      originalBillAmount: 109000,
+      settlementDiscountAmount: 5000,
       grandTotal: 104000,
       advanceAmount: 10000,
       pendingAmount: 94000,
@@ -53,4 +57,13 @@ test('booking export total row includes additional package totals', () => {
     ),
     ['TOTAL', 24000, 104000, 10000, 94000],
   );
+});
+
+test('settlement figures survive flattening and export separately from collected payments', () => {
+  const report = flattenBookingReport(reportResponse());
+  assert.equal(report.rows[0].originalBillAmount, 109000);
+  assert.equal(report.rows[0].settlementDiscountAmount, 5000);
+  assert.deepEqual(buildBookingExportTotalRow(
+    ['originalBillAmount', 'settlementDiscountAmount', 'grandTotal', 'advanceAmount'], report.totals,
+  ), [109000, 5000, 104000, 10000]);
 });

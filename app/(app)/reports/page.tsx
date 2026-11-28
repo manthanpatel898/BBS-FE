@@ -5,6 +5,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/permissions';
 
 type ReportType =
+  | 'settlements'
   | 'booking'
   | 'advance'
   | 'cancelled'
@@ -39,6 +40,13 @@ const REPORT_CATEGORIES: ReportCategory[] = [
     eyebrow: 'Money & Collections',
     color: 'emerald',
     reports: [
+      {
+        type: 'settlements',
+        permission: PERMISSIONS.REPORTS_BOOKING_VIEW,
+        title: 'Settlement Discounts',
+        description: 'Post-event discount history by adjustment date, with amounts, reasons, and the staff member who recorded each entry.',
+        badge: 'Adjustment audit',
+      },
       {
         type: 'revenue',
         permission: PERMISSIONS.REPORTS_REVENUE_VIEW,
@@ -205,7 +213,8 @@ export default function ReportsPage() {
     .map((category) => ({
       ...category,
       reports: category.reports.filter((report) =>
-        user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, report.permission),
+        (report.type !== 'settlements' || user?.businessType !== 'EVENT_DECORATION') &&
+        (user?.role === 'super_admin' || user?.role === 'company_admin' || hasPermission(user, report.permission)),
       ),
     }))
     .filter((category) => category.reports.length > 0);
@@ -269,7 +278,7 @@ export default function ReportsPage() {
               {category.reports.map((card) => (
                 <Link
                   key={card.type}
-                  href={card.type === 'feedback' ? '/reports/feedback' : `/reports/view?type=${card.type}`}
+                  href={card.type === 'settlements' ? '/reports/settlements' : card.type === 'feedback' ? '/reports/feedback' : `/reports/view?type=${card.type}`}
                   className={`group rounded-[28px] border border-slate-200 bg-white p-5 text-left shadow-sm transition ${c.hover} hover:shadow-md`}
                 >
                   <span

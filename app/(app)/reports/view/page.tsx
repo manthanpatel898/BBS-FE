@@ -78,6 +78,8 @@ type BookingFieldKey =
   | 'finalPackagePrice'
   | 'priceSource'
   | 'guests'
+  | 'originalBillAmount'
+  | 'settlementDiscountAmount'
   | 'grandTotal'
   | 'advanceAmount'
   | 'pendingAmount'
@@ -191,7 +193,9 @@ const BOOKING_FIELDS: Array<{ key: BookingFieldKey; label: string }> = [
   { key: 'finalPackagePrice', label: 'Final Package Price' },
   { key: 'priceSource', label: 'Price Source' },
   { key: 'guests', label: 'Guests' },
-  { key: 'grandTotal', label: 'Grand Total' },
+  { key: 'originalBillAmount', label: 'Original Bill' },
+  { key: 'settlementDiscountAmount', label: 'Settlement Discount' },
+  { key: 'grandTotal', label: 'Final Amount' },
   { key: 'advanceAmount', label: 'Advance Amount' },
   { key: 'pendingAmount', label: 'Pending Amount' },
   { key: 'bookedBy', label: 'Booked By' },
@@ -603,6 +607,10 @@ function getBookingFieldValue(order: Order | BookingReportOrder, fieldKey: Booki
         : '-';
     case 'guests':
       return order.pax ? String(order.pax) : '-';
+    case 'originalBillAmount':
+      return formatCurrency(isForecastOrder(order) ? order.originalBillAmount : order.grandTotal + (order.settlementDiscountAmount ?? 0));
+    case 'settlementDiscountAmount':
+      return formatCurrency(order.settlementDiscountAmount ?? 0);
     case 'grandTotal':
       return labelEstimatedValue(
         isForecastOrder(order) && order.reportForecast.isEstimated,
@@ -691,6 +699,10 @@ function getBookingExportValue(order: Order | BookingReportOrder, fieldKey: Book
       return isForecastOrder(order)
         ? order.additionalCategoryTotal
         : order.additionalCategoryTotal ?? 0;
+    case 'originalBillAmount':
+      return isForecastOrder(order) ? order.originalBillAmount : order.grandTotal + (order.settlementDiscountAmount ?? 0);
+    case 'settlementDiscountAmount':
+      return order.settlementDiscountAmount ?? 0;
     case 'grandTotal':
       return getReportGrandTotal(order);
     case 'advanceAmount':
@@ -706,11 +718,15 @@ function getBookingColumns(selectedFields: BookingFieldKey[]): ColumnDef<Booking
   return selectedFields.map((fieldKey) => ({
     key: fieldKey,
     label: BOOKING_FIELDS.find((field) => field.key === fieldKey)?.label ?? fieldKey,
-    isCurrency: ['defaultPackagePrice', 'customPackagePrice', 'finalPackagePrice', 'additionalCategoryTotal', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(fieldKey),
+    isCurrency: ['defaultPackagePrice', 'customPackagePrice', 'finalPackagePrice', 'additionalCategoryTotal', 'originalBillAmount', 'settlementDiscountAmount', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(fieldKey),
     render: (order) => getBookingFieldValue(order, fieldKey),
     exportValue: (order) => getBookingExportValue(order, fieldKey),
     total:
-      fieldKey === 'additionalCategoryTotal'
+      fieldKey === 'originalBillAmount'
+        ? (order) => order.originalBillAmount
+        : fieldKey === 'settlementDiscountAmount'
+          ? (order) => order.settlementDiscountAmount
+          : fieldKey === 'additionalCategoryTotal'
         ? (order) => order.additionalCategoryTotal
         : fieldKey === 'grandTotal'
         ? (order) => getReportGrandTotal(order)
@@ -731,7 +747,9 @@ function BookingReportTotalsSummary({
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
         ['Additional Package Total', totals.additionalCategoryTotal],
-        ['Grand Total', totals.grandTotal],
+        ['Original Bill', totals.originalBillAmount],
+        ['Settlement Discount', totals.settlementDiscountAmount],
+        ['Final Amount', totals.grandTotal],
         ['Advance Amount', totals.advanceAmount],
         ['Pending Amount', totals.pendingAmount],
       ].map(([label, value]) => (
@@ -948,8 +966,24 @@ const revenueColumns: ColumnDef<RevenueReportRow>[] = [
     total: (row) => row.bookings,
   },
   {
+    key: 'originalBillAmount',
+    label: 'Original Bill',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.originalBillAmount),
+    exportValue: (row) => row.originalBillAmount,
+    total: (row) => row.originalBillAmount,
+  },
+  {
+    key: 'settlementDiscountAmount',
+    label: 'Settlement Discount',
+    isCurrency: true,
+    render: (row) => formatCurrency(row.settlementDiscountAmount),
+    exportValue: (row) => row.settlementDiscountAmount,
+    total: (row) => row.settlementDiscountAmount,
+  },
+  {
     key: 'revenue',
-    label: 'Revenue',
+    label: 'Final Revenue',
     isCurrency: true,
     render: (row) => formatCurrency(row.revenue),
     exportValue: (row) => formatExportAmount(row.revenue),
@@ -1288,7 +1322,7 @@ export default function ReportViewPage() {
   const [advanceFilters, setAdvanceFilters] = useState<AdvancePaymentFilters>({
     from: toDateInputValue(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
     to: toDateInputValue(new Date()),
-    dateBasis: 'functionDate',
+    dateBasis: 'paymentDate',
     paymentMode: '',
     customer: '',
   });
@@ -1328,6 +1362,8 @@ export default function ReportViewPage() {
   const [bookingRows, setBookingRows] = useState<BookingReportOrder[]>([]);
   const [bookingTotals, setBookingTotals] = useState<BookingReportTotals>({
     additionalCategoryTotal: 0,
+    originalBillAmount: 0,
+    settlementDiscountAmount: 0,
     grandTotal: 0,
     advanceAmount: 0,
     pendingAmount: 0,

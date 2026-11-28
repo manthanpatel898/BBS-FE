@@ -11,6 +11,8 @@ export type BookingReportOrder = Order & {
     isEstimated: boolean;
     effectivePlatePrice: number;
   };
+  originalBillAmount: number;
+  settlementDiscountAmount: number;
   effectiveGrandTotal: number;
   effectivePendingAmount: number;
   packageCount: number;
@@ -28,6 +30,8 @@ export function flattenBookingReport(response: BookingReportResponse) {
         isEstimated: row.isEstimated,
         effectivePlatePrice: row.effectivePlatePrice,
       },
+      originalBillAmount: row.originalBillAmount,
+      settlementDiscountAmount: row.settlementDiscountAmount,
       effectiveGrandTotal: row.effectiveGrandTotal,
       effectivePendingAmount: row.effectivePendingAmount,
       packageCount: row.packageCount,
@@ -66,6 +70,8 @@ export function buildBookingExportTotalRow(
 ): Array<string | number | null> {
   const financialTotals: Record<string, number> = {
     additionalCategoryTotal: totals.additionalCategoryTotal,
+    originalBillAmount: totals.originalBillAmount,
+    settlementDiscountAmount: totals.settlementDiscountAmount,
     grandTotal: totals.grandTotal,
     advanceAmount: totals.advanceAmount,
     pendingAmount: totals.pendingAmount,
@@ -82,16 +88,18 @@ export function buildBookingReportFooterSections(
 ) {
   const selectedFinancialKeys = new Set(
     columnKeys.filter((key) =>
-      ['additionalCategoryTotal', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(key),
+      ['additionalCategoryTotal', 'originalBillAmount', 'settlementDiscountAmount', 'grandTotal', 'advanceAmount', 'pendingAmount'].includes(key),
     ),
   );
-  if (selectedFinancialKeys.size === 4) return undefined;
+  if (selectedFinancialKeys.size === 6) return undefined;
 
   return [
     {
       title: 'Report Totals',
       rows: [
-        { label: 'Grand Total', value: totals.grandTotal },
+        { label: 'Original Bill', value: totals.originalBillAmount },
+        { label: 'Settlement Discount', value: totals.settlementDiscountAmount },
+        { label: 'Final Amount', value: totals.grandTotal },
         { label: 'Additional Package Total', value: totals.additionalCategoryTotal },
         { label: 'Advance Amount', value: totals.advanceAmount },
         { label: 'Pending Amount', value: totals.pendingAmount },

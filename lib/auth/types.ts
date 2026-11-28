@@ -85,6 +85,7 @@ export interface Restaurant {
   enableFlexibleMenuBuilder?: boolean;
   enableEventExpenses?: boolean;
   enableStaffPayroll?: boolean;
+  enablePostEventSettlement?: boolean;
   billingEnabled?: boolean;
   gstNumber?: string | null;
   invoicePrefix?: string | null;
@@ -682,6 +683,10 @@ export interface MenuSelectionSession {
 }
 
 export interface Order {
+  settlementDiscountAmount?: number;
+  originalBillAmount?: number;
+  excessPaidAmount?: number;
+  settlementDiscounts?: Array<{ amount: number; reason: string; recordedAt: string; recordedByName: string; recordedByUserId: string }>;
   whatsapp?: { state: 'QUEUED' | 'EXISTING' | 'SKIPPED' | 'FAILED'; reason?: string };
   id: string;
   restaurantId: string;
@@ -765,6 +770,8 @@ export type PriceSource =
   | 'UNAVAILABLE';
 
 export interface BookingReportRow {
+  originalBillAmount: number;
+  settlementDiscountAmount: number;
   order: Order;
   priceSource: PriceSource;
   isEstimated: boolean;
@@ -777,6 +784,8 @@ export interface BookingReportRow {
 }
 
 export interface BookingReportTotals {
+  originalBillAmount: number;
+  settlementDiscountAmount: number;
   grandTotal: number;
   advanceAmount: number;
   pendingAmount: number;
@@ -1306,6 +1315,8 @@ export interface PendingPaymentReportRow {
 }
 
 export interface RevenueReportRow {
+  originalBillAmount: number;
+  settlementDiscountAmount: number;
   label: string;
   bookings: number;
   revenue: number;
@@ -1436,4 +1447,19 @@ export interface MenuSyncConfirmationResult {
   previewId: string;
   summary: MenuSyncSummary;
   appliedAt: string;
+}
+
+export interface SettlementDiscountReportRow {
+  orderId: string;
+  customerName: string;
+  eventDate: string | null;
+  amount: number;
+  reason: string;
+  recordedAt: string;
+  recordedByName: string;
+  recordedByUserId: string | null;
+}
+export interface SettlementDiscountReport {
+  rows: SettlementDiscountReportRow[];
+  totalAmount: number;
 }

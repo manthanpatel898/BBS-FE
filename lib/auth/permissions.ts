@@ -1,6 +1,7 @@
 import { AuthUser } from './types';
 
 export const PERMISSIONS = {
+  BOOKINGS_SETTLEMENT_MANAGE: 'bookings.settlement.manage',
   BOOKINGS_VIEW: 'bookings.view',
   BOOKINGS_CALENDAR_VIEW: 'bookings.calendar.view',
   BOOKINGS_CREATE: 'bookings.create',
