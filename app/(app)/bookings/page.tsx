@@ -2,6 +2,7 @@
 import { getBookingServiceSlotOptions, buildDayHallSlotMatrix, FULL_DAY_HELP, FULL_DAY_CARD_CLASS } from '@/lib/bookings/service-slots';
 
 import Link from 'next/link';
+import { BookingFinancialSummary, SettlementHistory, pendingAfterPaymentDeletion } from '@/components/bookings/booking-financial-summary';
 import { canSettleBooking } from '@/lib/bookings/settlement';
 import { useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -664,7 +665,7 @@ export default function BookingsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
-  const [isMobileDetailActionsOpen, setIsMobileDetailActionsOpen] = useState(false);
+  const [, setIsMobileDetailActionsOpen] = useState(false);
   const [selectedEventPlanner, setSelectedEventPlanner] = useState('');
   const [isAssigningEventPlanner, setIsAssigningEventPlanner] = useState(false);
   const [dayRecordsPopup, setDayRecordsPopup] = useState<DayRecordsPopup | null>(null);
@@ -693,6 +694,7 @@ export default function BookingsPage() {
   const [settlementOrder, setSettlementOrder] = useState<Order | null>(null);
   const [settlementAmount, setSettlementAmount] = useState('');
   const [settlementReason, setSettlementReason] = useState('');
+  const [settlementNote, setSettlementNote] = useState('');
   const [settlementSaving, setSettlementSaving] = useState(false);
   const settlementEligible = (order: Order) => canSettleBooking({ businessType: restaurant?.businessType, enabled: restaurant?.enablePostEventSettlement, status: order.status, eventDate: order.eventDate, today: todayKey });
   const canCorrectBookingPayments = (order: Order) =>
@@ -3403,7 +3405,7 @@ export default function BookingsPage() {
       setSettlementSaving(true);
       const updated = await addSettlementDiscount(accessToken, settlementOrder.id, {
         amount,
-        reason: settlementReason.trim(),
+        reason: [settlementReason.trim(), settlementNote.trim()].filter(Boolean).join(' — '),
       });
       setDetailOrder(updated);
       setSettlementOrder(null);
@@ -3473,6 +3475,10 @@ export default function BookingsPage() {
       return;
     }
 
+    const previousPayment = detailOrder?.id === paymentPopup.orderId ? detailOrder.advancePayments?.find(entry => entry.id === paymentEditor.paymentId) : undefined;
+    if (!previousPayment || !detailOrder) return;
+    const pending = pendingAfterPaymentDeletion(detailOrder.grandTotal, detailOrder.advanceAmount + amount, previousPayment.amount);
+    if (!window.confirm(`Save payment of ${formatCurrency(amount)} (previously ${formatCurrency(previousPayment.amount)})? Resulting pending balance: ${formatCurrency(pending)}.`)) return;
     try {
       setIsPaymentSubmitting(true);
       const updatedOrder = await updateAdvancePayment(
@@ -3511,6 +3517,10 @@ export default function BookingsPage() {
       return;
     }
 
+    const payment = detailOrder?.id === orderId ? detailOrder.advancePayments?.find(entry => entry.id === paymentId) : undefined;
+    if (!payment || !detailOrder) return;
+    const pending = pendingAfterPaymentDeletion(detailOrder.grandTotal, detailOrder.advanceAmount, payment.amount);
+    if (!window.confirm(`Delete payment of ${formatCurrency(payment.amount)}? Resulting pending balance: ${formatCurrency(pending)}.`)) return;
     try {
       const updatedOrder = await deleteAdvancePayment(accessToken, orderId, paymentId);
       if (isDetailOpen) {
@@ -6890,15 +6900,17 @@ function selectionStatus(order: Order) {
                 />
               </Field>
               <Field label="Reason">
+                <select className={`${inputCls} mb-2`} aria-label="Reason suggestions" value={['Agreed final settlement', 'Service adjustment', 'Billing correction'].includes(settlementReason) ? settlementReason : ''} onChange={event => setSettlementReason(event.target.value)}><option value="">Other / custom reason</option>{['Agreed final settlement', 'Service adjustment', 'Billing correction'].map(reason => <option key={reason} value={reason}>{reason}</option>)}</select>
                 <textarea
                   className={inputCls}
                   value={settlementReason}
                   onChange={event => setSettlementReason(event.target.value)}
-                  maxLength={1000}
+                  maxLength={800}
                   required
                 />
               </Field>
-              <p className="text-sm">
+              <Field label="Optional note"><textarea className={inputCls} value={settlementNote} onChange={event => setSettlementNote(event.target.value)} maxLength={197} /></Field>
+              <p className="text-sm text-slate-900">
                 Final bill: {formatCurrency(Math.max(settlementOrder.grandTotal - (Number(settlementAmount) || 0), 0))}
                 <br />
                 Pending: {formatCurrency(Math.max(settlementOrder.pendingAmount - (Number(settlementAmount) || 0), 0))}
@@ -7827,43 +7839,7 @@ function selectionStatus(order: Order) {
                     ))}
                   </div>
 
-                  <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                          Package Summary
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          Primary and additional meal packages for this booking.
-                        </p>
-                      </div>
-                      <p className="text-lg font-bold text-slate-950">
-                        {formatCurrency(detailOrder.grandTotal)}
-                      </p>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      {[
-                        ['Primary package', detailOrder.baseTotal],
-                        ['Additional packages', detailOrder.additionalCategoryTotal],
-                        ['Addon services', detailOrder.extrasTotal],
-                        ['Booking discount', detailOrder.discountAmount],
-                        ['Original bill', detailOrder.originalBillAmount ?? detailOrder.grandTotal + (detailOrder.settlementDiscountAmount ?? 0)],
-                        ['Settlement discount', detailOrder.settlementDiscountAmount ?? 0],
-                        ['Final bill', detailOrder.grandTotal],
-                        ['Pending', detailOrder.pendingAmount],
-                        ['Excess paid', detailOrder.excessPaidAmount ?? Math.max(detailOrder.advanceAmount - detailOrder.grandTotal, 0)],
-                      ].map(([label, amount]) => (
-                        <div key={label} className="rounded-xl bg-slate-50 px-3 py-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                            {label}
-                          </p>
-                          <p className="mt-1 text-sm font-bold text-slate-950">
-                            {formatCurrency(Number(amount))}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+                  <BookingFinancialSummary order={detailOrder} formatCurrency={formatCurrency} />
                 </div>
 
                 <div className="grid gap-4">
@@ -7943,11 +7919,11 @@ function selectionStatus(order: Order) {
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-wider text-amber-700">
-                        Advance Payments
+                        Payment History
                       </p>
                     </div>
                     {(!detailOrder.advancePayments || detailOrder.advancePayments.length === 0) ? (
-                      <p className="mt-4 text-sm text-slate-500">No advance payments recorded yet.</p>
+                      <p className="mt-4 text-sm text-slate-500">No payments recorded yet.</p>
                     ) : (
                       <div className="mt-4 overflow-x-auto">
                         <table className="min-w-full text-left text-sm">
@@ -8004,7 +7980,7 @@ function selectionStatus(order: Order) {
                                     {(canEditAdvancePayment || canDeleteAdvancePayment) &&
                                     canCorrectBookingPayments(detailOrder) ? (
                                     <td className="px-3 py-3">
-                                      <div className="flex justify-end gap-2">
+                                      <details className="text-right"><summary className="cursor-pointer text-xs font-semibold text-slate-700">Actions ▾</summary><div className="mt-2 flex flex-wrap justify-end gap-2">
                                         {canEditAdvancePayment ? (
                                         <button
                                           type="button"
@@ -8035,7 +8011,7 @@ function selectionStatus(order: Order) {
                                           Delete
                                         </button>
                                         ) : null}
-                                      </div>
+                                      </div></details>
                                     </td>
                                     ) : canManageCancelAdvance ? (
                                       <td className="px-3 py-3 text-right">
@@ -8095,7 +8071,7 @@ function selectionStatus(order: Order) {
                       </div>
                     ) : null}
                     <div className="mt-4 flex items-center justify-between border-t border-amber-200 pt-4 text-sm font-semibold text-slate-900">
-                      <span>Total Advance Paid</span>
+                      <span>Total Received</span>
                       <span>{formatCurrency(detailOrder.advanceAmount)}</span>
                     </div>
                   </div>
@@ -8104,7 +8080,7 @@ function selectionStatus(order: Order) {
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Follow Ups
+                      Follow Ups {detailOrder.followUps.length === 0 ? <span className="ml-2 font-normal normal-case tracking-normal">No follow ups yet</span> : null}
                     </p>
                     {canManageBookingFollowUps ? (
                       <button
@@ -8128,7 +8104,7 @@ function selectionStatus(order: Order) {
                     ) : null}
                   </div>
                   {detailOrder.followUps.length === 0 ? (
-                    <p className="mt-4 text-sm text-slate-500">No follow ups added yet.</p>
+                    null
                   ) : (
                     <div className="mt-4 overflow-x-auto">
                       <table className="min-w-full text-left text-sm">
@@ -8173,23 +8149,10 @@ function selectionStatus(order: Order) {
                       </>
                     );
                   })()}
-              </div>
-              {detailOrder.settlementDiscounts?.length ? (
-                <section className="my-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <h3 className="font-bold">Settlement History</h3>
-                  {detailOrder.settlementDiscounts.map((entry, index) => (
-                    <div key={`${entry.recordedAt}-${index}`} className="mt-3 border-t border-slate-100 pt-3 text-sm">
-                      <p className="font-semibold">
-                        {formatCurrency(entry.amount)} · {entry.recordedByName} · {' '}
-                        {new Date(entry.recordedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
-                      </p>
-                      <p className="whitespace-pre-wrap text-slate-600">{entry.reason}</p>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
+              <SettlementHistory entries={detailOrder.settlementDiscounts ?? []} total={detailOrder.settlementDiscountAmount ?? 0} pending={detailOrder.pendingAmount} canAdd={settlementEligible(detailOrder) && (isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_SETTLEMENT_MANAGE))} formatCurrency={formatCurrency} onAdd={() => { setSettlementOrder(detailOrder); setSettlementAmount(''); setSettlementReason(''); setSettlementNote(''); }} />
               {restaurant?.enableWhatsappNotifications && accessToken ? <WhatsappBookingCommunication key={detailOrder.id} token={accessToken} orderId={detailOrder.id} customerId={detailOrder.customer.id} consentGranted={detailOrder.customer.whatsappConsentGranted ?? false} /> : null}
-              <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
+              </div>
+              <div className="z-20 shrink-0 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.5rem+var(--zb-safe-bottom))] pt-2 shadow-[0_-18px_35px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-6 sm:px-6 sm:pb-[calc(0.75rem+var(--zb-safe-bottom))] sm:pt-3">
                 {(() => {
                   const isPastEvent =
                     banquetDetailActionMode(detailOrder.eventDate, todayKey) ===
@@ -8203,6 +8166,11 @@ function selectionStatus(order: Order) {
                         today: todayKey,
                         canManage: canManageBookingFeedback,
                       }) ? (
+                        <details className="relative order-last">
+                          <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700">
+                            More ▴
+                          </summary>
+                          <div className="absolute bottom-full right-0 z-30 mb-2 flex min-w-44 flex-col rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                         <button
                           type="button"
                           onClick={() => setFeedbackOrder(detailOrder)}
@@ -8210,13 +8178,15 @@ function selectionStatus(order: Order) {
                         >
                           {feedbackDisplayLabel(detailFeedbackStatus)}
                         </button>
+                          </div>
+                        </details>
                       ) : null}
                       {settlementEligible(detailOrder) ? (
                         <>
                           {canAddAdvancePayment ? (
                             <button
                               type="button"
-                              className={ghostButtonCls}
+                              className={primaryButtonCls}
                               onClick={() => {
                                 setPaymentDate(todayKey);
                                 setPaymentAmount('');
@@ -8229,19 +8199,7 @@ function selectionStatus(order: Order) {
                               Record Payment
                             </button>
                           ) : null}
-                          {(isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_SETTLEMENT_MANAGE)) && detailOrder.pendingAmount > 0 ? (
-                            <button
-                              type="button"
-                              className={ghostButtonCls}
-                              onClick={() => {
-                                setSettlementOrder(detailOrder);
-                                setSettlementAmount('');
-                                setSettlementReason('');
-                              }}
-                            >
-                              Settlement Discount
-                            </button>
-                          ) : null}
+
                         </>
                       ) : null}
                       {['CONFIRMED', 'COMPLETED'].includes(detailOrder.status) ? (
@@ -8255,7 +8213,7 @@ function selectionStatus(order: Order) {
                               Tax Invoice
                             </button>
                           ) : null}
-                          {canPrintBooking ? (
+                          {canPrintBooking ? <details className="relative"><summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700">Print ▴</summary><div className="absolute bottom-full right-0 z-30 mb-2 flex min-w-44 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                           <Link
                             href={`/print/order?id=${detailOrder.id}`}
                             target="_blank"
@@ -8263,7 +8221,6 @@ function selectionStatus(order: Order) {
                           >
                             Print
                           </Link>
-                          ) : null}
                           {canPrintBooking ? (
                           <Link
                             href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
@@ -8294,6 +8251,7 @@ function selectionStatus(order: Order) {
                               Print Tag
                             </button>
                           ) : null}
+                          </div></details> : null}
                           {!isPastEvent && detailOrder.status === 'CONFIRMED' && canAddAdvancePayment ? (
                           <button
                             type="button"
@@ -8307,7 +8265,7 @@ function selectionStatus(order: Order) {
                             }}
                             className="inline-flex min-w-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
                           >
-                            Add Advance
+                            Record Payment
                           </button>
                           ) : null}
                           {!isPastEvent &&
@@ -8462,36 +8420,11 @@ function selectionStatus(order: Order) {
                         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</p>
                         {detailOrder.status === 'CONFIRMED' ? (
                           <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                            Advance {formatCurrency(detailOrder.advanceAmount)}
+                            Total Received {formatCurrency(detailOrder.advanceAmount)}
                           </span>
                         ) : null}
                       </div>
-                      <div
-                        className={`grid gap-2 overflow-hidden transition-[max-height,opacity,margin] duration-200 sm:hidden ${
-                          isMobileDetailActionsOpen
-                            ? 'mb-2 max-h-[420px] grid-cols-2 opacity-100'
-                            : 'mb-0 max-h-0 grid-cols-2 opacity-0'
-                        }`}
-                      >
-                        {isMobileDetailActionsOpen ? renderDetailActionButtons() : null}
-                      </div>
-                      <div className="sm:hidden">
-                        <button
-                          type="button"
-                          aria-label={isMobileDetailActionsOpen ? 'Hide booking actions' : 'Show booking actions'}
-                          aria-expanded={isMobileDetailActionsOpen}
-                          onClick={() => setIsMobileDetailActionsOpen((current) => !current)}
-                          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                        >
-                          <span>Actions</span>
-                          <span className={isMobileDetailActionsOpen ? 'transition-transform' : 'rotate-180 transition-transform'}>
-                            <IconChevronDown />
-                          </span>
-                        </button>
-                      </div>
-                      <div className="hidden grid-cols-2 gap-2 sm:grid min-[520px]:grid-cols-3 md:grid-cols-4">
-                        {renderDetailActionButtons()}
-                      </div>
+                      <div className="flex flex-wrap items-center gap-2">{renderDetailActionButtons()}</div>
                     </>
                   );
                 })()}
