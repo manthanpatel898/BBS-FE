@@ -665,7 +665,7 @@ export default function BookingsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
-  const [, setIsMobileDetailActionsOpen] = useState(false);
+  const [isMobileDetailActionsOpen, setIsMobileDetailActionsOpen] = useState(false);
   const [selectedEventPlanner, setSelectedEventPlanner] = useState('');
   const [isAssigningEventPlanner, setIsAssigningEventPlanner] = useState(false);
   const [dayRecordsPopup, setDayRecordsPopup] = useState<DayRecordsPopup | null>(null);
@@ -7980,7 +7980,7 @@ function selectionStatus(order: Order) {
                                     {(canEditAdvancePayment || canDeleteAdvancePayment) &&
                                     canCorrectBookingPayments(detailOrder) ? (
                                     <td className="px-3 py-3">
-                                      <details className="text-right"><summary className="cursor-pointer text-xs font-semibold text-slate-700">Actions ▾</summary><div className="mt-2 flex flex-wrap justify-end gap-2">
+                                      <div className="flex justify-end gap-2">
                                         {canEditAdvancePayment ? (
                                         <button
                                           type="button"
@@ -8011,7 +8011,7 @@ function selectionStatus(order: Order) {
                                           Delete
                                         </button>
                                         ) : null}
-                                      </div></details>
+                                      </div>
                                     </td>
                                     ) : canManageCancelAdvance ? (
                                       <td className="px-3 py-3 text-right">
@@ -8166,11 +8166,6 @@ function selectionStatus(order: Order) {
                         today: todayKey,
                         canManage: canManageBookingFeedback,
                       }) ? (
-                        <details className="relative order-last">
-                          <summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700">
-                            More ▴
-                          </summary>
-                          <div className="absolute bottom-full right-0 z-30 mb-2 flex min-w-44 flex-col rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                         <button
                           type="button"
                           onClick={() => setFeedbackOrder(detailOrder)}
@@ -8178,15 +8173,13 @@ function selectionStatus(order: Order) {
                         >
                           {feedbackDisplayLabel(detailFeedbackStatus)}
                         </button>
-                          </div>
-                        </details>
                       ) : null}
                       {settlementEligible(detailOrder) ? (
                         <>
                           {canAddAdvancePayment ? (
                             <button
                               type="button"
-                              className={primaryButtonCls}
+                              className={ghostButtonCls}
                               onClick={() => {
                                 setPaymentDate(todayKey);
                                 setPaymentAmount('');
@@ -8199,7 +8192,20 @@ function selectionStatus(order: Order) {
                               Record Payment
                             </button>
                           ) : null}
-
+                          {(isCompanyAdmin || hasPermission(user, PERMISSIONS.BOOKINGS_SETTLEMENT_MANAGE)) && detailOrder.pendingAmount > 0 ? (
+                            <button
+                              type="button"
+                              className={ghostButtonCls}
+                              onClick={() => {
+                                setSettlementOrder(detailOrder);
+                                setSettlementAmount('');
+                                setSettlementReason('');
+                                setSettlementNote('');
+                              }}
+                            >
+                              Settlement Discount
+                            </button>
+                          ) : null}
                         </>
                       ) : null}
                       {['CONFIRMED', 'COMPLETED'].includes(detailOrder.status) ? (
@@ -8213,7 +8219,7 @@ function selectionStatus(order: Order) {
                               Tax Invoice
                             </button>
                           ) : null}
-                          {canPrintBooking ? <details className="relative"><summary className="cursor-pointer list-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-center text-sm font-semibold text-slate-700">Print ▴</summary><div className="absolute bottom-full right-0 z-30 mb-2 flex min-w-44 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                          {canPrintBooking ? (
                           <Link
                             href={`/print/order?id=${detailOrder.id}`}
                             target="_blank"
@@ -8221,6 +8227,7 @@ function selectionStatus(order: Order) {
                           >
                             Print
                           </Link>
+                          ) : null}
                           {canPrintBooking ? (
                           <Link
                             href={`/print/order?id=${detailOrder.id}&copy=kitchen`}
@@ -8251,7 +8258,6 @@ function selectionStatus(order: Order) {
                               Print Tag
                             </button>
                           ) : null}
-                          </div></details> : null}
                           {!isPastEvent && detailOrder.status === 'CONFIRMED' && canAddAdvancePayment ? (
                           <button
                             type="button"
@@ -8424,7 +8430,32 @@ function selectionStatus(order: Order) {
                           </span>
                         ) : null}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">{renderDetailActionButtons()}</div>
+                      <div
+                        className={`grid gap-2 overflow-hidden transition-[max-height,opacity,margin] duration-200 sm:hidden ${
+                          isMobileDetailActionsOpen
+                            ? 'mb-2 max-h-[420px] grid-cols-2 opacity-100'
+                            : 'mb-0 max-h-0 grid-cols-2 opacity-0'
+                        }`}
+                      >
+                        {isMobileDetailActionsOpen ? renderDetailActionButtons() : null}
+                      </div>
+                      <div className="sm:hidden">
+                        <button
+                          type="button"
+                          aria-label={isMobileDetailActionsOpen ? 'Hide booking actions' : 'Show booking actions'}
+                          aria-expanded={isMobileDetailActionsOpen}
+                          onClick={() => setIsMobileDetailActionsOpen((current) => !current)}
+                          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          <span>Actions</span>
+                          <span className={isMobileDetailActionsOpen ? 'transition-transform' : 'rotate-180 transition-transform'}>
+                            <IconChevronDown />
+                          </span>
+                        </button>
+                      </div>
+                      <div className="hidden grid-cols-2 gap-2 sm:grid min-[520px]:grid-cols-3 md:grid-cols-4">
+                        {renderDetailActionButtons()}
+                      </div>
                     </>
                   );
                 })()}
